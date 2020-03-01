@@ -26,7 +26,6 @@ require (
 	github.com/evanphx/json-patch v4.2.0+incompatible
 	github.com/fluxcd/flux/pkg/install v0.0.0-20200206191601-8b676b003ab0 // flux 1.18.0
 	github.com/fluxcd/helm-operator/pkg/install v0.0.0-20200213151218-f7e487142b46 // helm-operator 1.0.0-rc9
-	github.com/go-ini/ini v1.37.0 // indirect
 	github.com/gobuffalo/envy v1.7.0 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.7.1 // indirect
@@ -61,7 +60,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.4.0
-	github.com/spotinst/spotinst-sdk-go v0.0.0-20181012192533-fed4677dbf8f // indirect
+	github.com/spotinst/spotinst-sdk-go v1.43.0
 	github.com/stretchr/testify v1.4.0
 	github.com/tidwall/gjson v1.1.3
 	github.com/tidwall/match v1.0.0 // indirect
@@ -76,7 +75,6 @@ require (
 	golang.org/x/tools v0.0.0-20200121210457-b3205ff6fffe
 	google.golang.org/grpc v1.21.1 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
-	gopkg.in/ini.v1 v1.42.0 // indirect
 	k8s.io/api v0.0.0-20190808180749-077ce48e77da
 	k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed
 	k8s.io/apimachinery v0.0.0-20190808180622-ac5d3b819fc6

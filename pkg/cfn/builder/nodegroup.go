@@ -26,10 +26,12 @@ type NodeGroupResourceSet struct {
 	securityGroups       []*gfn.Value
 	vpc                  *gfn.Value
 	userData             *gfn.Value
+	sharedTags           []*cfn.Tag
 }
 
 // NewNodeGroupResourceSet returns a resource set for a nodegroup embedded in a cluster config
-func NewNodeGroupResourceSet(provider api.ClusterProvider, spec *api.ClusterConfig, clusterStackName string, ng *api.NodeGroup,
+func NewNodeGroupResourceSet(provider api.ClusterProvider, spec *api.ClusterConfig,
+	clusterStackName string, sharedTags []*cfn.Tag, ng *api.NodeGroup,
 	supportsManagedNodes bool) *NodeGroupResourceSet {
 	return &NodeGroupResourceSet{
 		rs:                   newResourceSet(),
@@ -39,6 +41,7 @@ func NewNodeGroupResourceSet(provider api.ClusterProvider, spec *api.ClusterConf
 		clusterSpec:          spec,
 		spec:                 ng,
 		provider:             provider,
+		sharedTags:           sharedTags,
 	}
 }
 
@@ -115,7 +118,7 @@ func (n *NodeGroupResourceSet) newResource(name string, resource interface{}) *g
 
 func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 	launchTemplateName := gfn.MakeFnSubString(fmt.Sprintf("${%s}", gfn.StackName))
-	launchTemplateData := newLaunchTemplateData(n)
+	launchTemplateData := n.newLaunchTemplateData()
 
 	if n.spec.SSH != nil && api.IsSetAndNonEmptyString(n.spec.SSH.PublicKeyName) {
 		launchTemplateData.KeyName = gfn.NewString(*n.spec.SSH.PublicKeyName)
@@ -146,10 +149,15 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 		}}
 	}
 
-	n.newResource("NodeGroupLaunchTemplate", &gfn.AWSEC2LaunchTemplate{
+	launchTemplate := &gfn.AWSEC2LaunchTemplate{
 		LaunchTemplateName: launchTemplateName,
 		LaunchTemplateData: launchTemplateData,
-	})
+	}
+
+	// Do not create a Launch Template resource for Spot-managed nodegroups.
+	if n.spec.SpotOcean == nil {
+		n.newResource("NodeGroupLaunchTemplate", launchTemplate)
+	}
 
 	vpcZoneIdentifier, err := AssignSubnets(n.spec.AvailabilityZones, n.clusterStackName, n.clusterSpec, n.spec.PrivateNetworking)
 	if err != nil {
@@ -183,8 +191,11 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 		)
 	}
 
-	asg := nodeGroupResource(launchTemplateName, vpcZoneIdentifier, tags, n.spec)
-	n.newResource("NodeGroup", asg)
+	g, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags)
+	if err != nil {
+		return fmt.Errorf("failed to build nodegroup resource: %v", err)
+	}
+	n.newResource("NodeGroup", g)
 
 	return nil
 }
@@ -234,7 +245,7 @@ func (n *NodeGroupResourceSet) GetAllOutputs(stack cfn.Stack) error {
 	return n.rs.GetAllOutputs(stack)
 }
 
-func newLaunchTemplateData(n *NodeGroupResourceSet) *gfn.AWSEC2LaunchTemplate_LaunchTemplateData {
+func (n *NodeGroupResourceSet) newLaunchTemplateData() *gfn.AWSEC2LaunchTemplate_LaunchTemplateData {
 	launchTemplateData := &gfn.AWSEC2LaunchTemplate_LaunchTemplateData{
 		IamInstanceProfile: &gfn.AWSEC2LaunchTemplate_IamInstanceProfile{
 			Arn: n.instanceProfileARN,
@@ -259,7 +270,22 @@ func newLaunchTemplateData(n *NodeGroupResourceSet) *gfn.AWSEC2LaunchTemplate_La
 	return launchTemplateData
 }
 
-func nodeGroupResource(launchTemplateName *gfn.Value, vpcZoneIdentifier interface{}, tags []map[string]interface{}, ng *api.NodeGroup) *awsCloudFormationResource {
+func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfn.AWSEC2LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
+
+	if n.spec.SpotOcean != nil {
+		logger.Debug("creating nodegroup using spot ocean")
+		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
+	}
+
+	logger.Debug("creating nodegroup using aws auto scaling group")
+	return n.newNodeGroupAutoScalingGroupResource(launchTemplate, vpcZoneIdentifier, tags)
+}
+
+func (n *NodeGroupResourceSet) newNodeGroupAutoScalingGroupResource(launchTemplate *gfn.AWSEC2LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
+
+	ng := n.spec
 	ngProps := map[string]interface{}{
 		"VPCZoneIdentifier": vpcZoneIdentifier,
 		"Tags":              tags,
@@ -280,10 +306,10 @@ func nodeGroupResource(launchTemplateName *gfn.Value, vpcZoneIdentifier interfac
 		ngProps["TargetGroupARNs"] = ng.TargetGroupARNs
 	}
 	if api.HasMixedInstances(ng) {
-		ngProps["MixedInstancesPolicy"] = *mixedInstancesPolicy(launchTemplateName, ng)
+		ngProps["MixedInstancesPolicy"] = n.newMixedInstancesPolicy(launchTemplate.LaunchTemplateName)
 	} else {
 		ngProps["LaunchTemplate"] = map[string]interface{}{
-			"LaunchTemplateName": launchTemplateName,
+			"LaunchTemplateName": launchTemplate.LaunchTemplateName,
 			"Version":            gfn.MakeFnGetAttString("NodeGroupLaunchTemplate.LatestVersionNumber"),
 		}
 	}
@@ -297,10 +323,11 @@ func nodeGroupResource(launchTemplateName *gfn.Value, vpcZoneIdentifier interfac
 				"MaxBatchSize":          "1",
 			},
 		},
-	}
+	}, nil
 }
 
-func mixedInstancesPolicy(launchTemplateName *gfn.Value, ng *api.NodeGroup) *map[string]interface{} {
+func (n *NodeGroupResourceSet) newMixedInstancesPolicy(launchTemplateName *gfn.Value) map[string]interface{} {
+	ng := n.spec
 	instanceTypes := ng.InstancesDistribution.InstanceTypes
 	overrides := make([]map[string]string, len(instanceTypes))
 
@@ -338,5 +365,5 @@ func mixedInstancesPolicy(launchTemplateName *gfn.Value, ng *api.NodeGroup) *map
 
 	policy["InstancesDistribution"] = instancesDistribution
 
-	return &policy
+	return policy
 }

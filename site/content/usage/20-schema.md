@@ -392,6 +392,9 @@ NodeGroup:
     securityGroups:
       $ref: '#/definitions/NodeGroupSGs'
       $schema: http://json-schema.org/draft-04/schema#
+    spotOcean:
+      $ref: '#/definitions/NodeGroupSpotOcean'
+      $schema: http://json-schema.org/draft-04/schema#
     ssh:
       $ref: '#/definitions/NodeGroupSSH'
       $schema: http://json-schema.org/draft-04/schema#
@@ -546,6 +549,88 @@ NodeGroupSSH:
       type: array
   required:
   - allow
+  type: object
+NodeGroupSpotOcean:
+  additionalProperties: false
+  properties:
+    autoScaler:
+      $ref: '#/definitions/NodeGroupSpotOceanAutoScaler'
+      $schema: http://json-schema.org/draft-04/schema#
+    compute:
+      $ref: '#/definitions/NodeGroupSpotOceanCompute'
+      $schema: http://json-schema.org/draft-04/schema#
+    metadata:
+      $ref: '#/definitions/NodeGroupSpotOceanMetadata'
+      $schema: http://json-schema.org/draft-04/schema#
+    strategy:
+      $ref: '#/definitions/NodeGroupSpotOceanStrategy'
+      $schema: http://json-schema.org/draft-04/schema#
+  type: object
+NodeGroupSpotOceanAutoScaler:
+  additionalProperties: false
+  properties:
+    autoConfig:
+      type: boolean
+    cooldown:
+      type: integer
+    enabled:
+      type: boolean
+    headrooms:
+      items:
+        $ref: '#/definitions/NodeGroupSpotOceanAutoScalerHeadroom'
+        $schema: http://json-schema.org/draft-04/schema#
+      type: array
+  type: object
+NodeGroupSpotOceanAutoScalerHeadroom:
+  additionalProperties: false
+  properties:
+    cpuPerUnit:
+      type: integer
+    gpuPerUnit:
+      type: integer
+    memoryPerUnit:
+      type: integer
+    numOfUnits:
+      type: integer
+  type: object
+NodeGroupSpotOceanCompute:
+  additionalProperties: false
+  properties:
+    instanceTypes:
+      $ref: '#/definitions/NodeGroupSpotOceanInstanceTypes'
+      $schema: http://json-schema.org/draft-04/schema#
+  type: object
+NodeGroupSpotOceanInstanceTypes:
+  additionalProperties: false
+  properties:
+    blacklist:
+      items:
+        type: string
+      type: array
+    whitelist:
+      items:
+        type: string
+      type: array
+  type: object
+NodeGroupSpotOceanMetadata:
+  additionalProperties: false
+  properties:
+    clusterId:
+      type: string
+    defaultLaunchSpec:
+      type: boolean
+    profile:
+      type: string
+  type: object
+NodeGroupSpotOceanStrategy:
+  additionalProperties: false
+  properties:
+    fallbackToOnDemand:
+      type: boolean
+    spotPercentage:
+      type: integer
+    utilizeReservedInstances:
+      type: boolean
   type: object
 ObjectMeta:
   additionalProperties: false
