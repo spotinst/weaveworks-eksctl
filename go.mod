@@ -37,6 +37,7 @@ require (
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
+	github.com/spotinst/spotinst-sdk-go v1.44.2
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.1.3
 	github.com/tidwall/match v1.0.1 // indirect
@@ -46,12 +47,14 @@ require (
 	github.com/weaveworks/github-release v0.6.3-0.20161024133933-73deea6af1e8
 	github.com/weaveworks/launcher v0.0.0-20180711153254-f1b2830d4f2d
 	github.com/whilp/git-urls v0.0.0-20160530060445-31bac0d230fa
-	golang.org/x/sys v0.0.0-20200428200454-593003d681fa // indirect
-	golang.org/x/tools v0.0.0-20200301222351-066e0c02454c
+	go.etcd.io/bbolt v1.3.3 // indirect
+	golang.org/x/tools v0.0.0-20200121210457-b3205ff6fffe
+	google.golang.org/grpc v1.21.1 // indirect
+	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	k8s.io/api v0.15.10
-	k8s.io/apiextensions-apiserver v0.15.10
+	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.15.10
-	k8s.io/cli-runtime v0.15.10
+	k8s.io/cli-runtime v0.0.0
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/cloud-provider v0.15.10
 	k8s.io/code-generator v0.15.10
