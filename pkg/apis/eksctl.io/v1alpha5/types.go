@@ -172,6 +172,12 @@ const (
 	// IAMServiceAccountNameTag defines the tag of the iamserviceaccount name
 	IAMServiceAccountNameTag = "alpha.eksctl.io/iamserviceaccount-name"
 
+	// SpotOceanResourceTypeTag defines the tag name of the Spot Ocean resource type.
+	SpotOceanResourceTypeTag = "ocean.spot.io/resource-type" // [cluster | launchspec]
+
+	// SpotOceanNodeGroupName defines the name of the Spot Ocean nodegroup.
+	SpotOceanNodeGroupName = "ocean"
+
 	// ClusterNameLabel defines the tag of the cluster name
 	ClusterNameLabel = "alpha.eksctl.io/cluster-name"
 
@@ -218,6 +224,16 @@ const (
 	NodeGroupTypeManaged NodeGroupType = "managed"
 	// NodeGroupTypeUnmanaged defines an unmanaged nodegroup
 	NodeGroupTypeUnmanaged NodeGroupType = "unmanaged"
+)
+
+// SpotOceanResourceType defines the Ocean resource type.
+type SpotOceanResourceType string
+
+const (
+	// SpotOceanResourceTypeCluster defines an Ocean cluster resource type.
+	SpotOceanResourceTypeCluster SpotOceanResourceType = "cluster"
+	// SpotOceanResourceTypeLaunchSpec defines an Ocean launchspec resource type.
+	SpotOceanResourceTypeLaunchSpec SpotOceanResourceType = "launchspec"
 )
 
 var (
@@ -671,6 +687,9 @@ type NodeGroup struct {
 
 	// +optional
 	KubeletExtraConfig *InlineDocument `json:"kubeletExtraConfig,omitempty"`
+
+	// +optional
+	SpotOcean *NodeGroupSpotOcean `json:"spotOcean,omitempty"`
 }
 
 // ListOptions returns metav1.ListOptions with label selector for the nodegroup
@@ -784,6 +803,75 @@ type (
 		EnableAdminContainer *bool `json:"enableAdminContainer,omitempty"`
 		// +optional
 		Settings *InlineDocument `json:"settings,omitempty"`
+	}
+
+	// NodeGroupSpotOcean holds the configuration used by Spot Ocean.
+	NodeGroupSpotOcean struct {
+		// +optional
+		Metadata *NodeGroupSpotOceanMetadata `json:"metadata,omitempty"`
+		// +optional
+		Strategy *NodeGroupSpotOceanStrategy `json:"strategy,omitempty"`
+		// +optional
+		Compute *NodeGroupSpotOceanCompute `json:"compute,omitempty"`
+		// +optional
+		AutoScaler *NodeGroupSpotOceanAutoScaler `json:"autoScaler,omitempty"`
+	}
+
+	// NodeGroupSpotOceanMetadata holds the metadata used by Spot Ocean.
+	NodeGroupSpotOceanMetadata struct {
+		// +optional
+		Profile *string `json:"profile,omitempty"`
+		// +optional
+		ClusterID *string `json:"clusterId,omitempty"`
+		// +optional
+		DefaultLaunchSpec *bool `json:"defaultLaunchSpec,omitempty"`
+	}
+
+	// NodeGroupSpotOceanStrategy holds the strategy configuration used by Spot Ocean.
+	NodeGroupSpotOceanStrategy struct {
+		// +optional
+		SpotPercentage *int `json:"spotPercentage,omitempty"`
+		// +optional
+		FallbackToOnDemand *bool `json:"fallbackToOnDemand,omitempty"`
+		// +optional
+		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
+	}
+
+	// NodeGroupSpotOceanCompute holds the compute configuration used by Spot Ocean.
+	NodeGroupSpotOceanCompute struct {
+		InstanceTypes *NodeGroupSpotOceanInstanceTypes `json:"instanceTypes,omitempty"`
+	}
+
+	// NodeGroupSpotOceanInstanceTypes holds the instance types configuration used by Spot Ocean.
+	NodeGroupSpotOceanInstanceTypes struct {
+		// +optional
+		Whitelist []string `json:"whitelist,omitempty"`
+		// +optional
+		Blacklist []string `json:"blacklist,omitempty"`
+	}
+
+	// NodeGroupSpotOceanAutoScaler holds the auto scaler configuration used by Spot Ocean.
+	NodeGroupSpotOceanAutoScaler struct {
+		// +optional
+		Enabled *bool `json:"enabled,omitempty"`
+		// +optional
+		AutoConfig *bool `json:"autoConfig,omitempty"`
+		// +optional
+		Cooldown *int `json:"cooldown,omitempty"`
+		// +optional
+		Headrooms []*NodeGroupSpotOceanAutoScalerHeadroom `json:"headrooms,omitempty"`
+	}
+
+	// NodeGroupSpotOceanAutoScalerHeadroom holds the headroom configuration used by Spot Ocean.
+	NodeGroupSpotOceanAutoScalerHeadroom struct {
+		// +optional
+		CPUPerUnit *int `json:"cpuPerUnit,omitempty"`
+		// +optional
+		GPUPerUnit *int `json:"gpuPerUnit,omitempty"`
+		// +optional
+		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
+		// +optional
+		NumOfUnits *int `json:"numOfUnits,omitempty"`
 	}
 )
 
