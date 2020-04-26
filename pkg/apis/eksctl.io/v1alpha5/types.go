@@ -814,6 +814,8 @@ type (
 		// +optional
 		Compute *NodeGroupSpotOceanCompute `json:"compute,omitempty"`
 		// +optional
+		Scheduling *NodeGroupSpotOceanScheduling `json:"scheduling,omitempty"`
+		// +optional
 		AutoScaler *NodeGroupSpotOceanAutoScaler `json:"autoScaler,omitempty"`
 	}
 
@@ -848,6 +850,30 @@ type (
 		Whitelist []string `json:"whitelist,omitempty"`
 		// +optional
 		Blacklist []string `json:"blacklist,omitempty"`
+	}
+
+	// NodeGroupSpotOceanScheduling holds the scheduling configuration used by Spot Ocean.
+	NodeGroupSpotOceanScheduling struct {
+		ShutdownHours *NodeGroupSpotOceanSchedulingShutdownHours `json:"shutdownHours,omitempty"`
+		Tasks         []*NodeGroupSpotOceanSchedulingTask        `json:"tasks,omitempty"`
+	}
+
+	// NodeGroupSpotOceanSchedulingShutdownHours holds the shutdown hours configuration used by Spot Ocean.
+	NodeGroupSpotOceanSchedulingShutdownHours struct {
+		// +optional
+		IsEnabled *bool `json:"isEnabled,omitempty"`
+		// +optional
+		TimeWindows []string `json:"timeWindows,omitempty"`
+	}
+
+	// NodeGroupSpotOceanSchedulingTask holds the task configuration used by Spot Ocean.
+	NodeGroupSpotOceanSchedulingTask struct {
+		// +optional
+		IsEnabled *bool `json:"isEnabled,omitempty"`
+		// +optional
+		Type *string `json:"taskType,omitempty"`
+		// +optional
+		CronExpression *string `json:"cronExpression,omitempty"`
 	}
 
 	// NodeGroupSpotOceanAutoScaler holds the auto scaler configuration used by Spot Ocean.
