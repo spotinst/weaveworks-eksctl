@@ -37,6 +37,7 @@ type (
 		Capacity   *nodeGroupSpotOceanCapacity   `json:"capacity,omitempty"`
 		Strategy   *nodeGroupSpotOceanStrategy   `json:"strategy,omitempty"`
 		Compute    *nodeGroupSpotOceanCompute    `json:"compute,omitempty"`
+		Scheduling *nodeGroupSpotOceanScheduling `json:"scheduling,omitempty"`
 		AutoScaler *nodeGroupSpotOceanAutoScaler `json:"autoScaler,omitempty"`
 	}
 
@@ -97,6 +98,22 @@ type (
 	nodeGroupSpotOceanTag struct {
 		Key   interface{} `json:"tagKey,omitempty"`
 		Value interface{} `json:"tagValue,omitempty"`
+	}
+
+	nodeGroupSpotOceanScheduling struct {
+		ShutdownHours *nodeGroupSpotOceanSchedulingShutdownHours `json:"shutdownHours,omitempty"`
+		Tasks         []*nodeGroupSpotOceanSchedulingTask        `json:"tasks,omitempty"`
+	}
+
+	nodeGroupSpotOceanSchedulingShutdownHours struct {
+		IsEnabled   *bool    `json:"isEnabled,omitempty"`
+		TimeWindows []string `json:"timeWindows,omitempty"`
+	}
+
+	nodeGroupSpotOceanSchedulingTask struct {
+		IsEnabled      *bool   `json:"isEnabled,omitempty"`
+		Type           *string `json:"taskType,omitempty"`
+		CronExpression *string `json:"cronExpression,omitempty"`
 	}
 
 	nodeGroupSpotOceanAutoScaler struct {
@@ -332,6 +349,35 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			cluster.Compute.InstanceTypes = &nodeGroupSpotOceanInstanceTypes{
 				Whitelist: compute.InstanceTypes.Whitelist,
 				Blacklist: compute.InstanceTypes.Blacklist,
+			}
+		}
+	}
+
+	// Scheduling.
+	{
+		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
+			if hours := scheduling.ShutdownHours; hours != nil {
+				cluster.Scheduling = &nodeGroupSpotOceanScheduling{
+					ShutdownHours: &nodeGroupSpotOceanSchedulingShutdownHours{
+						IsEnabled:   hours.IsEnabled,
+						TimeWindows: hours.TimeWindows,
+					},
+				}
+			}
+
+			if tasks := scheduling.Tasks; len(tasks) > 0 {
+				if cluster.Scheduling == nil {
+					cluster.Scheduling = new(nodeGroupSpotOceanScheduling)
+				}
+
+				cluster.Scheduling.Tasks = make([]*nodeGroupSpotOceanSchedulingTask, len(tasks))
+				for i, task := range tasks {
+					cluster.Scheduling.Tasks[i] = &nodeGroupSpotOceanSchedulingTask{
+						IsEnabled:      task.IsEnabled,
+						Type:           task.Type,
+						CronExpression: task.CronExpression,
+					}
+				}
 			}
 		}
 	}
