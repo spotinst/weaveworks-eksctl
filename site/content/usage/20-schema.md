@@ -569,6 +569,9 @@ NodeGroupSpotOcean:
     metadata:
       $ref: '#/definitions/NodeGroupSpotOceanMetadata'
       $schema: http://json-schema.org/draft-04/schema#
+    scheduling:
+      $ref: '#/definitions/NodeGroupSpotOceanScheduling'
+      $schema: http://json-schema.org/draft-04/schema#
     strategy:
       $ref: '#/definitions/NodeGroupSpotOceanStrategy'
       $schema: http://json-schema.org/draft-04/schema#
@@ -627,6 +630,38 @@ NodeGroupSpotOceanMetadata:
     defaultLaunchSpec:
       type: boolean
     profile:
+      type: string
+  type: object
+NodeGroupSpotOceanScheduling:
+  additionalProperties: false
+  properties:
+    shutdownHours:
+      $ref: '#/definitions/NodeGroupSpotOceanSchedulingShutdownHours'
+      $schema: http://json-schema.org/draft-04/schema#
+    tasks:
+      items:
+        $ref: '#/definitions/NodeGroupSpotOceanSchedulingTask'
+        $schema: http://json-schema.org/draft-04/schema#
+      type: array
+  type: object
+NodeGroupSpotOceanSchedulingShutdownHours:
+  additionalProperties: false
+  properties:
+    isEnabled:
+      type: boolean
+    timeWindows:
+      items:
+        type: string
+      type: array
+  type: object
+NodeGroupSpotOceanSchedulingTask:
+  additionalProperties: false
+  properties:
+    cronExpression:
+      type: string
+    isEnabled:
+      type: boolean
+    taskType:
       type: string
   type: object
 NodeGroupSpotOceanStrategy:
