@@ -39,7 +39,6 @@ require (
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v0.0.6
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.4.0
 	github.com/spotinst/spotinst-sdk-go v1.44.2
 	github.com/stretchr/testify v1.4.0
 	github.com/tidwall/gjson v1.1.3
@@ -51,15 +50,13 @@ require (
 	github.com/weaveworks/launcher v0.0.0-20180711153254-f1b2830d4f2d
 	github.com/whilp/git-urls v0.0.0-20160530060445-31bac0d230fa
 	go.etcd.io/bbolt v1.3.3 // indirect
-	golang.org/dl v0.0.0-20200205193131-62c734104014 // indirect
 	golang.org/x/tools v0.0.0-20200121210457-b3205ff6fffe
 	google.golang.org/grpc v1.21.1 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
-	k8s.io/api v0.0.0-20190808180749-077ce48e77da
-	k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed
-	k8s.io/apimachinery v0.0.0-20190808180622-ac5d3b819fc6
-	k8s.io/apiserver v0.0.0-20190226174732-cf2f1d68202d // indirect
-	k8s.io/cli-runtime v0.0.0-20190226180714-082c0831af2b
+	k8s.io/api v0.15.10
+	k8s.io/apiextensions-apiserver v0.0.0
+	k8s.io/apimachinery v0.15.10
+	k8s.io/cli-runtime v0.0.0
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/cloud-provider v0.15.10
 	k8s.io/code-generator v0.15.10
