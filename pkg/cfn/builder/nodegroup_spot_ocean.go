@@ -186,11 +186,11 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 	// Resource.
 	{
 		if n.spec.Name == api.SpotOceanNodeGroupName {
-			logger.Debug("spot: creating nodegroup as ocean cluster")
+			logger.Debug("spot: creating ocean cluster for nodegroup %q", n.spec.Name)
 			resource, err = n.newNodeGroupSpotOceanClusterResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		} else {
-			logger.Debug("spot: creating nodegroup as ocean launchspec")
+			logger.Debug("spot: creating ocean launchspec for nodegroup %q", n.spec.Name)
 			resource, err = n.newNodeGroupSpotOceanLaunchSpecResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		}

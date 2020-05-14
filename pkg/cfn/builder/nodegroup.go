@@ -277,11 +277,11 @@ func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfn.AWSEC2La
 	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
 
 	if n.spec.SpotOcean != nil {
-		logger.Debug("creating nodegroup using spot ocean")
+		logger.Debug("using spot ocean to create nodegroup %q", n.spec.Name)
 		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
 	}
 
-	logger.Debug("creating nodegroup using aws auto scaling group")
+	logger.Debug("using aws auto scaling group to create nodegroup %q", n.spec.Name)
 	return n.newNodeGroupAutoScalingGroupResource(launchTemplate, vpcZoneIdentifier, tags)
 }
 

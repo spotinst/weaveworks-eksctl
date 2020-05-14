@@ -28,8 +28,10 @@ func RunPreCreation(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 	for _, ng := range clusterConfig.NodeGroups {
 		if ng.SpotOcean == nil || (ng.SpotOcean.Metadata != nil &&
 			ng.SpotOcean.Metadata.ClusterID != nil) {
+			logger.Debug("spot: skipping nodegroup %q", ng.Name)
 			continue
 		}
+		logger.Debug("spot: handling nodegroup %q", ng.Name)
 
 		if ng.SpotOcean.Metadata == nil {
 			ng.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
@@ -53,12 +55,15 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 	logger.Debug("spot: executing post-creation actions")
 	for _, ng := range clusterConfig.NodeGroups {
 		if ng.SpotOcean == nil {
+			logger.Debug("spot: skipping nodegroup %q", ng.Name)
 			continue
 		}
+		logger.Debug("spot: handling nodegroup %q", ng.Name)
 
 		// Authorise Ocean nodes to join. We have to do it before all other
 		// nodegroups to prevent `WaitForNodes` to wait forever.
 		if updateAuthConfigMap {
+			logger.Debug("spot: updating auth configmap")
 			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 				return fmt.Errorf("spot: error updaing auth configmap: %w", err)
 			}
@@ -66,6 +71,7 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 
 		// Install the Ocean controller.
 		if ng.Name == api.SpotOceanNodeGroupName {
+			logger.Debug("spot: installing addons")
 			controller := addons.NewSpotOceanController(
 				rawClient,
 				clusterConfig,
