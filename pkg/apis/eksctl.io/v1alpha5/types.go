@@ -854,7 +854,9 @@ type (
 
 	// NodeGroupSpotOceanScheduling holds the scheduling configuration used by Spot Ocean.
 	NodeGroupSpotOceanScheduling struct {
+		// +optional
 		ShutdownHours *NodeGroupSpotOceanSchedulingShutdownHours `json:"shutdownHours,omitempty"`
+		// +optional
 		Tasks         []*NodeGroupSpotOceanSchedulingTask        `json:"tasks,omitempty"`
 	}
 
