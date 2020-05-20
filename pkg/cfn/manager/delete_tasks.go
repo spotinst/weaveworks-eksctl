@@ -68,33 +68,56 @@ func (c *StackCollection) NewTasksToDeleteNodeGroups(shouldDelete func(string) b
 		return nil, err
 	}
 
-	tasks := &TaskTree{Parallel: true}
+	tasks := &TaskTree{Parallel: false}
 
-	for _, s := range nodeGroupStacks {
-		name := c.GetNodeGroupName(s)
+	// Nodegroups.
+	{
+		nodeGroupTasks := &TaskTree{Parallel: true}
 
-		if !shouldDelete(name) {
-			continue
+		for _, s := range nodeGroupStacks {
+			name := c.GetNodeGroupName(s)
+
+			if !shouldDelete(name) || name == api.SpotOceanNodeGroupName {
+				continue
+			}
+			if *s.StackStatus == cloudformation.StackStatusDeleteFailed && cleanup != nil {
+				nodeGroupTasks.Append(&taskWithNameParam{
+					info: fmt.Sprintf("cleanup for nodegroup %q", name),
+					call: cleanup,
+				})
+			}
+			info := fmt.Sprintf("delete nodegroup %q", name)
+			if wait {
+				nodeGroupTasks.Append(&taskWithStackSpec{
+					info:  info,
+					stack: s,
+					call:  c.DeleteStackBySpecSync,
+				})
+			} else {
+				nodeGroupTasks.Append(&asyncTaskWithStackSpec{
+					info:  info,
+					stack: s,
+					call:  c.DeleteStackBySpec,
+				})
+			}
 		}
-		if *s.StackStatus == cloudformation.StackStatusDeleteFailed && cleanup != nil {
-			tasks.Append(&taskWithNameParam{
-				info: fmt.Sprintf("cleanup for nodegroup %q", name),
-				call: cleanup,
-			})
+
+		if nodeGroupTasks.Len() > 0 {
+			nodeGroupTasks.IsSubTask = true
+			tasks.Append(nodeGroupTasks)
 		}
-		info := fmt.Sprintf("delete nodegroup %q", name)
-		if wait {
-			tasks.Append(&taskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpecSync,
-			})
-		} else {
-			tasks.Append(&asyncTaskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpec,
-			})
+	}
+
+	// Spot Ocean.
+	{
+		oceanTasks, err := c.NewTasksToDeleteSpotOceanNodeGroup(shouldDelete)
+		if err != nil {
+			return nil, err
+		}
+
+		if oceanTasks.Len() > 0 {
+			oceanTasks.IsSubTask = true
+			tasks.Append(oceanTasks)
 		}
 	}
 
