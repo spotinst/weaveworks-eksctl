@@ -50,7 +50,7 @@ func RunPreCreation(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 
 // RunPreCreation executes post-creation actions.
 func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Interface,
-	rawClient *kubewrapper.RawClient, updateAuthConfigMap, planMode bool) error {
+	rawClient *kubewrapper.RawClient, updateAuthConfigMap bool) error {
 
 	logger.Debug("spot: executing post-creation actions")
 	for _, ng := range clusterConfig.NodeGroups {
@@ -75,8 +75,9 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 			controller := addons.NewSpotOceanController(
 				rawClient,
 				clusterConfig,
-				planMode,
+				false,
 				aws.StringValue(ng.SpotOcean.Metadata.Profile))
+
 			if err := controller.Deploy(); err != nil {
 				return fmt.Errorf("spot: error installing ocean controller: %w", err)
 			}
@@ -99,12 +100,12 @@ func RunPreDeletion(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 		return false
 	}
 
-	s, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	s, ok, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return err
 	}
 
-	if s != nil {
+	if ok && s != nil {
 		// Allow post-deletion actions to be performed on Ocean as well.
 		clusterConfig.NodeGroups = append(clusterConfig.NodeGroups, &api.NodeGroup{
 			Name: api.SpotOceanNodeGroupName,
@@ -116,7 +117,7 @@ func RunPreDeletion(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 
 // ShouldCreateOceanNodeGroup checks whether the nodegroup of the Ocean cluster
 // should be created and, if so, returns its NodeGroup configuration.
-func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, error) {
+func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, bool, error) {
 	logger.Debug("spot: checking whether ocean cluster should be created")
 
 	var (
@@ -132,7 +133,7 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, er
 		}
 	}
 	if len(oceanNodeGroups) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Find the default nodegroup and calculate the capacity.
@@ -142,7 +143,7 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, er
 			if oceanNodeGroup != nil {
 				logger.Debug("spot: multiple default nodegroups (%q and %q)",
 					ng.Name, oceanNodeGroup.Name)
-				return nil, ErrSpotMultipleDefaultLaunchSpecs
+				return nil, false, ErrSpotMultipleDefaultLaunchSpecs
 			}
 			oceanNodeGroup = ng.DeepCopy()
 		}
@@ -188,19 +189,20 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, er
 	// If there is already an existing cluster, we're done.
 	if oceanNodeGroup.SpotOcean.Metadata.ClusterID != nil {
 		logger.Debug("spot: ocean cluster already exists")
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Configure the nodegroup name.
 	oceanNodeGroup.Name = api.SpotOceanNodeGroupName
 
-	return oceanNodeGroup, nil
+	logger.Debug("spot: ocean cluster should be created")
+	return oceanNodeGroup, true, nil
 }
 
 // ShouldDeleteOceanNodeGroup checks whether the nodegroup of the Ocean cluster
 // should be deleted and, if so, returns its Cloud Formation stack.
 func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
-	shouldDelete func(string) bool) (*cloudformation.Stack, error) {
+	shouldDelete func(string) bool) (*cloudformation.Stack, bool, error) {
 
 	logger.Debug("spot: checking whether ocean cluster should be deleted")
 	var oceanNodeGroupStack *cloudformation.Stack
@@ -214,7 +216,7 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 	}
 	if oceanNodeGroupStack == nil {
 		logger.Debug("spot: ocean cluster does not exist; nothing to delete")
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Do not delete if there is at least one nodegroup that is not marked for deletion.
@@ -229,14 +231,14 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 				if aws.StringValue(tag.Key) == api.SpotOceanResourceTypeTag {
 					logger.Debug("spot: at least one nodegroup remains "+
 						"active (%s); skipping ocean cluster deletion", name)
-					return nil, nil
+					return nil, false, nil
 				}
 			}
 		}
 	}
 
-	// All nodegroups are marked for deletion.
-	return oceanNodeGroupStack, nil
+	logger.Debug("spot: ocean cluster should be deleted")
+	return oceanNodeGroupStack, true, nil // all nodegroups are marked for deletion
 }
 
 // ensureNodeGroupOceanClusterID retrieves the Ocean cluster identifier.

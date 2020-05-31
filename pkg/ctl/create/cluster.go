@@ -412,8 +412,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 			}
 
 			// Execute post-creation actions.
-			if err := spot.RunPostCreation(cfg, clientSet, rawClient,
-				true, cmd.Plan); err != nil {
+			if err := spot.RunPostCreation(cfg, clientSet, rawClient, true); err != nil {
 				return err
 			}
 		}

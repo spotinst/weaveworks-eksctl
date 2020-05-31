@@ -12,7 +12,7 @@ func (c *StackCollection) NewTasksToCreateSpotOceanNodeGroup(
 	tasks := &TaskTree{Parallel: true}
 
 	// Verify before proceeding.
-	ng, err := spot.ShouldCreateOceanNodeGroup(nodeGroups)
+	ng, _, err := spot.ShouldCreateOceanNodeGroup(nodeGroups)
 	if err != nil {
 		return nil, err
 	}

@@ -863,7 +863,7 @@ type (
 		// +optional
 		ShutdownHours *NodeGroupSpotOceanSchedulingShutdownHours `json:"shutdownHours,omitempty"`
 		// +optional
-		Tasks         []*NodeGroupSpotOceanSchedulingTask        `json:"tasks,omitempty"`
+		Tasks []*NodeGroupSpotOceanSchedulingTask `json:"tasks,omitempty"`
 	}
 
 	// NodeGroupSpotOceanSchedulingShutdownHours holds the shutdown hours configuration used by Spot Ocean.

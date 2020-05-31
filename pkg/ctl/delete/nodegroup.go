@@ -114,6 +114,16 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 		if err := spot.RunPreDeletion(cfg, stacks); err != nil {
 			return err
 		}
+
+		// Explicitly append Ocean nodegroup to the include filter.
+		if cmd.ClusterConfigFile == "" {
+			for _, ng := range cfg.NodeGroups {
+				if ng.Name == api.SpotOceanNodeGroupName {
+					ngFilter.AppendIncludeNames(api.SpotOceanNodeGroupName)
+					break
+				}
+			}
+		}
 	}
 
 	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
