@@ -25,7 +25,7 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 	}
 
 	// Verify before proceeding.
-	ng, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	ng, _, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return nil, err
 	}
@@ -74,14 +74,14 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 			}
 
 			if output != nil && len(output.Imports) > 0 {
-				if attempt > maxAttempts {
+				if attempt+1 > maxAttempts {
 					return fmt.Errorf("spot: max attempts reached: " +
 						"giving up waiting for importers to become deleted")
 				}
 
 				logger.Debug("spot: waiting for %d importers "+
 					"to become deleted", len(output.Imports))
-				time.Sleep(5 * time.Second)
+				time.Sleep(10 * time.Second)
 				continue
 			}
 
