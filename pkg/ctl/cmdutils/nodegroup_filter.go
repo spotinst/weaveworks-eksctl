@@ -82,6 +82,17 @@ func (f *NodeGroupFilter) SetIncludeOrExcludeMissingFilter(lister stackLister, i
 		}
 	}
 
+	// Spot Ocean.
+	for _, localNodeGroup := range clusterConfig.NodeGroups {
+		if localNodeGroup.SpotOcean != nil {
+			local.Insert(api.SpotOceanNodeGroupName)
+			if includeOnlyMissing {
+				f.AppendExcludeNames(api.SpotOceanNodeGroupName)
+			}
+			break
+		}
+	}
+
 	for _, s := range stacks {
 		remoteNodeGroupName := s.NodeGroupName
 		if !local.Has(remoteNodeGroupName) {

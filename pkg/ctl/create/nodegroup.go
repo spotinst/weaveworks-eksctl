@@ -233,7 +233,7 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.C
 
 			// Execute post-creation actions.
 			if err := spot.RunPostCreation(cfg, clientSet, rawClient,
-				params.UpdateAuthConfigMap, cmd.Plan); err != nil {
+				params.UpdateAuthConfigMap); err != nil {
 				return err
 			}
 		}

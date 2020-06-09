@@ -15,12 +15,12 @@ import (
 
 // NewSpotOceanController creates a new Spot Ocean controller.
 func NewSpotOceanController(rawClient kubernetes.RawClientInterface,
-	clusterSpec *api.ClusterConfig, planMode bool, profile string) *SpotOceanController {
+	clusterSpec *api.ClusterConfig, plan bool, profile string) *SpotOceanController {
 
 	return &SpotOceanController{
 		rawClient:   rawClient,
 		clusterSpec: clusterSpec,
-		planMode:    planMode,
+		plan:        plan,
 		profile:     profile,
 	}
 }
@@ -29,13 +29,17 @@ func NewSpotOceanController(rawClient kubernetes.RawClientInterface,
 type SpotOceanController struct {
 	rawClient   kubernetes.RawClientInterface
 	clusterSpec *api.ClusterConfig
-	planMode    bool
+	plan        bool
 	profile     string
 }
 
 // Deploy deploys the Spot Ocean controller.
 func (x *SpotOceanController) Deploy() (err error) {
-	logger.Debug("spot: installing ocean controller")
+	if x.plan {
+		logger.Debug("spot: would install ocean controller")
+	} else {
+		logger.Debug("spot: installing ocean controller")
+	}
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -81,7 +85,7 @@ func (x *SpotOceanController) applyRawResource(object runtime.Object) error {
 		return err
 	}
 
-	msg, err := rawResource.CreateOrReplace(x.planMode)
+	msg, err := rawResource.CreateOrReplace(x.plan)
 	if err != nil {
 		return err
 	}
