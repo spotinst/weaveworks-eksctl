@@ -8,190 +8,28 @@ import (
 	gfn "github.com/awslabs/goformation/cloudformation"
 	"github.com/kris-nova/logger"
 	"github.com/spotinst/spotinst-sdk-go/spotinst"
-	"github.com/spotinst/spotinst-sdk-go/spotinst/credentials"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
+	"github.com/weaveworks/eksctl/pkg/spot"
 )
-
-type (
-	nodeGroupSpotOceanResource struct {
-		nodeGroupSpotOceanBase
-
-		OceanCluster    *nodeGroupSpotOceanCluster    `json:"ocean,omitempty"`
-		OceanLaunchSpec *nodeGroupSpotOceanLaunchSpec `json:"oceanLaunchSpec,omitempty"`
-
-		// for internal use only; used by `eksctl get nodegroup` command.
-		OceanSummary *nodeGroupSpotOceanSummary `json:"oceanSummary,omitempty"`
-	}
-
-	nodeGroupSpotOceanBase struct {
-		ServiceToken *gfn.Value `json:"ServiceToken,omitempty"`
-		Token        *string    `json:"accessToken,omitempty"`
-		Account      *string    `json:"accountId,omitempty"`
-	}
-
-	nodeGroupSpotOceanCluster struct {
-		Name       *string                       `json:"name,omitempty"`
-		ClusterID  *string                       `json:"controllerClusterId,omitempty"`
-		Region     *gfn.Value                    `json:"region,omitempty"`
-		Capacity   *nodeGroupSpotOceanCapacity   `json:"capacity,omitempty"`
-		Strategy   *nodeGroupSpotOceanStrategy   `json:"strategy,omitempty"`
-		Compute    *nodeGroupSpotOceanCompute    `json:"compute,omitempty"`
-		Scheduling *nodeGroupSpotOceanScheduling `json:"scheduling,omitempty"`
-		AutoScaler *nodeGroupSpotOceanAutoScaler `json:"autoScaler,omitempty"`
-	}
-
-	nodeGroupSpotOceanLaunchSpec struct {
-		Name                     *string                           `json:"name,omitempty"`
-		OceanID                  *gfn.Value                        `json:"oceanId,omitempty"`
-		ImageID                  *gfn.Value                        `json:"imageId,omitempty"`
-		UserData                 *gfn.Value                        `json:"userData,omitempty"`
-		KeyPair                  *gfn.Value                        `json:"keyPair,omitempty"`
-		AssociatePublicIPAddress *gfn.Value                        `json:"associatePublicIpAddress,omitempty"`
-		VolumeSize               *int                              `json:"rootVolumeSize,omitempty"`
-		EBSOptimized             *bool                             `json:"ebsOptimized,omitempty"`
-		SubnetIDs                interface{}                       `json:"subnetIds,omitempty"`
-		IAMInstanceProfile       map[string]*gfn.Value             `json:"iamInstanceProfile,omitempty"`
-		SecurityGroupIDs         []*gfn.Value                      `json:"securityGroupIds,omitempty"`
-		Tags                     []*nodeGroupSpotOceanTag          `json:"tags,omitempty"`
-		LoadBalancers            []*nodeGroupSpotOceanLoadBalancer `json:"loadBalancers,omitempty"`
-		Labels                   []*nodeGroupSpotOceanLabel        `json:"labels,omitempty"`
-		Taints                   []*nodeGroupSpotOceanTaint        `json:"taints,omitempty"`
-		AutoScaler               *nodeGroupSpotOceanAutoScaler     `json:"autoScale,omitempty"`
-	}
-
-	nodeGroupSpotOceanSummary struct {
-		ImageID  *gfn.Value                  `json:"imageId,omitempty"`
-		Capacity *nodeGroupSpotOceanCapacity `json:"capacity,omitempty"`
-	}
-
-	nodeGroupSpotOceanCapacity struct {
-		Minimum *int `json:"minimum,omitempty"`
-		Maximum *int `json:"maximum,omitempty"`
-		Target  *int `json:"target,omitempty"`
-	}
-
-	nodeGroupSpotOceanStrategy struct {
-		SpotPercentage           *int  `json:"spotPercentage,omitempty"`
-		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
-		FallbackToOnDemand       *bool `json:"fallbackToOd,omitempty"`
-		DrainingTimeout          *int  `json:"drainingTimeout,omitempty"`
-	}
-
-	nodeGroupSpotOceanCompute struct {
-		SubnetIDs           interface{}                      `json:"subnetIds,omitempty"`
-		InstanceTypes       *nodeGroupSpotOceanInstanceTypes `json:"instanceTypes,omitempty"`
-		LaunchSpecification *nodeGroupSpotOceanLaunchSpec    `json:"launchSpecification,omitempty"`
-	}
-
-	nodeGroupSpotOceanInstanceTypes struct {
-		Whitelist []string `json:"whitelist,omitempty"`
-		Blacklist []string `json:"blacklist,omitempty"`
-	}
-
-	nodeGroupSpotOceanLoadBalancer struct {
-		Type *string `json:"type,omitempty"`
-		Arn  *string `json:"arn,omitempty"`
-		Name *string `json:"name,omitempty"`
-	}
-
-	nodeGroupSpotOceanTag struct {
-		Key   interface{} `json:"tagKey,omitempty"`
-		Value interface{} `json:"tagValue,omitempty"`
-	}
-
-	nodeGroupSpotOceanScheduling struct {
-		ShutdownHours *nodeGroupSpotOceanSchedulingShutdownHours `json:"shutdownHours,omitempty"`
-		Tasks         []*nodeGroupSpotOceanSchedulingTask        `json:"tasks,omitempty"`
-	}
-
-	nodeGroupSpotOceanSchedulingShutdownHours struct {
-		IsEnabled   *bool    `json:"isEnabled,omitempty"`
-		TimeWindows []string `json:"timeWindows,omitempty"`
-	}
-
-	nodeGroupSpotOceanSchedulingTask struct {
-		IsEnabled      *bool   `json:"isEnabled,omitempty"`
-		Type           *string `json:"taskType,omitempty"`
-		CronExpression *string `json:"cronExpression,omitempty"`
-	}
-
-	nodeGroupSpotOceanAutoScaler struct {
-		IsEnabled    *bool                                   `json:"isEnabled,omitempty"`
-		IsAutoConfig *bool                                   `json:"isAutoConfig,omitempty"`
-		Cooldown     *int                                    `json:"cooldown,omitempty"`
-		Headroom     *nodeGroupSpotOceanAutoScalerHeadroom   `json:"headroom,omitempty"`  // cluster
-		Headrooms    []*nodeGroupSpotOceanAutoScalerHeadroom `json:"headrooms,omitempty"` // launchspec
-	}
-
-	nodeGroupSpotOceanAutoScalerHeadroom struct {
-		CPUPerUnit    *int `json:"cpuPerUnit,omitempty"`
-		GPUPerUnit    *int `json:"gpuPerUnit,omitempty"`
-		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
-		NumOfUnits    *int `json:"numOfUnits,omitempty"`
-	}
-
-	nodeGroupSpotOceanLabel struct {
-		Key   *string `json:"key,omitempty"`
-		Value *string `json:"value,omitempty"`
-	}
-
-	nodeGroupSpotOceanTaint struct {
-		Key    *string `json:"key,omitempty"`
-		Value  *string `json:"value,omitempty"`
-		Effect *string `json:"effect,omitempty"`
-	}
-)
-
-// MarshalJSON implements the json.Marshaler interface.
-func (x *nodeGroupSpotOceanResource) MarshalJSON() ([]byte, error) {
-	var typ string
-	if x.OceanCluster != nil {
-		typ = "Custom::ocean"
-	} else if x.OceanLaunchSpec != nil {
-		typ = "Custom::oceanLaunchSpec"
-	}
-	type Properties nodeGroupSpotOceanResource
-	return json.Marshal(&struct {
-		Type       string
-		Properties Properties
-	}{
-		Type:       typ,
-		Properties: Properties(*x),
-	})
-}
-
-// CloudFormationResource converts to AWS Cloud Formation resource.
-func (x *nodeGroupSpotOceanResource) CloudFormationResource() (*awsCloudFormationResource, error) {
-	b, err := json.Marshal(x)
-	if err != nil {
-		return nil, err
-	}
-
-	v := new(awsCloudFormationResource)
-	if err := json.Unmarshal(b, v); err != nil {
-		return nil, err
-	}
-
-	return v, nil
-}
 
 // newNodeGroupSpotOceanResource returns a Spot Ocean resource.
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn.AWSEC2LaunchTemplate,
 	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
 
-	var resource *nodeGroupSpotOceanResource
+	var res *spot.NodeGroupResource
+	var out awsCloudFormationResource
 	var err error
 
 	// Resource.
 	{
 		if n.spec.Name == api.SpotOceanNodeGroupName {
 			logger.Debug("spot: creating ocean cluster for nodegroup %q", n.spec.Name)
-			resource, err = n.newNodeGroupSpotOceanClusterResource(
+			res, err = n.newNodeGroupSpotOceanClusterResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		} else {
 			logger.Debug("spot: creating ocean launchspec for nodegroup %q", n.spec.Name)
-			resource, err = n.newNodeGroupSpotOceanLaunchSpecResource(
+			res, err = n.newNodeGroupSpotOceanLaunchSpecResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		}
 		if err != nil {
@@ -199,38 +37,53 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 		}
 	}
 
-	// Properties.
+	// Credentials.
 	{
-		config := spotinst.DefaultConfig()
-		config.WithCredentials(credentials.NewChainCredentials([]credentials.Provider{
-			&credentials.EnvProvider{},
-			&credentials.FileProvider{Profile: spotinst.StringValue(n.spec.SpotOcean.Metadata.Profile)},
-		}...))
-
-		c, err := config.Credentials.Get()
+		creds, err := spot.LoadCredentials(n.spec.SpotOcean.Metadata.Profile)
 		if err != nil {
 			return nil, err
 		}
-
-		resource.Token = spotinst.String(c.Token)
-		resource.Account = spotinst.String(c.Account)
-		resource.ServiceToken = gfn.MakeFnSubString("arn:aws:lambda:${AWS::Region}:178579023202:function:spotinst-cloudformation")
+		if creds != nil {
+			res.NodeGroupCredentials = *creds
+		}
 	}
 
-	return resource.CloudFormationResource()
+	// Service Token.
+	{
+		svc, err := spot.LoadServiceToken()
+		if err != nil {
+			return nil, err
+		}
+		if svc != "" {
+			res.ServiceToken = gfn.MakeFnSubString(svc)
+		}
+	}
+
+	// Convert.
+	{
+		b, err := json.Marshal(res)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil, err
+		}
+	}
+
+	return &out, nil
 }
 
 // newNodeGroupSpotOceanClusterResource returns a Spot Ocean cluster resource.
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTemplate *gfn.AWSEC2LaunchTemplate,
-	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*nodeGroupSpotOceanResource, error) {
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*spot.NodeGroupResource, error) {
 
 	template := launchTemplate.LaunchTemplateData
-	cluster := &nodeGroupSpotOceanCluster{
+	cluster := &spot.NodeGroupCluster{
 		Name:      spotinst.String(n.clusterSpec.Metadata.Name),
 		ClusterID: spotinst.String(n.clusterSpec.Metadata.Name),
 		Region:    gfn.MakeRef("AWS::Region"),
-		Compute: &nodeGroupSpotOceanCompute{
-			LaunchSpecification: &nodeGroupSpotOceanLaunchSpec{
+		Compute: &spot.NodeGroupCompute{
+			LaunchSpecification: &spot.NodeGroupLaunchSpec{
 				ImageID:      template.ImageId,
 				UserData:     template.UserData,
 				KeyPair:      template.KeyName,
@@ -238,7 +91,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			},
 			SubnetIDs: vpcZoneIdentifier,
 		},
-		Capacity: &nodeGroupSpotOceanCapacity{
+		Capacity: &spot.NodeGroupCapacity{
 			Target:  n.spec.DesiredCapacity,
 			Minimum: n.spec.MinSize,
 			Maximum: n.spec.MaxSize,
@@ -255,7 +108,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 	// Strategy.
 	{
 		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
-			cluster.Strategy = &nodeGroupSpotOceanStrategy{
+			cluster.Strategy = &spot.NodeGroupStrategy{
 				SpotPercentage:           strategy.SpotPercentage,
 				UtilizeReservedInstances: strategy.UtilizeReservedInstances,
 				FallbackToOnDemand:       strategy.FallbackToOnDemand,
@@ -287,12 +140,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 
 	// Load Balancers.
 	{
-		var lbs []*nodeGroupSpotOceanLoadBalancer
+		var lbs []*spot.NodeGroupLoadBalancer
 
 		// ELBs.
 		if len(n.spec.ClassicLoadBalancerNames) > 0 {
 			for _, name := range n.spec.ClassicLoadBalancerNames {
-				lbs = append(lbs, &nodeGroupSpotOceanLoadBalancer{
+				lbs = append(lbs, &spot.NodeGroupLoadBalancer{
 					Type: spotinst.String("CLASSIC"),
 					Name: spotinst.String(name),
 				})
@@ -302,7 +155,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		// ALBs.
 		if len(n.spec.TargetGroupARNs) > 0 {
 			for _, arn := range n.spec.TargetGroupARNs {
-				lbs = append(lbs, &nodeGroupSpotOceanLoadBalancer{
+				lbs = append(lbs, &spot.NodeGroupLoadBalancer{
 					Type: spotinst.String("TARGET_GROUP"),
 					Arn:  spotinst.String(arn),
 				})
@@ -316,12 +169,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 
 	// Tags.
 	{
-		var tagsKV []*nodeGroupSpotOceanTag
+		var tagsKV []*spot.NodeGroupTag
 
 		// Nodegroup tags.
 		if len(n.spec.Tags) > 0 {
 			for key, value := range n.spec.Tags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   spotinst.String(key),
 					Value: spotinst.String(value),
 				})
@@ -331,7 +184,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		// Resource tags (Name, kubernetes.io/*, k8s.io/*, etc.).
 		if len(tags) > 0 {
 			for _, tag := range tags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   tag["Key"],
 					Value: tag["Value"],
 				})
@@ -341,7 +194,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		// Shared tags (metadata.tags + eksctl's tags).
 		if len(n.sharedTags) > 0 {
 			for _, tag := range n.sharedTags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   spotinst.StringValue(tag.Key),
 					Value: spotinst.StringValue(tag.Value),
 				})
@@ -356,7 +209,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 	// Instance Types.
 	{
 		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
-			cluster.Compute.InstanceTypes = &nodeGroupSpotOceanInstanceTypes{
+			cluster.Compute.InstanceTypes = &spot.NodeGroupInstanceTypes{
 				Whitelist: compute.InstanceTypes.Whitelist,
 				Blacklist: compute.InstanceTypes.Blacklist,
 			}
@@ -367,8 +220,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 	{
 		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
 			if hours := scheduling.ShutdownHours; hours != nil {
-				cluster.Scheduling = &nodeGroupSpotOceanScheduling{
-					ShutdownHours: &nodeGroupSpotOceanSchedulingShutdownHours{
+				cluster.Scheduling = &spot.NodeGroupScheduling{
+					ShutdownHours: &spot.NodeGroupSchedulingShutdownHours{
 						IsEnabled:   hours.IsEnabled,
 						TimeWindows: hours.TimeWindows,
 					},
@@ -377,12 +230,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 
 			if tasks := scheduling.Tasks; len(tasks) > 0 {
 				if cluster.Scheduling == nil {
-					cluster.Scheduling = new(nodeGroupSpotOceanScheduling)
+					cluster.Scheduling = new(spot.NodeGroupScheduling)
 				}
 
-				cluster.Scheduling.Tasks = make([]*nodeGroupSpotOceanSchedulingTask, len(tasks))
+				cluster.Scheduling.Tasks = make([]*spot.NodeGroupSchedulingTask, len(tasks))
 				for i, task := range tasks {
-					cluster.Scheduling.Tasks[i] = &nodeGroupSpotOceanSchedulingTask{
+					cluster.Scheduling.Tasks[i] = &spot.NodeGroupSchedulingTask{
 						IsEnabled:      task.IsEnabled,
 						Type:           task.Type,
 						CronExpression: task.CronExpression,
@@ -395,14 +248,14 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 	// Auto Scaler.
 	{
 		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil {
-			cluster.AutoScaler = &nodeGroupSpotOceanAutoScaler{
+			cluster.AutoScaler = &spot.NodeGroupAutoScaler{
 				IsEnabled:    autoScaler.Enabled,
 				IsAutoConfig: autoScaler.AutoConfig,
 				Cooldown:     autoScaler.Cooldown,
 			}
 
 			if headrooms := autoScaler.Headrooms; len(headrooms) > 0 {
-				cluster.AutoScaler.Headroom = &nodeGroupSpotOceanAutoScalerHeadroom{
+				cluster.AutoScaler.Headroom = &spot.NodeGroupAutoScalerHeadroom{
 					CPUPerUnit:    headrooms[0].CPUPerUnit,
 					GPUPerUnit:    headrooms[0].GPUPerUnit,
 					MemoryPerUnit: headrooms[0].MemoryPerUnit,
@@ -420,9 +273,9 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			true)
 	}
 
-	return &nodeGroupSpotOceanResource{
+	return &spot.NodeGroupResource{
 		OceanCluster: cluster,
-		OceanSummary: &nodeGroupSpotOceanSummary{
+		OceanSummary: &spot.NodeGroupSummary{
 			ImageID:  cluster.Compute.LaunchSpecification.ImageID,
 			Capacity: cluster.Capacity,
 		},
@@ -431,14 +284,14 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 
 // newNodeGroupSpotOceanLaunchSpecResource returns a Spot Ocean launchspec resource.
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTemplate *gfn.AWSEC2LaunchTemplate,
-	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*nodeGroupSpotOceanResource, error) {
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*spot.NodeGroupResource, error) {
 
 	// Import the Ocean cluster identifier.
 	oceanClusterStackName := fmt.Sprintf("eksctl-%s-nodegroup-ocean", n.clusterSpec.Metadata.Name)
 	oceanClusterID := makeImportValue(oceanClusterStackName, outputs.NodeGroupSpotOceanClusterID)
 
 	template := launchTemplate.LaunchTemplateData
-	spec := &nodeGroupSpotOceanLaunchSpec{
+	spec := &spot.NodeGroupLaunchSpec{
 		Name:      spotinst.String(n.spec.Name),
 		OceanID:   oceanClusterID,
 		ImageID:   template.ImageId,
@@ -473,12 +326,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 
 	// Tags.
 	{
-		var tagsKV []*nodeGroupSpotOceanTag
+		var tagsKV []*spot.NodeGroupTag
 
 		// Nodegroup tags.
 		if len(n.spec.Tags) > 0 {
 			for key, value := range n.spec.Tags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   spotinst.String(key),
 					Value: spotinst.String(value),
 				})
@@ -488,7 +341,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 		// Resource tags (Name, kubernetes.io/*, k8s.io/*, etc.).
 		if len(tags) > 0 {
 			for _, tag := range tags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   tag["Key"],
 					Value: tag["Value"],
 				})
@@ -498,7 +351,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 		// Shared tags (metadata.tags + eksctl's tags).
 		if len(n.sharedTags) > 0 {
 			for _, tag := range n.sharedTags {
-				tagsKV = append(tagsKV, &nodeGroupSpotOceanTag{
+				tagsKV = append(tagsKV, &spot.NodeGroupTag{
 					Key:   spotinst.StringValue(tag.Key),
 					Value: spotinst.StringValue(tag.Value),
 				})
@@ -513,10 +366,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 	// Labels.
 	{
 		if len(n.spec.Labels) > 0 {
-			labels := make([]*nodeGroupSpotOceanLabel, 0, len(n.spec.Labels))
+			labels := make([]*spot.NodeGroupLabel, 0, len(n.spec.Labels))
 
 			for key, value := range n.spec.Labels {
-				labels = append(labels, &nodeGroupSpotOceanLabel{
+				labels = append(labels, &spot.NodeGroupLabel{
 					Key:   spotinst.String(key),
 					Value: spotinst.String(value),
 				})
@@ -529,10 +382,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 	// Taints.
 	{
 		if len(n.spec.Taints) > 0 {
-			taints := make([]*nodeGroupSpotOceanTaint, 0, len(n.spec.Taints))
+			taints := make([]*spot.NodeGroupTaint, 0, len(n.spec.Taints))
 
 			for key, valueEffect := range n.spec.Taints {
-				taint := &nodeGroupSpotOceanTaint{
+				taint := &spot.NodeGroupTaint{
 					Key: spotinst.String(key),
 				}
 				parts := strings.Split(valueEffect, ":")
@@ -552,10 +405,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 	// Auto Scaler.
 	{
 		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil && len(autoScaler.Headrooms) > 0 {
-			headrooms := make([]*nodeGroupSpotOceanAutoScalerHeadroom, len(autoScaler.Headrooms))
+			headrooms := make([]*spot.NodeGroupAutoScalerHeadroom, len(autoScaler.Headrooms))
 
 			for i, headroom := range autoScaler.Headrooms {
-				headrooms[i] = &nodeGroupSpotOceanAutoScalerHeadroom{
+				headrooms[i] = &spot.NodeGroupAutoScalerHeadroom{
 					CPUPerUnit:    headroom.CPUPerUnit,
 					GPUPerUnit:    headroom.GPUPerUnit,
 					MemoryPerUnit: headroom.MemoryPerUnit,
@@ -563,7 +416,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 				}
 			}
 
-			spec.AutoScaler = &nodeGroupSpotOceanAutoScaler{
+			spec.AutoScaler = &spot.NodeGroupAutoScaler{
 				Headrooms: headrooms,
 			}
 		}
@@ -577,11 +430,11 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 			true)
 	}
 
-	return &nodeGroupSpotOceanResource{
+	return &spot.NodeGroupResource{
 		OceanLaunchSpec: spec,
-		OceanSummary: &nodeGroupSpotOceanSummary{
+		OceanSummary: &spot.NodeGroupSummary{
 			ImageID: spec.ImageID,
-			Capacity: &nodeGroupSpotOceanCapacity{
+			Capacity: &spot.NodeGroupCapacity{
 				Target:  n.spec.DesiredCapacity,
 				Minimum: n.spec.MinSize,
 				Maximum: n.spec.MaxSize,
