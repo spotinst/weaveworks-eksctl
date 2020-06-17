@@ -3,6 +3,11 @@ package spot
 import (
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
+
+	"github.com/spotinst/spotinst-sdk-go/spotinst"
+	"github.com/spotinst/spotinst-sdk-go/spotinst/credentials"
 
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 
@@ -52,8 +57,8 @@ func RunPreCreation(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 // RunPreCreation executes post-creation actions.
 func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Interface,
 	rawClient *kubewrapper.RawClient, updateAuthConfigMap bool) error {
-
 	logger.Debug("spot: executing post-creation actions")
+
 	for _, ng := range clusterConfig.NodeGroups {
 		if ng.SpotOcean == nil {
 			logger.Debug("spot: skipping nodegroup %q", ng.Name)
@@ -295,4 +300,82 @@ func nodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
 	}
 	_, ok := states[*stack.StackStatus]
 	return ok
+}
+
+const (
+	// Spot Account ID.
+	envAccount = "SPOTINST_ACCOUNT"
+	// URL where Spot should deliver the Client ID and Client Secret in order to
+	// create an access token. This URL should route to your own authorization server.
+	envTokenURL = "SPOTINST_TOKEN_URL"
+	// Client ID. Required to generate an authorization token.
+	envClientID = "SPOTINST_CLIENT_ID"
+	// Client Secret. Required to generate an authorization token.
+	envClientSecret = "SPOTINST_CLIENT_SECRET"
+	// ARN of the AWS Lambda function that should handle AWS CloudFormation requests.
+	envServiceToken = "SPOTINST_SERVICE_TOKEN"
+)
+
+// LoadCredentials loads and returns the user credentials.
+func LoadCredentials(profile *string) (*NodeGroupCredentials, error) {
+	logger.Debug("spot: attempting to load credentials")
+	creds := new(NodeGroupCredentials)
+
+	if tokenURL := os.Getenv(envTokenURL); tokenURL != "" { // oauth2 client credentials
+		logger.Debug("spot: attempting to load oauth2 client credentials")
+
+		creds.TokenURL = spotinst.String(tokenURL)
+		creds.ClientID = spotinst.String(os.Getenv(envClientID))
+		creds.ClientSecret = spotinst.String(os.Getenv(envClientSecret))
+		creds.Account = spotinst.String(os.Getenv(envAccount))
+
+		if _, err := url.Parse(spotinst.StringValue(creds.TokenURL)); err != nil {
+			return nil, fmt.Errorf("spot: invalid or malformed token url: %v", err)
+		}
+		if spotinst.StringValue(creds.ClientID) == "" {
+			return nil, errors.New("spot: invalid or malformed client id")
+		}
+		if spotinst.StringValue(creds.ClientSecret) == "" {
+			return nil, errors.New("spot: invalid or malformed client secret")
+		}
+		if spotinst.StringValue(creds.Account) == "" {
+			return nil, errors.New("spot: invalid or malformed account id")
+		}
+
+	} else { // static credentials
+		logger.Debug("spot: attempting to load credentials from env/file")
+
+		profile := spotinst.StringValue(profile)
+		providers := []credentials.Provider{
+			&credentials.EnvProvider{},
+			&credentials.FileProvider{Profile: profile},
+		}
+
+		config := spotinst.DefaultConfig()
+		config.WithCredentials(credentials.NewChainCredentials(providers...))
+
+		c, err := config.Credentials.Get()
+		if err != nil {
+			return nil, err
+		}
+
+		creds.Token = spotinst.String(c.Token)
+		creds.Account = spotinst.String(c.Account)
+	}
+
+	return creds, nil
+}
+
+// LoadServiceToken loads and returns the service token that should be use by
+// AWS CloudFormation.
+func LoadServiceToken() (string, error) {
+	logger.Debug("spot: attempting to load service token")
+
+	v := os.Getenv(envServiceToken)
+	if v == "" {
+		v = "arn:aws:lambda:${AWS::Region}:178579023202:function:spotinst-cloudformation"
+	}
+
+	logger.Debug("spot: using service token %q", v)
+	return v, nil
 }
