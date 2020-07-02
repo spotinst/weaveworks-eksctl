@@ -7,28 +7,26 @@ import (
 )
 
 type (
+	Resource struct {
+		ResourceCredentials
+
+		ServiceToken *gfn.Value `json:"ServiceToken,omitempty"`
+		FeatureFlags *gfn.Value `json:"featureFlags,omitempty"`
+	}
+
+	ResourceCredentials struct {
+		Account *gfn.Value `json:"accountId,omitempty"`
+		Token   *gfn.Value `json:"accessToken,omitempty"`
+	}
+
 	NodeGroupResource struct {
-		NodeGroupBase
+		Resource
 
 		OceanCluster    *NodeGroupCluster    `json:"ocean,omitempty"`
 		OceanLaunchSpec *NodeGroupLaunchSpec `json:"oceanLaunchSpec,omitempty"`
 
 		// for internal use only; used by `eksctl get nodegroup` command.
 		OceanSummary *NodeGroupSummary `json:"oceanSummary,omitempty"`
-	}
-
-	NodeGroupBase struct {
-		NodeGroupCredentials
-
-		ServiceToken *gfn.Value `json:"ServiceToken,omitempty"`
-	}
-
-	NodeGroupCredentials struct {
-		Account      *string `json:"accountId,omitempty"`
-		Token        *string `json:"accessToken,omitempty"`
-		TokenURL     *string `json:"accessTokenUrl,omitempty"`
-		ClientID     *string `json:"clientId,omitempty"`
-		ClientSecret *string `json:"clientSecret,omitempty"`
 	}
 
 	NodeGroupCluster struct {

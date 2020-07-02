@@ -3,14 +3,16 @@ package spot
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/kris-nova/logger"
 	"github.com/spotinst/spotinst-sdk-go/spotinst"
 	"github.com/spotinst/spotinst-sdk-go/spotinst/credentials"
+	"github.com/spotinst/spotinst-sdk-go/spotinst/featureflag"
 	"github.com/weaveworks/eksctl/pkg/addons"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
@@ -64,8 +66,9 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 		}
 		logger.Debug("spot: handling nodegroup %q", ng.Name)
 
-		// Authorise Ocean nodes to join. We have to do it before all other
-		// nodegroups to prevent `WaitForNodes` to wait forever.
+		// Allow nodes that are launched by Ocean to join to the cluster.
+		// We have to do it before all other nodegroups to prevent `WaitForNodes`
+		// to wait forever.
 		if updateAuthConfigMap {
 			logger.Debug("spot: updating auth configmap")
 			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
@@ -91,11 +94,13 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 }
 
 // RunPreDeletion executes pre-deletion actions.
-func RunPreDeletion(clusterConfig *api.ClusterConfig, stacks []*cloudformation.Stack) error {
+func RunPreDeletion(clusterProvider api.ClusterProvider,
+	clusterConfig *api.ClusterConfig, filteredNodeGroups []*api.NodeGroup,
+	stacks []*cloudformation.Stack, plan bool) error {
 	logger.Debug("spot: executing pre-deletion actions")
 
 	shouldDelete := func(ngName string) bool {
-		for _, ng := range clusterConfig.NodeGroups {
+		for _, ng := range filteredNodeGroups {
 			if ng.Name == ngName {
 				return true
 			}
@@ -103,12 +108,34 @@ func RunPreDeletion(clusterConfig *api.ClusterConfig, stacks []*cloudformation.S
 		return false
 	}
 
-	s, ok, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	_, shouldDeleteOcean, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return err
 	}
 
-	if ok && s != nil {
+	LoadFeatureFlags()
+	if !plan && AllowCredentialsChanges.Enabled() {
+		logger.Debug("spot: updating credentials for existing nodegroups")
+
+		for _, ng := range filteredNodeGroups {
+			if shouldDelete(ng.Name) && nodeGroupManagedByOcean(ng, stacks) {
+				if err = UpdateCredentials(clusterProvider,
+					clusterConfig, ng.Name, stacks); err != nil {
+					return err
+				}
+			} else {
+				logger.Debug("spot: skipping credentials update for nodegroup %q", ng.Name)
+			}
+		}
+		if shouldDeleteOcean {
+			if err = UpdateCredentials(clusterProvider,
+				clusterConfig, api.SpotOceanNodeGroupName, stacks); err != nil {
+				return err
+			}
+		}
+	}
+
+	if shouldDeleteOcean {
 		// Allow post-deletion actions to be performed on Ocean as well.
 		clusterConfig.NodeGroups = append(clusterConfig.NodeGroups, &api.NodeGroup{
 			Name: api.SpotOceanNodeGroupName,
@@ -210,7 +237,7 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 	logger.Debug("spot: checking whether ocean cluster should be deleted")
 	var oceanNodeGroupStack *cloudformation.Stack
 
-	// If there is no Ocean cluster nodegroup, let's bail early.
+	// If there is no nodegroup for the Ocean cluster, let's bail early.
 	for _, s := range stacks {
 		if nodeGroupName(s) == api.SpotOceanNodeGroupName {
 			oceanNodeGroupStack = s
@@ -224,19 +251,14 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 
 	// Do not delete if there is at least one nodegroup that is not marked for deletion.
 	for _, s := range stacks {
-		name := nodeGroupName(s)
+		ngName := nodeGroupName(s)
+		ng := &api.NodeGroup{Name: ngName}
 
-		if !shouldDelete(name) &&
-			name != api.SpotOceanNodeGroupName &&
-			nodeGroupStatusIsNotTransitional(s) {
-
-			for _, tag := range s.Tags {
-				if aws.StringValue(tag.Key) == api.SpotOceanResourceTypeTag {
-					logger.Debug("spot: at least one nodegroup remains "+
-						"active (%s); skipping ocean cluster deletion", name)
-					return nil, false, nil
-				}
-			}
+		if !shouldDelete(ngName) && ngName != api.SpotOceanNodeGroupName &&
+			nodeGroupStatusIsNotTransitional(s) && nodeGroupManagedByOcean(ng, stacks) {
+			logger.Debug("spot: at least one nodegroup remains "+
+				"active (%s); skipping ocean cluster deletion", ngName)
+			return nil, false, nil
 		}
 	}
 
@@ -255,7 +277,6 @@ func ensureNodeGroupOceanClusterID(stacks []*cloudformation.Stack, nodeGroup *ap
 			return collectNodeGroupOceanClusterID(s, nodeGroup)
 		}
 	}
-
 	return nil
 }
 
@@ -283,8 +304,17 @@ func nodeGroupName(stack *cloudformation.Stack) string {
 			return *tag.Value
 		}
 	}
-
 	return ""
+}
+
+// nodeGroupFromStacks returns the nodegroup by name.
+func nodeGroupFromStacks(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
+	for _, stack := range stacks {
+		if nodeGroupName(stack) == name {
+			return stack
+		}
+	}
+	return nil
 }
 
 // nodeGroupStatusIsNotTransitional returns true when nodegroup status is non-transitional.
@@ -299,88 +329,213 @@ func nodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
 	return ok
 }
 
+// nodeGroupManagedByOcean returns a boolean indicating whether the nodegroup is managed by Ocean.
+func nodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformation.Stack) bool {
+	if nodeGroup.SpotOcean != nil { // fast path when using a config file
+		return true
+	}
+	for _, stack := range stacks { // slow path when using a flag
+		if nodeGroup.Name != nodeGroupName(stack) {
+			continue
+		}
+		for _, tag := range stack.Tags {
+			if aws.StringValue(tag.Key) == api.SpotOceanResourceTypeTag {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 const (
-	// Name of the environment variable to use for loading the Spot Account ID.
-	envAccount = "SPOTINST_ACCOUNT"
-	// Name of the environment variable to use for loading the URL where Spot
-	// should deliver the Client ID and Client Secret in order to create an access
-	// token. This URL should route to your own authorization server.
-	envTokenURL = "SPOTINST_TOKEN_URL"
-	// Name of the environment variable to use for loading the Client ID.
-	// Required to generate an authorization token.
-	envClientID = "SPOTINST_CLIENT_ID"
-	// Name of the environment variable to use for loading the Client Secret.
-	//Required to generate an authorization token.
-	envClientSecret = "SPOTINST_CLIENT_SECRET"
+	// Name of the key associated with the parameter that holds the user token.
+	CredentialsTokenParameterKey = "SpotToken"
+	// Name of the key associated with the parameter that holds the user account.
+	CredentialsAccountParameterKey = "SpotAccount"
 )
 
-// LoadCredentials loads and returns the user credentials.
-func LoadCredentials(profile *string) (*NodeGroupCredentials, error) {
-	logger.Debug("spot: attempting to load credentials")
-	creds := new(NodeGroupCredentials)
+// UpdateCredentials loads the user credentials from its local environment and
+// updates the upstream credentials, stored in AWS CloudFormation, by updating
+// the stack parameters.  Users should set the `AllowCredentialsChanges` feature
+// flag to avoid unnecessary calls caused by updating the AWS CloudFormation
+// stack parameters.
+func UpdateCredentials(clusterProvider api.ClusterProvider, clusterConfig *api.ClusterConfig,
+	ngName string, stacks []*cloudformation.Stack) error {
+	logger.Debug("spot: updating credentials for nodegroup %q", ngName)
 
-	if tokenURL := os.Getenv(envTokenURL); tokenURL != "" { // oauth2 client credentials
-		logger.Debug("spot: attempting to load oauth2 client credentials")
-
-		creds.TokenURL = spotinst.String(tokenURL)
-		creds.ClientID = spotinst.String(os.Getenv(envClientID))
-		creds.ClientSecret = spotinst.String(os.Getenv(envClientSecret))
-		creds.Account = spotinst.String(os.Getenv(envAccount))
-
-		if _, err := url.Parse(spotinst.StringValue(creds.TokenURL)); err != nil {
-			return nil, fmt.Errorf("spot: invalid or malformed token url: %v", err)
-		}
-		if spotinst.StringValue(creds.ClientID) == "" {
-			return nil, errors.New("spot: invalid or malformed client id")
-		}
-		if spotinst.StringValue(creds.ClientSecret) == "" {
-			return nil, errors.New("spot: invalid or malformed client secret")
-		}
-		if spotinst.StringValue(creds.Account) == "" {
-			return nil, errors.New("spot: invalid or malformed account id")
-		}
-
-	} else { // static credentials
-		logger.Debug("spot: attempting to load credentials from env/file")
-
-		profile := spotinst.StringValue(profile)
-		providers := []credentials.Provider{
-			&credentials.EnvProvider{},
-			&credentials.FileProvider{Profile: profile},
-		}
-
-		config := spotinst.DefaultConfig()
-		config.WithCredentials(credentials.NewChainCredentials(providers...))
-
-		c, err := config.Credentials.Get()
-		if err != nil {
-			return nil, err
-		}
-
-		creds.Token = spotinst.String(c.Token)
-		creds.Account = spotinst.String(c.Account)
+	// Find the stack by the name of the nodegroup.
+	stack := nodeGroupFromStacks(ngName, stacks)
+	if stack == nil {
+		logger.Debug("spot: couldn't find stack for nodegroup %q", ngName)
+		return nil
 	}
 
-	return creds, nil
+	// Set the credentials profile, if any.
+	var profile *string
+	for _, ng := range clusterConfig.NodeGroups {
+		if ng.Name == nodeGroupName(stack) && ng.SpotOcean != nil && ng.SpotOcean.Metadata != nil {
+			profile = ng.SpotOcean.Metadata.Profile
+		}
+	}
+
+	// Load user credentials.
+	token, account, err := LoadCredentials(profile)
+	if err != nil {
+		return err
+	}
+
+	// Update upstream credentials and reuse the existing template.
+	if err := updateUpstreamCredentials(clusterProvider, stack, token, account); err != nil {
+		return err
+	}
+
+	logger.Debug("spot: successfully updated credentials for nodegroup %q", ngName)
+	return nil
+}
+
+// updateUpstreamCredentials updates the upstream credentials, stored in AWS
+// CloudFormation, by updating the stack parameters.
+func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
+	stack *cloudformation.Stack, token, account string) error {
+
+	var (
+		cfnAPI  = clusterProvider.CloudFormation()
+		cfnWait = true
+	)
+
+	// Set parameters.
+	input := &cloudformation.UpdateStackInput{
+		StackName:           stack.StackName,
+		Capabilities:        aws.StringSlice([]string{cloudformation.CapabilityCapabilityIam}),
+		UsePreviousTemplate: aws.Bool(true),
+		Parameters: []*cloudformation.Parameter{
+			{
+				ParameterKey:   aws.String(CredentialsTokenParameterKey),
+				ParameterValue: aws.String(token),
+			},
+			{
+				ParameterKey:   aws.String(CredentialsAccountParameterKey),
+				ParameterValue: aws.String(account),
+			},
+			{
+				ParameterKey:   aws.String(FeatureFlagsParameterKey),
+				ParameterValue: aws.String(convertFeatureFlags()),
+			},
+		},
+	}
+
+	// Update stack parameters.
+	logger.Debug("spot: updating stack %q", aws.StringValue(stack.StackName))
+	_, err := cfnAPI.UpdateStack(input)
+	if err != nil {
+		awsErr, ok := err.(awserr.Error)
+		if !ok {
+			return err
+		}
+		if !ignoreUpdateStackError(awsErr.Message()) {
+			return err
+		}
+		cfnWait = false
+	}
+
+	// Wait until stack status is UPDATE_COMPLETE.
+	if cfnWait {
+		logger.Debug("spot: waiting for stack update to complete")
+		input := &cloudformation.DescribeStacksInput{
+			StackName: stack.StackName,
+		}
+
+		if err := cfnAPI.WaitUntilStackUpdateComplete(input); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ignoreUpdateStackError ignores errors that may occur while updating a stack.
+func ignoreUpdateStackError(errMsg string) bool {
+	errMsgs := []string{
+		"no updates are to be performed",
+	}
+	for _, msg := range errMsgs {
+		if strings.Contains(strings.ToLower(errMsg), msg) {
+			return true
+		}
+	}
+	return false
+}
+
+// LoadCredentials loads and returns the user credentials.
+func LoadCredentials(profile *string) (string, string, error) {
+	logger.Debug("spot: loading credentials")
+
+	providers := []credentials.Provider{
+		&credentials.EnvProvider{},
+		&credentials.FileProvider{Profile: spotinst.StringValue(profile)},
+	}
+
+	config := spotinst.DefaultConfig()
+	config.WithCredentials(credentials.NewChainCredentials(providers...))
+
+	c, err := config.Credentials.Get()
+	if err != nil {
+		return "", "", err
+	}
+
+	return c.Token, c.Account, nil
 }
 
 const (
 	// Default ARN of the AWS Lambda function that should handle AWS CloudFormation requests.
 	defaultServiceToken = "arn:aws:lambda:${AWS::Region}:178579023202:function:spotinst-cloudformation"
-	// Name of the environment variable to use for loading a custom service token.
+	// Name of the environment variable to read when loading a custom service token.
 	envServiceToken = "SPOTINST_SERVICE_TOKEN"
 )
 
 // LoadServiceToken loads and returns the service token that should be use by
 // AWS CloudFormation.
 func LoadServiceToken() (string, error) {
-	logger.Debug("spot: attempting to load service token")
+	logger.Debug("spot: loading service token")
 
 	v := os.Getenv(envServiceToken)
 	if v == "" {
 		v = defaultServiceToken
 	}
 
-	logger.Debug("spot: using service token %q", v)
+	logger.Debug("spot: will use service token %q", v)
 	return v, nil
+}
+
+// AllowCredentialsChanges is a feature flag that controls whether eksctl should
+// allow credentials changes.  When true, eksctl reloads the user credentials
+// and attempts to update the relevant AWS CloudFormation stacks.
+var AllowCredentialsChanges = featureflag.New("AllowCredentialsChanges", false)
+
+// Name of the key associated with the parameter that holds all feature flags.
+const FeatureFlagsParameterKey = "SpotFeatureFlags"
+
+// LoadFeatureFlags reads the feature flags from an environment variable.
+func LoadFeatureFlags() string {
+	featureflag.Set(os.Getenv(featureflag.EnvVar))
+	logger.Debug("spot: will use feature flags %q", featureflag.All())
+
+	// Convert to upstream feature flags, if needed.
+	return convertFeatureFlags()
+}
+
+// convertFeatureFlags returns the upstream feature flags that should be
+// configured for the resource handler.
+func convertFeatureFlags() string {
+	ff := "None" // avoids `Parameters: [SpotFeatureFlags] must have values` errors
+
+	if AllowCredentialsChanges.Enabled() {
+		// When the user allows credentials changes, we have to configure the
+		// opposite feature flag for the resource handler to avoid unnecessary
+		// calls caused by updating the AWS CloudFormation stack parameters.
+		ff = "IgnoreCredentialsChanges=true"
+	}
+
+	logger.Debug("spot: will set feature flags %q", ff)
+	return ff
 }

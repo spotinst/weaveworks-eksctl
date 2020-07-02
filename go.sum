@@ -124,6 +124,8 @@ github.com/awslabs/goformation v1.4.1/go.mod h1:HezUyH08DSwwGn3GioVXWZYUhkdvC+oG
 github.com/awslabs/goformation/v3 v3.1.0/go.mod h1:hQ5RXo3GNm2laHWKizDzU5DsDy+yNcenSca2UxN0850=
 github.com/awslabs/goformation/v4 v4.1.0 h1:JRxIW0IjhYpYDrIZOTJGMu2azXKI+OK5dP56ubpywGU=
 github.com/awslabs/goformation/v4 v4.1.0/go.mod h1:MBDN7u1lMNDoehbFuO4uPvgwPeolTMA2TzX1yO6KlxI=
+github.com/awslabs/goformation/v4 v4.11.0 h1:dTRaASciMTkaoQrR8CGSDt7e9WfvvsOJXfDbqfiOjkU=
+github.com/awslabs/goformation/v4 v4.11.0/go.mod h1:GcJULxCJfloT+3pbqCluXftdEK2AD/UqpS3hkaaBntg=
 github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59/go.mod h1:q/89r3U2H7sSsE2t6Kca0lfwTK8JdoNGS/yzM/4iH5I=
 github.com/bazelbuild/bazel-gazelle v0.18.2-0.20190823151146-67c9ddf12d8a/go.mod h1:D0ehMSbS+vesFsLGiD6JXu3mVEzOlfUl8wNnq+x/9p0=
 github.com/bazelbuild/bazel-gazelle v0.18.2/go.mod h1:D0ehMSbS+vesFsLGiD6JXu3mVEzOlfUl8wNnq+x/9p0=
@@ -867,6 +869,10 @@ github.com/spotinst/spotinst-sdk-go v1.51.0 h1:vD4vK7N6l3BgvrLTisVZ13VnYk/A0qgMj
 github.com/spotinst/spotinst-sdk-go v1.51.0/go.mod h1:nWi2DyjUi1WUZclpsqZFXvImsU0T39ppqqHwC4/T5mw=
 github.com/spotinst/spotinst-sdk-go v1.52.0 h1:1oJFV3Om7RPg0zeWCRyfjH+jxk8QiX1prknaJ6M1U1k=
 github.com/spotinst/spotinst-sdk-go v1.52.0/go.mod h1:nWi2DyjUi1WUZclpsqZFXvImsU0T39ppqqHwC4/T5mw=
+github.com/spotinst/spotinst-sdk-go v1.53.0 h1:UKvOZb7qTgkoaDBznjWYkP0735iBveWD5wWkHxP+A9c=
+github.com/spotinst/spotinst-sdk-go v1.53.0/go.mod h1:nWi2DyjUi1WUZclpsqZFXvImsU0T39ppqqHwC4/T5mw=
+github.com/spotinst/spotinst-sdk-go v1.53.1 h1:IWqESx5Uh2JuylQIOyBfNDatFs1htJYP7G4pbjr8iag=
+github.com/spotinst/spotinst-sdk-go v1.53.1/go.mod h1:nWi2DyjUi1WUZclpsqZFXvImsU0T39ppqqHwC4/T5mw=
 github.com/storageos/go-api v0.0.0-20180912212459-343b3eff91fc/go.mod h1:ZrLn+e0ZuF3Y65PNF6dIwbJPZqfmtCXxFm9ckv0agOY=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

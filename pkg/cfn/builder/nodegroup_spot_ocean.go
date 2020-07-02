@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	gfnv4 "github.com/awslabs/goformation/v4/cloudformation"
 	"github.com/kris-nova/logger"
 	"github.com/spotinst/spotinst-sdk-go/spotinst"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
@@ -39,12 +40,32 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 
 	// Credentials.
 	{
-		creds, err := spot.LoadCredentials(n.spec.SpotOcean.Metadata.Profile)
+		token, account, err := spot.LoadCredentials(n.spec.SpotOcean.Metadata.Profile)
 		if err != nil {
 			return nil, err
 		}
-		if creds != nil {
-			res.NodeGroupCredentials = *creds
+		if token != "" {
+			res.Token = n.rs.newParameter(spot.CredentialsTokenParameterKey, &gfnv4.Parameter{
+				Type:    "String",
+				Default: token,
+			})
+		}
+		if account != "" {
+			res.Account = n.rs.newParameter(spot.CredentialsAccountParameterKey, &gfnv4.Parameter{
+				Type:    "String",
+				Default: account,
+			})
+		}
+	}
+
+	// Feature Flags.
+	{
+		ff := spot.LoadFeatureFlags()
+		if ff != "" {
+			res.FeatureFlags = n.rs.newParameter(spot.FeatureFlagsParameterKey, &gfnv4.Parameter{
+				Type:    "String",
+				Default: ff,
+			})
 		}
 	}
 

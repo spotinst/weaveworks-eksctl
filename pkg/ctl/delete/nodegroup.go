@@ -115,7 +115,8 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 		}
 
 		// Execute pre-deletion actions.
-		if err := spot.RunPreDeletion(cfg, stacks); err != nil {
+		if err := spot.RunPreDeletion(ctl.Provider, cfg,
+			ngFilter.FilterMatching(cfg.NodeGroups), stacks, cmd.Plan); err != nil {
 			return err
 		}
 
