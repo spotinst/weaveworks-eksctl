@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/weaveworks/eksctl/pkg/spot"
+
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -139,6 +141,21 @@ func doDeleteCluster(cmd *cmdutils.Cmd) error {
 			return err
 		}
 		return nil
+	}
+
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks()
+		if err != nil {
+			return err
+		}
+
+		// Execute pre-deletion actions.
+		if err := spot.RunPreDeletion(ctl.Provider, cfg,
+			cfg.NodeGroups, stacks, cmd.Plan); err != nil {
+			return err
+		}
 	}
 
 	{

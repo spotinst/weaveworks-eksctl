@@ -80,9 +80,10 @@ func createClusterCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.C
 	})
 
 	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
-		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs,
-			&params.SpotProfile,
-			&params.SpotOcean)
+		cmdutils.AddSpotOceanCommonFlags(fs, &params.SpotProfile)
+	})
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, cmd.ProviderConfig, true)

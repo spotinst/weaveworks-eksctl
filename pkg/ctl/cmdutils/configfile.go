@@ -559,6 +559,45 @@ func parseCIDRs(arg string) ([]string, error) {
 	return csvReader.Read()
 }
 
+// NewUtilsSpotOceanUpdateCredentials will load config or use flags for
+// 'eksctl utils update-spot-ocean-credentials'.
+func NewUtilsSpotOceanUpdateCredentials(cmd *Cmd, ng *api.NodeGroup,
+	ngFilter *NodeGroupFilter) ClusterConfigLoader {
+
+	l := newCommonClusterConfigLoader(cmd)
+
+	l.validateWithConfigFile = func() error {
+		return ngFilter.AppendGlobs(l.Include, l.Exclude,
+			getAllNodeGroupNames(l.ClusterConfig))
+	}
+
+	l.flagsIncompatibleWithoutConfigFile.Insert(
+		"approve",
+	)
+
+	l.validateWithoutConfigFile = func() error {
+		if l.ClusterConfig.Metadata.Name == "" {
+			return ErrMustBeSet(ClusterNameFlag(cmd))
+		}
+		if ng.Name != "" && l.NameArg != "" {
+			return ErrFlagAndArg("--name", ng.Name, l.NameArg)
+		}
+		if l.NameArg != "" {
+			ng.Name = l.NameArg
+		}
+		if ng.Name == "" {
+			return ErrMustBeSet("--name")
+		}
+
+		ngFilter.AppendIncludeNames(ng.Name)
+		l.Plan = false
+
+		return nil
+	}
+
+	return l
+}
+
 // NewCreateIAMServiceAccountLoader will laod config or use flags for 'eksctl create iamserviceaccount'
 func NewCreateIAMServiceAccountLoader(cmd *Cmd, saFilter *IAMServiceAccountFilter) ClusterConfigLoader {
 	l := newCommonClusterConfigLoader(cmd)

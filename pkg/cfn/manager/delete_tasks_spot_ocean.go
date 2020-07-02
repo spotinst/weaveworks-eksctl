@@ -33,24 +33,25 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 		return tasks, nil
 	}
 
+	// ignoreListImportsError ignores errors that may occur while listing imports.
+	ignoreListImportsError := func(errMsg string) bool {
+		errMsgs := []string{
+			"not imported by any stack",
+			"does not exist",
+		}
+		for _, msg := range errMsgs {
+			if strings.Contains(strings.ToLower(errMsg), msg) {
+				return true
+			}
+		}
+		return false
+	}
+
 	// All nodegroups are marked for deletion. We have to wait for their deletion
 	// to complete before proceeding for deletion of the Ocean cluster.
 	deleter := func(s *Stack, errs chan error) error {
 		attempt := 0
 		maxAttempts := 10
-
-		ignoreErr := func(errMsg string) bool {
-			errMsgs := []string{
-				"not imported by any stack",
-				"does not exist",
-			}
-			for _, msg := range errMsgs {
-				if strings.Contains(errMsg, msg) {
-					return true
-				}
-			}
-			return false
-		}
 
 		for {
 			attempt++
@@ -68,7 +69,7 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 				if !ok {
 					return err
 				}
-				if !ignoreErr(awsErr.Message()) {
+				if !ignoreListImportsError(awsErr.Message()) {
 					return err
 				}
 			}

@@ -62,9 +62,10 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils
 	})
 
 	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
-		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs,
-			&params.SpotProfile,
-			&params.SpotOcean)
+		cmdutils.AddSpotOceanCommonFlags(fs, &params.SpotProfile)
+	})
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
 	})
 
 	cmd.FlagSetGroup.InFlagSet("IAM addons", func(fs *pflag.FlagSet) {

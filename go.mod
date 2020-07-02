@@ -8,8 +8,8 @@ require (
 	github.com/Azure/go-autorest/autorest v0.10.0 // indirect
 	github.com/alecthomas/jsonschema v0.0.0-20190530235721-fd8d96416671
 	github.com/aws/aws-sdk-go v1.30.11
-	github.com/awslabs/goformation v0.0.0-20190320125420-ac0a17860cf1
-	github.com/awslabs/goformation/v4 v4.1.0
+	github.com/awslabs/goformation v1.4.1
+	github.com/awslabs/goformation/v4 v4.11.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/bxcodec/faker v2.0.1+incompatible
 	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7
@@ -37,7 +37,7 @@ require (
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
-	github.com/spotinst/spotinst-sdk-go v1.44.2
+	github.com/spotinst/spotinst-sdk-go v1.53.1
 	github.com/stretchr/testify v1.5.1
 	github.com/tidwall/gjson v1.1.3
 	github.com/tidwall/match v1.0.1 // indirect
