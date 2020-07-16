@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 
+	"github.com/kris-nova/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spotinst/spotinst-sdk-go/spotinst/featureflag"
@@ -13,16 +14,17 @@ import (
 
 func updateSpotOceanCredentials(cmd *cmdutils.Cmd) {
 	cfg := api.NewClusterConfig()
-	ng := api.NewNodeGroup()
+	ng := spot.NewNodeGroup()
 	cmd.ClusterConfig = cfg
 
 	var spotProfile string
+	var onlyMissing bool
 
 	cmd.SetDescription("update-spot-ocean-credentials", "Update Spot Ocean credentials", "")
 
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
-		return doUpdateSpotOceanCredentials(cmd, ng, spotProfile)
+		return doUpdateSpotOceanCredentials(cmd, ng, spotProfile, onlyMissing)
 	}
 
 	cmd.FlagSetGroup.InFlagSet("General", func(fs *pflag.FlagSet) {
@@ -31,6 +33,8 @@ func updateSpotOceanCredentials(cmd *cmdutils.Cmd) {
 		cmdutils.AddConfigFileFlag(fs, &cmd.ClusterConfigFile)
 		cmdutils.AddApproveFlag(fs, cmd)
 		cmdutils.AddTimeoutFlag(fs, &cmd.ProviderConfig.WaitTimeout)
+		cmdutils.AddNodeGroupFilterFlags(fs, &cmd.Include, &cmd.Exclude)
+		fs.BoolVar(&onlyMissing, "only-missing", false, "only update nodegroups that are not defined in the given config file")
 		fs.StringVarP(&ng.Name, "name", "n", "", "name of the nodegroup to update")
 	})
 
@@ -41,7 +45,7 @@ func updateSpotOceanCredentials(cmd *cmdutils.Cmd) {
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, cmd.ProviderConfig, false)
 }
 
-func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProfile string) error {
+func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProfile string, onlyMissing bool) error {
 	ngFilter := cmdutils.NewNodeGroupFilter()
 	if err := cmdutils.NewUtilsSpotOceanUpdateCredentials(cmd, ng, ngFilter).Load(); err != nil {
 		return err
@@ -62,19 +66,22 @@ func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProf
 		return err
 	}
 
-	if cmd.ClusterConfigFile == "" {
-		ng.SpotOcean = new(api.NodeGroupSpotOcean)
-		cfg.NodeGroups = []*api.NodeGroup{ng}
-	}
-
-	for _, ng := range cfg.NodeGroups {
-		if ng.SpotOcean != nil {
-			cfg.NodeGroups = append(cfg.NodeGroups, &api.NodeGroup{
-				Name:      api.SpotOceanNodeGroupName,
-				SpotOcean: new(api.NodeGroupSpotOcean),
-			})
-			break
+	if cmd.ClusterConfigFile != "" {
+		logger.Info("comparing %d nodegroups defined in the given config (%q) "+
+			"against remote state", len(cfg.NodeGroups), cmd.ClusterConfigFile)
+		if onlyMissing {
+			if err = ngFilter.SetIncludeOrExcludeMissingFilter(stackManager, onlyMissing, cfg); err != nil {
+				return err
+			}
 		}
+		for _, ng := range cfg.NodeGroups {
+			if ng.SpotOcean != nil {
+				cfg.NodeGroups = append(cfg.NodeGroups, spot.NewNodeGroupForOcean())
+				break
+			}
+		}
+	} else {
+		cfg.NodeGroups = []*api.NodeGroup{ng}
 	}
 
 	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
@@ -91,7 +98,7 @@ func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProf
 	}
 
 	for _, ng := range cfg.NodeGroups {
-		if ng.SpotOcean != nil && !cmd.Plan {
+		if spot.NodeGroupManagedByOcean(ng, stacks) && !cmd.Plan {
 			if err := updateCredentials(ng); err != nil {
 				return err
 			}

@@ -25,11 +25,11 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 	}
 
 	// Verify before proceeding.
-	ng, _, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	stack, _, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return nil, err
 	}
-	if ng == nil { // does not exist
+	if stack == nil { // nothing to do
 		return tasks, nil
 	}
 
@@ -94,7 +94,7 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 	// Add a new deletion task.
 	tasks.Append(&taskWithStackSpec{
 		info:  "spot: delete ocean cluster",
-		stack: ng,
+		stack: stack,
 		call:  deleter,
 	})
 

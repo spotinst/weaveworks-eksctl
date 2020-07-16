@@ -21,11 +21,19 @@ import (
 	kubewrapper "github.com/weaveworks/eksctl/pkg/kubernetes"
 )
 
-// ErrSpotMultipleDefaultLaunchSpecs represents an error in detecting the default
-// nodegroup since more than one has been configured as such.
-var ErrSpotMultipleDefaultLaunchSpecs = errors.New("spot: unable to detect " +
-	"default ocean launch spec: multiple nodegroups configured with " +
-	"`spot.metadata.defaultLaunchSpec: true`")
+// NewNodeGroup creates a new NodeGroup, and returns a pointer to it.
+func NewNodeGroup() *api.NodeGroup {
+	ng := api.NewNodeGroup()
+	ng.SpotOcean = new(api.NodeGroupSpotOcean)
+	return ng
+}
+
+// NewNodeGroupForOcean creates a new NodeGroup, and returns a pointer to it.
+func NewNodeGroupForOcean() *api.NodeGroup {
+	ng := NewNodeGroup()
+	ng.Name = api.SpotOceanNodeGroupName
+	return ng
+}
 
 // RunPreCreation executes pre-creation actions.
 func RunPreCreation(clusterConfig *api.ClusterConfig, stacks []*cloudformation.Stack) error {
@@ -95,55 +103,52 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 
 // RunPreDeletion executes pre-deletion actions.
 func RunPreDeletion(clusterProvider api.ClusterProvider,
-	clusterConfig *api.ClusterConfig, filteredNodeGroups []*api.NodeGroup,
-	stacks []*cloudformation.Stack, plan bool) error {
+	clusterConfig *api.ClusterConfig, nodeGroups []*api.NodeGroup,
+	stacks []*cloudformation.Stack, shouldDelete DeleteFilter, plan bool) error {
 	logger.Debug("spot: executing pre-deletion actions")
 
-	shouldDelete := func(ngName string) bool {
-		for _, ng := range filteredNodeGroups {
-			if ng.Name == ngName {
-				return true
+	LoadFeatureFlags()
+	if !plan && AllowCredentialsChanges.Enabled() {
+		logger.Debug("spot: updating credentials for existing nodegroups")
+
+		for _, ng := range nodeGroups {
+			if shouldDelete(ng.Name) && NodeGroupManagedByOcean(ng, stacks) {
+				if err := UpdateCredentials(clusterProvider, clusterConfig,
+					ng.Name, stacks); err != nil {
+					return err
+				}
+			} else {
+				logger.Debug("spot: skipping credentials update for "+
+					"nodegroup %q", ng.Name)
 			}
 		}
-		return false
 	}
 
 	_, shouldDeleteOcean, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return err
 	}
-
-	LoadFeatureFlags()
-	if !plan && AllowCredentialsChanges.Enabled() {
-		logger.Debug("spot: updating credentials for existing nodegroups")
-
-		for _, ng := range filteredNodeGroups {
-			if shouldDelete(ng.Name) && nodeGroupManagedByOcean(ng, stacks) {
-				if err = UpdateCredentials(clusterProvider,
-					clusterConfig, ng.Name, stacks); err != nil {
-					return err
-				}
-			} else {
-				logger.Debug("spot: skipping credentials update for nodegroup %q", ng.Name)
-			}
-		}
-		if shouldDeleteOcean {
+	if shouldDeleteOcean {
+		if !plan && AllowCredentialsChanges.Enabled() {
 			if err = UpdateCredentials(clusterProvider,
 				clusterConfig, api.SpotOceanNodeGroupName, stacks); err != nil {
 				return err
 			}
 		}
-	}
 
-	if shouldDeleteOcean {
 		// Allow post-deletion actions to be performed on Ocean as well.
-		clusterConfig.NodeGroups = append(clusterConfig.NodeGroups, &api.NodeGroup{
-			Name: api.SpotOceanNodeGroupName,
-		})
+		clusterConfig.NodeGroups = append(clusterConfig.NodeGroups,
+			NewNodeGroupForOcean())
 	}
 
 	return nil
 }
+
+// ErrSpotMultipleDefaultLaunchSpecs represents an error in detecting the default
+// nodegroup since more than one has been configured as such.
+var ErrSpotMultipleDefaultLaunchSpecs = errors.New("spot: unable to detect " +
+	"default ocean launch spec: multiple nodegroups configured with " +
+	"`spot.metadata.defaultLaunchSpec: true`")
 
 // ShouldCreateOceanNodeGroup checks whether the nodegroup of the Ocean cluster
 // should be created and, if so, returns its NodeGroup configuration.
@@ -239,7 +244,7 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 
 	// If there is no nodegroup for the Ocean cluster, let's bail early.
 	for _, s := range stacks {
-		if nodeGroupName(s) == api.SpotOceanNodeGroupName {
+		if NodeGroupName(s) == api.SpotOceanNodeGroupName {
 			oceanNodeGroupStack = s
 			break
 		}
@@ -250,15 +255,17 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 	}
 
 	// Do not delete if there is at least one nodegroup that is not marked for deletion.
-	for _, s := range stacks {
-		ngName := nodeGroupName(s)
-		ng := &api.NodeGroup{Name: ngName}
+	if !shouldDelete(api.SpotOceanNodeGroupName) {
+		for _, s := range stacks {
+			ngName := NodeGroupName(s)
+			ng := &api.NodeGroup{Name: ngName}
 
-		if !shouldDelete(ngName) && ngName != api.SpotOceanNodeGroupName &&
-			nodeGroupStatusIsNotTransitional(s) && nodeGroupManagedByOcean(ng, stacks) {
-			logger.Debug("spot: at least one nodegroup remains "+
-				"active (%s); skipping ocean cluster deletion", ngName)
-			return nil, false, nil
+			if !shouldDelete(ngName) && ngName != api.SpotOceanNodeGroupName &&
+				NodeGroupStatusIsNotTransitional(s) && NodeGroupManagedByOcean(ng, stacks) {
+				logger.Debug("spot: at least one nodegroup remains "+
+					"active (%s); skipping ocean cluster deletion", ngName)
+				return nil, false, nil
+			}
 		}
 	}
 
@@ -269,10 +276,10 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 // ensureNodeGroupOceanClusterID retrieves the Ocean cluster identifier.
 func ensureNodeGroupOceanClusterID(stacks []*cloudformation.Stack, nodeGroup *api.NodeGroup) error {
 	for _, s := range stacks {
-		if nodeGroupName(s) == api.SpotOceanNodeGroupName {
-			if !nodeGroupStatusIsNotTransitional(s) {
-				return fmt.Errorf("spot: nodegroup %q is in transitional state %q",
-					nodeGroup.Name, aws.StringValue(s.StackStatus))
+		if NodeGroupName(s) == api.SpotOceanNodeGroupName {
+			if !NodeGroupStatusIsNotTransitional(s) {
+				return fmt.Errorf("spot: nodegroup %q is in transitional "+
+					"state %q", nodeGroup.Name, aws.StringValue(s.StackStatus))
 			}
 			return collectNodeGroupOceanClusterID(s, nodeGroup)
 		}
@@ -296,8 +303,8 @@ func collectNodeGroupOceanClusterID(stack *cloudformation.Stack, nodeGroup *api.
 	return outputs.Collect(*stack, requiredCollectors, nil)
 }
 
-// nodeGroupName returns the name of the nodegroup.
-func nodeGroupName(stack *cloudformation.Stack) string {
+// NodeGroupName returns the name of the nodegroup.
+func NodeGroupName(stack *cloudformation.Stack) string {
 	for _, tag := range stack.Tags {
 		switch *tag.Key {
 		case api.NodeGroupNameTag:
@@ -307,18 +314,18 @@ func nodeGroupName(stack *cloudformation.Stack) string {
 	return ""
 }
 
-// nodeGroupFromStacks returns the nodegroup by name.
-func nodeGroupFromStacks(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
+// NodeGroupFromStacks returns the nodegroup by name.
+func NodeGroupFromStacks(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
 	for _, stack := range stacks {
-		if nodeGroupName(stack) == name {
+		if NodeGroupName(stack) == name {
 			return stack
 		}
 	}
 	return nil
 }
 
-// nodeGroupStatusIsNotTransitional returns true when nodegroup status is non-transitional.
-func nodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
+// NodeGroupStatusIsNotTransitional returns true when nodegroup status is non-transitional.
+func NodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
 	states := map[string]struct{}{
 		cloudformation.StackStatusCreateComplete:         {},
 		cloudformation.StackStatusUpdateComplete:         {},
@@ -329,13 +336,13 @@ func nodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
 	return ok
 }
 
-// nodeGroupManagedByOcean returns a boolean indicating whether the nodegroup is managed by Ocean.
-func nodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformation.Stack) bool {
+// NodeGroupManagedByOcean returns a boolean indicating whether the nodegroup is managed by Ocean.
+func NodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformation.Stack) bool {
 	if nodeGroup.SpotOcean != nil { // fast path when using a config file
 		return true
 	}
 	for _, stack := range stacks { // slow path when using a flag
-		if nodeGroup.Name != nodeGroupName(stack) {
+		if nodeGroup.Name != NodeGroupName(stack) {
 			continue
 		}
 		for _, tag := range stack.Tags {
@@ -364,7 +371,7 @@ func UpdateCredentials(clusterProvider api.ClusterProvider, clusterConfig *api.C
 	logger.Debug("spot: updating credentials for nodegroup %q", ngName)
 
 	// Find the stack by the name of the nodegroup.
-	stack := nodeGroupFromStacks(ngName, stacks)
+	stack := NodeGroupFromStacks(ngName, stacks)
 	if stack == nil {
 		logger.Debug("spot: couldn't find stack for nodegroup %q", ngName)
 		return nil
@@ -373,7 +380,7 @@ func UpdateCredentials(clusterProvider api.ClusterProvider, clusterConfig *api.C
 	// Set the credentials profile, if any.
 	var profile *string
 	for _, ng := range clusterConfig.NodeGroups {
-		if ng.Name == nodeGroupName(stack) && ng.SpotOcean != nil && ng.SpotOcean.Metadata != nil {
+		if ng.Name == NodeGroupName(stack) && ng.SpotOcean != nil && ng.SpotOcean.Metadata != nil {
 			profile = ng.SpotOcean.Metadata.Profile
 		}
 	}
@@ -436,6 +443,8 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 			return err
 		}
 		cfnWait = false
+		logger.Debug("spot: new and old credentials are same; no updates "+
+			"are to be performed for stack %q", stack.StackName)
 	}
 
 	// Wait until stack status is UPDATE_COMPLETE.
@@ -538,4 +547,27 @@ func convertFeatureFlags() string {
 
 	logger.Debug("spot: will set feature flags %q", ff)
 	return ff
+}
+
+// DeleteFilter represents the type definition for a delete filter.
+type DeleteFilter func(ngName string) bool
+
+// DeleteAllFilter returns a DeleteFilter that always returns true.
+func DeleteAllFilter() DeleteFilter {
+	return func(_ string) bool {
+		return true
+	}
+}
+
+// DeleteIncludedFilter returns a DeleteFilter that returns true whether the
+// nodegroup is included.
+func DeleteIncludedFilter(nodeGroups []*api.NodeGroup) DeleteFilter {
+	return func(ngName string) bool {
+		for _, ng := range nodeGroups {
+			if ng.Name == ngName {
+				return true
+			}
+		}
+		return false
+	}
 }
