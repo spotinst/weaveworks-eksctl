@@ -90,3 +90,11 @@ func AddNodeGroupFilterFlags(fs *pflag.FlagSet, includeGlobs, excludeGlobs *[]st
 	fs.StringSliceVar(excludeGlobs, "exclude", nil,
 		"nodegroups to exclude (list of globs), e.g.: 'ng-team-?,prod-*'")
 }
+
+func AddSpotOceanCommonFlags(fs *pflag.FlagSet, spotProfile *string) {
+	fs.StringVar(spotProfile, "spot-profile", "", "credentials profile to use")
+}
+
+func AddSpotOceanCreateNodeGroupFlags(fs *pflag.FlagSet, spotOcean *bool) {
+	fs.BoolVar(spotOcean, "spot-ocean", false, "create Ocean-managed nodegroup")
+}
