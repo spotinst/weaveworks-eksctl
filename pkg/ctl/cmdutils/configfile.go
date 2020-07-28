@@ -8,12 +8,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // AddConfigFileFlag adds common --config-file flag
@@ -41,7 +40,7 @@ var (
 		"region",
 		"version",
 		"cluster",
-		"namepace",
+		"namespace",
 	}
 	defaultFlagsIncompatibleWithoutConfigFile = [...]string{
 		"only",
@@ -182,6 +181,9 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 		"vpc-cidr",
 		"vpc-nat-mode",
 		"vpc-from-kops-cluster",
+
+		// Spot Ocean.
+		"spot-ocean",
 	)
 
 	l.flagsIncompatibleWithoutConfigFile.Insert("install-vpc-controllers")
@@ -232,6 +234,16 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 			}
 		}
 
+		// Spot Ocean.
+		{
+			if ng.SpotOcean != nil && params.SpotProfile != "" {
+				if ng.SpotOcean.Metadata == nil {
+					ng.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
+				}
+				ng.SpotOcean.Metadata.Profile = &params.SpotProfile
+			}
+		}
+
 		return nil
 	}
 
@@ -264,6 +276,17 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 
 		api.SetClusterEndpointAccessDefaults(l.ClusterConfig.VPC)
 
+		// Spot Ocean.
+		{
+			if params.SpotOcean {
+				ng.SpotOcean = &api.NodeGroupSpotOcean{
+					Metadata: &api.NodeGroupSpotOceanMetadata{
+						Profile: &params.SpotProfile,
+					},
+				}
+			}
+		}
+
 		if params.Fargate {
 			l.ClusterConfig.SetDefaultFargateProfile()
 			// A Fargate-only cluster should NOT have any un-managed node group:
@@ -289,7 +312,8 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 }
 
 // NewCreateNodeGroupLoader will load config or use flags for 'eksctl create nodegroup'
-func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.NodeGroupFilter, mngOptions CreateManagedNGOptions) ClusterConfigLoader {
+func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.NodeGroupFilter,
+	mngOptions CreateManagedNGOptions, spotOptions CreateSpotOceanNodeGroupOptions) ClusterConfigLoader {
 	l := newCommonClusterConfigLoader(cmd)
 
 	l.flagsIncompatibleWithConfigFile.Insert(
@@ -315,10 +339,27 @@ func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.Node
 		"asg-access",
 		"external-dns-access",
 		"full-ecr-access",
+
+		// Spot Ocean.
+		"spot-ocean",
 	)
 
 	l.validateWithConfigFile = func() error {
-		return ngFilter.AppendGlobs(l.Include, l.Exclude, l.ClusterConfig.GetAllNodeGroupNames())
+		if err := ngFilter.AppendGlobs(l.Include, l.Exclude, l.ClusterConfig.GetAllNodeGroupNames()); err != nil {
+			return err
+		}
+
+		// Spot Ocean.
+		{
+			if ng.SpotOcean != nil && spotOptions.SpotProfile != "" {
+				if ng.SpotOcean.Metadata == nil {
+					ng.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
+				}
+				ng.SpotOcean.Metadata.Profile = &spotOptions.SpotProfile
+			}
+		}
+
+		return nil
 	}
 
 	l.validateWithoutConfigFile = func() error {
@@ -333,6 +374,17 @@ func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.Node
 
 		} else {
 			l.ClusterConfig.NodeGroups = []*api.NodeGroup{ng}
+		}
+
+		// Spot Ocean.
+		{
+			if spotOptions.SpotOcean {
+				ng.SpotOcean = &api.NodeGroupSpotOcean{
+					Metadata: &api.NodeGroupSpotOceanMetadata{
+						Profile: &spotOptions.SpotProfile,
+					},
+				}
+			}
 		}
 
 		// Validate both filtered and unfiltered nodegroups
@@ -560,6 +612,46 @@ func parseList(arg string) ([]string, error) {
 }
 
 // NewCreateIAMServiceAccountLoader will load config or use flags for 'eksctl create iamserviceaccount'
+// NewUtilsSpotOceanUpdateCredentials will load config or use flags for
+// 'eksctl utils update-spot-ocean-credentials'.
+func NewUtilsSpotOceanUpdateCredentials(cmd *Cmd, ng *api.NodeGroup,
+	ngFilter *filter.NodeGroupFilter) ClusterConfigLoader {
+
+	l := newCommonClusterConfigLoader(cmd)
+
+	l.validateWithConfigFile = func() error {
+		return ngFilter.AppendGlobs(l.Include, l.Exclude,
+			l.ClusterConfig.GetAllNodeGroupNames())
+	}
+
+	l.flagsIncompatibleWithoutConfigFile.Insert(
+		"approve",
+	)
+
+	l.validateWithoutConfigFile = func() error {
+		if l.ClusterConfig.Metadata.Name == "" {
+			return ErrMustBeSet(ClusterNameFlag(cmd))
+		}
+		if ng.Name != "" && l.NameArg != "" {
+			return ErrFlagAndArg("--name", ng.Name, l.NameArg)
+		}
+		if l.NameArg != "" {
+			ng.Name = l.NameArg
+		}
+		if ng.Name == "" {
+			return ErrMustBeSet("--name")
+		}
+
+		ngFilter.AppendIncludeNames(ng.Name)
+		l.Plan = false
+
+		return nil
+	}
+
+	return l
+}
+
+// NewCreateIAMServiceAccountLoader will laod config or use flags for 'eksctl create iamserviceaccount'
 func NewCreateIAMServiceAccountLoader(cmd *Cmd, saFilter *filter.IAMServiceAccountFilter) ClusterConfigLoader {
 	l := newCommonClusterConfigLoader(cmd)
 
