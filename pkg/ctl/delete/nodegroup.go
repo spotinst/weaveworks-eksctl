@@ -4,12 +4,12 @@ import (
 	"github.com/kris-nova/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/drain"
+	"github.com/weaveworks/eksctl/pkg/spot"
 )
 
 func deleteNodeGroupCmd(cmd *cmdutils.Cmd) {
@@ -108,8 +108,36 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 		}
 	}
 
-	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks()
+		if err != nil {
+			return err
+		}
 
+		// Filter nodegroups.
+		nodeGroups := ngFilter.FilterMatching(cfg.NodeGroups)
+		nodeGroupsDeleteFilter := spot.NewDeleteIncludedFilter(nodeGroups)
+
+		// Execute pre-deletion actions.
+		if err := spot.RunPreDeletion(ctl.Provider, cfg, nodeGroups, stacks,
+			nodeGroupsDeleteFilter, cmd.Plan); err != nil {
+			return err
+		}
+
+		// Explicitly append Ocean nodegroup to the include filter.
+		if cmd.ClusterConfigFile == "" {
+			for _, ng := range cfg.NodeGroups {
+				if ng.Name == api.SpotOceanNodeGroupName {
+					ngFilter.AppendIncludeNames(api.SpotOceanNodeGroupName)
+					break
+				}
+			}
+		}
+	}
+
+	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
 	logFiltered()
 
 	if updateAuthConfigMap {

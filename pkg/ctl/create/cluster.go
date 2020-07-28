@@ -8,21 +8,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
-
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
+	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/gitops"
 	"github.com/weaveworks/eksctl/pkg/kops"
 	"github.com/weaveworks/eksctl/pkg/printers"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	"github.com/weaveworks/eksctl/pkg/utils/kubectl"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
 	"github.com/weaveworks/eksctl/pkg/vpc"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func createClusterCmd(cmd *cmdutils.Cmd) {
@@ -80,6 +79,11 @@ func createClusterCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.C
 		}
 		fs.StringVar(&params.KopsClusterNameForVPC, "vpc-from-kops-cluster", "", "re-use VPC from a given kops cluster")
 		fs.StringVar(cfg.VPC.NAT.Gateway, "vpc-nat-mode", api.ClusterSingleNAT, "VPC NAT mode, valid options: HighlyAvailable, Single, Disable")
+	})
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCommonFlags(fs, &params.SpotProfile)
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
@@ -264,12 +268,29 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 		return err
 	}
 
+	stackManager := ctl.NewStackManager(cfg)
+
 	for _, ng := range cfg.NodeGroups {
 		// resolve AMI
 		if err := eks.EnsureAMI(ctl.Provider, meta.Version, ng); err != nil {
 			return err
 		}
 		logger.Info("nodegroup %q will use %q [%s/%s]", ng.Name, ng.AMI, ng.AMIFamily, cfg.Metadata.Version)
+	}
+
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks()
+		if err != nil && !strings.Contains(err.Error(),
+			"no eksctl-managed CloudFormation stacks found") {
+			return err
+		}
+
+		// Execute pre-creation actions.
+		if err := spot.RunPreCreation(cfg, stacks); err != nil {
+			return err
+		}
 	}
 
 	nodeGroupService := eks.NewNodeGroupService(cfg, ctl.Provider.EC2())
@@ -289,7 +310,6 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 	}
 
 	{ // core action
-		stackManager := ctl.NewStackManager(cfg)
 		if cmd.ClusterConfigFile == "" {
 			logMsg := func(resource string) {
 				logger.Info("will create 2 separate CloudFormation stacks for cluster itself and the initial %s", resource)
@@ -315,7 +335,10 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 			return err
 		}
 		postClusterCreationTasks := ctl.CreateExtraClusterConfigTasks(cfg, params.InstallWindowsVPCController)
-		tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+		tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+		if err != nil {
+			return fmt.Errorf("failed to create cluster tasks: %v", err)
+		}
 
 		logger.Info(tasks.Describe())
 		if errs := tasks.DoAllSync(); len(errs) > 0 {
@@ -377,7 +400,26 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 		}
 		logger.Success("all EKS cluster resources for %q have been created", meta.Name)
 
+		// Spot Ocean.
+		{
+			// Initialize a new raw REST client.
+			rawClient, err := ctl.NewRawClient(cfg)
+			if err != nil {
+				return err
+			}
+
+			// Execute post-creation actions.
+			if err := spot.RunPostCreation(cfg, clientSet, rawClient, true); err != nil {
+				return err
+			}
+		}
+
 		for _, ng := range cfg.NodeGroups {
+			// skip Spot Ocean nodegroups
+			if ng.SpotOcean != nil {
+				continue
+			}
+
 			// authorise nodes to join
 			if err = authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 				return err
