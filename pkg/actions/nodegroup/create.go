@@ -11,6 +11,7 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 	"github.com/weaveworks/eksctl/pkg/vpc"
@@ -185,7 +186,27 @@ func (m *Manager) postNodeCreationTasks(clientSet kubernetes.Interface, options 
 		return fmt.Errorf("failed to create nodegroups for cluster %q", m.cfg.Metadata.Name)
 	}
 
+	// Spot Ocean.
+	{
+		// Initialize a new raw REST client.
+		rawClient, err := m.ctl.NewRawClient(m.cfg)
+		if err != nil {
+			return err
+		}
+
+		// Execute post-creation actions.
+		if err := spot.RunPostCreation(m.cfg, clientSet, rawClient,
+			options.UpdateAuthConfigMap); err != nil {
+			return err
+		}
+	}
+
 	for _, ng := range m.cfg.NodeGroups {
+		if ng.SpotOcean != nil {
+			// skip Spot Ocean nodegroups
+			continue
+		}
+
 		if options.UpdateAuthConfigMap {
 			// authorise nodes to join
 			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
