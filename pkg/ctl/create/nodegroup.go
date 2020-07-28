@@ -18,7 +18,7 @@ import (
 func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options create.NodeGroupOptions, managed bool) error {
 		ngFilter := filter.NewNodeGroupFilter()
-		if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, managed).Load(); err != nil {
+		if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, managed, options.SpotOcean, options.SpotProfile).Load(); err != nil {
 			return errors.Wrap(err, "couldn't create node group filter from command line options")
 		}
 		ctl, err := cmd.NewCtl()
@@ -75,6 +75,11 @@ func createNodeGroupCmdWithRunFunc(
 		fs.StringVarP(&ng.Name, "name", "n", "", fmt.Sprintf("name of the new nodegroup (generated if unspecified, e.g. %q)", exampleNodeGroupName))
 		cmdutils.AddCommonCreateNodeGroupFlags(fs, cmd, ng)
 		fs.BoolVarP(&managed, "managed", "", false, "Create EKS-managed nodegroup")
+	})
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCommonFlags(fs, &options.SpotProfile)
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &options.SpotOcean)
 	})
 
 	cmd.FlagSetGroup.InFlagSet("Addons", func(fs *pflag.FlagSet) {
