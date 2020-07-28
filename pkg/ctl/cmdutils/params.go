@@ -1,6 +1,8 @@
 package cmdutils
 
 import (
+	"time"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
 
@@ -19,7 +21,9 @@ type CreateClusterCmdParams struct {
 	Subnets                     map[api.SubnetTopology]*[]string
 	WithoutNodeGroup            bool
 	Fargate                     bool
+
 	CreateManagedNGOptions
+	CreateSpotOceanNodeGroupOptions
 }
 
 // CreateManagedNGOptions holds options for creating a managed nodegroup
@@ -27,4 +31,25 @@ type CreateManagedNGOptions struct {
 	Managed       bool
 	Spot          bool
 	InstanceTypes []string
+}
+
+// CreateSpotOceanNodeGroupOptions holds options for creating a Spot Ocean nodegroup.
+type CreateSpotOceanNodeGroupOptions struct {
+	SpotOcean bool
+}
+
+// DeleteNodeGroupCmdParams groups CLI options for the delete nodegroup command.
+type DeleteNodeGroupCmdParams struct {
+	UpdateAuthConfigMap bool
+	Drain               bool
+	OnlyMissing         bool
+	MaxGracePeriod      time.Duration
+
+	DeleteSpotOceanNodeGroupOptions
+}
+
+// DeleteSpotOceanNodeGroupOptions holds options for deleting a Spot Ocean nodegroup.
+type DeleteSpotOceanNodeGroupOptions struct {
+	SpotRoll          bool
+	SpotRollBatchSize int
 }

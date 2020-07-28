@@ -52,7 +52,7 @@ func TestGenerateNodeName(t *testing.T) {
 			nodeGroup.InstancePrefix = tt.prefix
 			nodeGroup.InstanceName = tt.name
 
-			n := NewNodeGroupResourceSet(nil, clusterConfig, "cluster", nodeGroup, false, false)
+			n := NewNodeGroupResourceSet(nil, clusterConfig, "cluster", nil, nodeGroup, false, false)
 			nodeName := generateNodeName(n.spec.NodeGroupBase, clusterConfig.Metadata)
 
 			assert.Equal(t, tt.expected, nodeName)

@@ -119,6 +119,38 @@ func newNeuronDevicePluginTask(
 	return &t
 }
 
+type spotOceanControllerTask struct {
+	desc            string
+	clusterProvider *ClusterProvider
+	spec            *api.ClusterConfig
+}
+
+func newSpotOceanControllerTask(
+	clusterProvider *ClusterProvider,
+	spec *api.ClusterConfig,
+) tasks.Task {
+	return &spotOceanControllerTask{
+		desc:            "install ocean controller",
+		clusterProvider: clusterProvider,
+		spec:            spec,
+	}
+}
+
+func (n *spotOceanControllerTask) Describe() string { return n.desc }
+
+func (n *spotOceanControllerTask) Do(errCh chan error) error {
+	defer close(errCh)
+	rawClient, err := n.clusterProvider.NewRawClient(n.spec)
+	if err != nil {
+		return err
+	}
+	addon := addons.NewSpotOceanController(rawClient, n.spec, false)
+	if err := addon.Deploy(); err != nil {
+		return fmt.Errorf("ocean: error installing controller: %w", err)
+	}
+	return nil
+}
+
 type restartDaemonsetTask struct {
 	name            string
 	namespace       string
@@ -247,6 +279,17 @@ func (c *ClusterProvider) ClusterTasksForNodeGroups(cfg *api.ClusterConfig, inst
 	if haveNvidiaInstanceType && installNvidiaDevicePluginParam {
 		tasks.Append(newNvidiaDevicePluginTask(c, cfg))
 	}
+
+	// Spot Ocean.
+	{
+		for _, ng := range cfg.NodeGroups {
+			if ng.SpotOcean != nil {
+				tasks.Append(newSpotOceanControllerTask(c, cfg))
+				break
+			}
+		}
+	}
+
 	return tasks
 }
 

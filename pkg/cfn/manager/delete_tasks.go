@@ -2,12 +2,18 @@ package manager
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
-
+	"github.com/kris-nova/logger"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 )
 
@@ -82,33 +88,54 @@ func (c *StackCollection) NewTasksToDeleteNodeGroups(shouldDelete func(string) b
 		return nil, err
 	}
 
-	taskTree := &tasks.TaskTree{Parallel: true}
+	taskTree := &tasks.TaskTree{Parallel: false}
 
-	for _, s := range nodeGroupStacks {
-		name := c.GetNodeGroupName(s)
+	// Nodegroups.
+	{
+		nodeGroupTaskTree := &tasks.TaskTree{Parallel: true}
+		for _, s := range nodeGroupStacks {
+			name := c.GetNodeGroupName(s)
 
-		if !shouldDelete(name) {
-			continue
+			if !shouldDelete(name) || name == api.SpotOceanNodeGroupName {
+				continue
+			}
+			if *s.StackStatus == cloudformation.StackStatusDeleteFailed && cleanup != nil {
+				nodeGroupTaskTree.Append(&tasks.TaskWithNameParam{
+					Info: fmt.Sprintf("cleanup for nodegroup %q", name),
+					Call: cleanup,
+				})
+			}
+			info := fmt.Sprintf("delete nodegroup %q", name)
+			if wait {
+				nodeGroupTaskTree.Append(&taskWithStackSpec{
+					info:  info,
+					stack: s,
+					call:  c.DeleteStackBySpecSync,
+				})
+			} else {
+				nodeGroupTaskTree.Append(&asyncTaskWithStackSpec{
+					info:  info,
+					stack: s,
+					call:  c.DeleteStackBySpec,
+				})
+			}
 		}
-		if *s.StackStatus == cloudformation.StackStatusDeleteFailed && cleanup != nil {
-			taskTree.Append(&tasks.TaskWithNameParam{
-				Info: fmt.Sprintf("cleanup for nodegroup %q", name),
-				Call: cleanup,
-			})
+		if nodeGroupTaskTree.Len() > 0 {
+			nodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(nodeGroupTaskTree)
 		}
-		info := fmt.Sprintf("delete nodegroup %q", name)
-		if wait {
-			taskTree.Append(&taskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpecSync,
-			})
-		} else {
-			taskTree.Append(&asyncTaskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpec,
-			})
+	}
+
+	// Spot Ocean.
+	{
+		oceanTaskTree, err := c.NewTasksToDeleteSpotOceanNodeGroup(shouldDelete)
+		if err != nil {
+			return nil, err
+		}
+
+		if oceanTaskTree.Len() > 0 {
+			oceanTaskTree.IsSubTask = true
+			taskTree.Append(oceanTaskTree)
 		}
 	}
 
@@ -227,4 +254,90 @@ func (c *StackCollection) NewTaskToDeleteAddonIAM(wait bool) (*tasks.TaskTree, e
 	}
 	return taskTree, nil
 
+}
+
+// NewTasksToDeleteSpotOceanNodeGroup defines tasks required to delete Spot
+// Ocean cluster.
+func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(string) bool) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Describe all nodegroup stacks.
+	stacks, err := c.DescribeNodeGroupStacks()
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify before proceeding.
+	stack, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	if err != nil {
+		return nil, err
+	}
+	if stack == nil { // nothing to do
+		return taskTree, nil
+	}
+
+	// ignoreListImportsError ignores errors that may occur while listing imports.
+	ignoreListImportsError := func(errMsg string) bool {
+		errMsgs := []string{
+			"not imported by any stack",
+			"does not exist",
+		}
+		for _, msg := range errMsgs {
+			if strings.Contains(strings.ToLower(errMsg), msg) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// All nodegroups are marked for deletion. We have to wait for their deletion
+	// to complete before proceeding for deletion of the Ocean cluster.
+	deleter := func(s *Stack, errs chan error) error {
+		maxAttempts := 360 // 1 hour
+		delay := 10 * time.Second
+
+		for attempt := 1; ; attempt++ {
+			logger.Debug("ocean: attempting to delete cluster (attempt: %d)", attempt)
+
+			input := &cloudformation.ListImportsInput{
+				ExportName: aws.String(fmt.Sprintf("%s::%s",
+					aws.StringValue(s.StackName), outputs.NodeGroupSpotOceanClusterID)),
+			}
+
+			output, err := c.provider.CloudFormation().ListImports(input)
+			if err != nil {
+				awsErr, ok := err.(awserr.Error)
+				if !ok {
+					return err
+				}
+				if !ignoreListImportsError(awsErr.Message()) {
+					return err
+				}
+			}
+
+			if output != nil && len(output.Imports) > 0 {
+				if attempt+1 > maxAttempts {
+					return fmt.Errorf("ocean: max attempts reached: " +
+						"giving up waiting for importers to become deleted")
+				}
+
+				logger.Debug("ocean: waiting for %d importers "+
+					"to become deleted", len(output.Imports))
+				time.Sleep(delay)
+				continue
+			}
+
+			logger.Debug("ocean: no more importers, deleting cluster...")
+			return c.DeleteStackBySpecSync(s, errs)
+		}
+	}
+
+	// Add a new deletion task.
+	taskTree.Append(&taskWithStackSpec{
+		info:  "delete ocean cluster",
+		stack: stack,
+		call:  deleter,
+	})
+
+	return taskTree, nil
 }

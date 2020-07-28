@@ -123,9 +123,6 @@ func (m *Manager) Create(options CreateOpts, nodegroupFilter filter.NodeGroupFil
 			taskTree.Append(stackManager.NewClusterCompatTask())
 		}
 
-		allNodeGroupTasks := &tasks.TaskTree{
-			Parallel: true,
-		}
 		awsNodeUsesIRSA, err := eks.DoesAWSNodeUseIRSA(ctl.Provider, clientSet)
 		if err != nil {
 			return errors.Wrap(err, "couldn't check aws-node for annotation")
@@ -135,16 +132,12 @@ func (m *Manager) Create(options CreateOpts, nodegroupFilter filter.NodeGroupFil
 			logger.Debug("cluster has withOIDC enabled but is not using IRSA for CNI, will add CNI policy to node role")
 		}
 
-		nodeGroupTasks := stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
-		if nodeGroupTasks.Len() > 0 {
-			allNodeGroupTasks.Append(nodeGroupTasks)
-		}
-		managedTasks := stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA)
-		if managedTasks.Len() > 0 {
-			allNodeGroupTasks.Append(managedTasks)
+		nodeGroupTasks, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
+		if err != nil {
+			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		taskTree.Append(allNodeGroupTasks)
+		taskTree.Append(nodeGroupTasks)
 		logger.Info(taskTree.Describe())
 		errs := taskTree.DoAllSync()
 		if len(errs) > 0 {
@@ -186,13 +179,13 @@ func (m *Manager) postNodeCreationTasks(clientSet kubernetes.Interface, options 
 	}
 
 	for _, ng := range m.cfg.NodeGroups {
-		if options.UpdateAuthConfigMap {
-			// authorise nodes to join
-			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
-				return err
-			}
+		// authorise nodes to join
+		if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
+			return err
+		}
 
-			// wait for nodes to join
+		// wait for nodes to join
+		if ng.SpotOcean == nil {
 			if err := m.ctl.WaitForNodes(clientSet, ng); err != nil {
 				return err
 			}
