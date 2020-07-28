@@ -8,17 +8,17 @@ import (
 	"github.com/pkg/errors"
 
 	defaultaddons "github.com/weaveworks/eksctl/pkg/addons/default"
+	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
+	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/printers"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils"
 	"github.com/weaveworks/eksctl/pkg/vpc"
-
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/authconfigmap"
-	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
-	"github.com/weaveworks/eksctl/pkg/printers"
 )
 
 // NodeGroupOptions controls specific steps of node group creation
@@ -143,9 +143,6 @@ func (c *NodeGroup) Create() error {
 			tasks.Append(stackManager.NewClusterCompatTask())
 		}
 
-		allNodeGroupTasks := &manager.TaskTree{
-			Parallel: true,
-		}
 		awsNodeUsesIRSA, err := eks.DoesAWSNodeUseIRSA(ctl.Provider, clientSet)
 		if err != nil {
 			return errors.Wrap(err, "couldn't check aws-node for annotation")
@@ -155,16 +152,12 @@ func (c *NodeGroup) Create() error {
 			logger.Debug("cluster has withOIDC enabled but is not using IRSA for CNI, will add CNI policy to node role")
 		}
 
-		nodeGroupTasks := stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
-		if nodeGroupTasks.Len() > 0 {
-			allNodeGroupTasks.Append(nodeGroupTasks)
-		}
-		managedTasks := stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA)
-		if managedTasks.Len() > 0 {
-			allNodeGroupTasks.Append(managedTasks)
+		nodeGroupTasks, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
+		if err != nil {
+			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		tasks.Append(allNodeGroupTasks)
+		tasks.Append(nodeGroupTasks)
 		logger.Info(tasks.Describe())
 		errs := tasks.DoAllSync()
 		if len(errs) > 0 {
@@ -205,7 +198,27 @@ func PostNodeCreationTasks(ctl *eks.ClusterProvider, cfg *api.ClusterConfig, cli
 		return fmt.Errorf("failed to create nodegroups for cluster %q", cfg.Metadata.Name)
 	}
 
+	// Spot Ocean.
+	{
+		// Initialize a new raw REST client.
+		rawClient, err := ctl.NewRawClient(cfg)
+		if err != nil {
+			return err
+		}
+
+		// Execute post-creation actions.
+		if err := spot.RunPostCreation(cfg, clientSet, rawClient,
+			options.UpdateAuthConfigMap); err != nil {
+			return err
+		}
+	}
+
 	for _, ng := range cfg.NodeGroups {
+		// skip Spot Ocean nodegroups
+		if ng.SpotOcean != nil {
+			continue
+		}
+
 		if options.UpdateAuthConfigMap {
 			// authorise nodes to join
 			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
