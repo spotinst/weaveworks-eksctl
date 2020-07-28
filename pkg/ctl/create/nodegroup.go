@@ -3,6 +3,8 @@ package create
 import (
 	"fmt"
 
+	"github.com/weaveworks/eksctl/pkg/spot"
+
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -23,24 +25,18 @@ import (
 	"github.com/weaveworks/eksctl/pkg/printers"
 )
 
-type createNodeGroupParams struct {
-	updateAuthConfigMap       bool
-	managed                   bool
-	installNeuronDevicePlugin bool
-}
-
 func createNodeGroupCmd(cmd *cmdutils.Cmd) {
-	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeGroupParams) error {
+	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.CreateNodeGroupCmdParams) error {
 		return doCreateNodeGroups(cmd, ng, params)
 	})
 }
 
-func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeGroupParams) error) {
+func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.CreateNodeGroupCmdParams) error) {
 	cfg := api.NewClusterConfig()
 	ng := api.NewNodeGroup()
 	cmd.ClusterConfig = cfg
 
-	var params createNodeGroupParams
+	params := &cmdutils.CreateNodeGroupCmdParams{}
 
 	cfg.Metadata.Version = "auto"
 
@@ -60,28 +56,33 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils
 		cmdutils.AddVersionFlag(fs, cfg.Metadata, `for nodegroups "auto" and "latest" can be used to automatically inherit version from the control plane or force latest`)
 		cmdutils.AddConfigFileFlag(fs, &cmd.ClusterConfigFile)
 		cmdutils.AddNodeGroupFilterFlags(fs, &cmd.Include, &cmd.Exclude)
-		cmdutils.AddUpdateAuthConfigMap(fs, &params.updateAuthConfigMap, "Add nodegroup IAM role to aws-auth configmap")
+		cmdutils.AddUpdateAuthConfigMap(fs, &params.UpdateAuthConfigMap, "Add nodegroup IAM role to aws-auth configmap")
 		cmdutils.AddTimeoutFlag(fs, &cmd.ProviderConfig.WaitTimeout)
 	})
 
 	cmd.FlagSetGroup.InFlagSet("New nodegroup", func(fs *pflag.FlagSet) {
 		fs.StringVarP(&ng.Name, "name", "n", "", fmt.Sprintf("name of the new nodegroup (generated if unspecified, e.g. %q)", exampleNodeGroupName))
 		cmdutils.AddCommonCreateNodeGroupFlags(fs, cmd, ng)
-		fs.BoolVarP(&params.managed, "managed", "", false, "Create EKS-managed nodegroup")
+		fs.BoolVarP(&params.Managed, "managed", "", false, "Create EKS-managed nodegroup")
+	})
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCommonFlags(fs, &params.SpotProfile)
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
 	})
 
 	cmd.FlagSetGroup.InFlagSet("Addons", func(fs *pflag.FlagSet) {
 		cmdutils.AddCommonCreateNodeGroupIAMAddonsFlags(fs, ng)
-		fs.BoolVarP(&params.installNeuronDevicePlugin, "install-neuron-plugin", "", true, "install Neuron plugin for Inferentia nodes")
+		fs.BoolVarP(&params.InstallNeuronDevicePlugin, "install-neuron-plugin", "", true, "install Neuron plugin for Inferentia nodes")
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
 }
 
-func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeGroupParams) error {
+func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.CreateNodeGroupCmdParams) error {
 	ngFilter := filter.NewNodeGroupFilter()
 
-	if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, params.managed).Load(); err != nil {
+	if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, params.Managed, params.SpotOcean, params.SpotProfile).Load(); err != nil {
 		return err
 	}
 
@@ -181,9 +182,6 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeG
 			tasks.Append(stackManager.NewClusterCompatTask())
 		}
 
-		allNodeGroupTasks := &manager.TaskTree{
-			Parallel: true,
-		}
 		awsNodeUsesIRSA, err := eks.DoesAWSNodeUseIRSA(ctl.Provider, clientSet)
 		if err != nil {
 			return errors.Wrap(err, "couldn't check aws-node for annotation")
@@ -193,16 +191,12 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeG
 			logger.Debug("cluster has withOIDC enabled but is not using IRSA for CNI, will add CNI policy to node role")
 		}
 
-		nodeGroupTasks := stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
-		if nodeGroupTasks.Len() > 0 {
-			allNodeGroupTasks.Append(nodeGroupTasks)
-		}
-		managedTasks := stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA)
-		if managedTasks.Len() > 0 {
-			allNodeGroupTasks.Append(managedTasks)
+		nodeGroupTasks, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
+		if err != nil {
+			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		tasks.Append(allNodeGroupTasks)
+		tasks.Append(nodeGroupTasks)
 		logger.Info(tasks.Describe())
 		errs := tasks.DoAllSync()
 		if len(errs) > 0 {
@@ -218,7 +212,7 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeG
 	}
 
 	{ // post-creation action
-		tasks := ctl.ClusterTasksForNodeGroups(cfg, params.installNeuronDevicePlugin)
+		tasks := ctl.ClusterTasksForNodeGroups(cfg, params.InstallNeuronDevicePlugin)
 		logger.Info(tasks.Describe())
 		errs := tasks.DoAllSync()
 		if len(errs) > 0 {
@@ -232,8 +226,28 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeG
 			return fmt.Errorf("failed to create nodegroups for cluster %q", cfg.Metadata.Name)
 		}
 
+		// Spot Ocean.
+		{
+			// Initialize a new raw REST client.
+			rawClient, err := ctl.NewRawClient(cfg)
+			if err != nil {
+				return err
+			}
+
+			// Execute post-creation actions.
+			if err := spot.RunPostCreation(cfg, clientSet, rawClient,
+				params.UpdateAuthConfigMap); err != nil {
+				return err
+			}
+		}
+
 		for _, ng := range cfg.NodeGroups {
-			if params.updateAuthConfigMap {
+			// skip Spot Ocean nodegroups
+			if ng.SpotOcean != nil {
+				continue
+			}
+
+			if params.UpdateAuthConfigMap {
 				// authorise nodes to join
 				if err = authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 					return err
@@ -245,7 +259,7 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params createNodeG
 				}
 			}
 
-			showDevicePluginMessageForNodeGroup(ng, params.installNeuronDevicePlugin)
+			showDevicePluginMessageForNodeGroup(ng, params.InstallNeuronDevicePlugin)
 		}
 		logger.Success("created %d nodegroup(s) in cluster %q", len(cfg.NodeGroups), cfg.Metadata.Name)
 
