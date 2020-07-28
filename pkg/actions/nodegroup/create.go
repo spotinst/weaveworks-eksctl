@@ -11,6 +11,7 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 	"github.com/weaveworks/eksctl/pkg/vpc"
@@ -123,9 +124,6 @@ func (m *Manager) Create(options CreateOpts, nodegroupFilter filter.NodeGroupFil
 			taskTree.Append(stackManager.NewClusterCompatTask())
 		}
 
-		allNodeGroupTasks := &tasks.TaskTree{
-			Parallel: true,
-		}
 		awsNodeUsesIRSA, err := eks.DoesAWSNodeUseIRSA(ctl.Provider, clientSet)
 		if err != nil {
 			return errors.Wrap(err, "couldn't check aws-node for annotation")
@@ -135,16 +133,12 @@ func (m *Manager) Create(options CreateOpts, nodegroupFilter filter.NodeGroupFil
 			logger.Debug("cluster has withOIDC enabled but is not using IRSA for CNI, will add CNI policy to node role")
 		}
 
-		nodeGroupTasks := stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
-		if nodeGroupTasks.Len() > 0 {
-			allNodeGroupTasks.Append(nodeGroupTasks)
-		}
-		managedTasks := stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA)
-		if managedTasks.Len() > 0 {
-			allNodeGroupTasks.Append(managedTasks)
+		nodeGroupTasks, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
+		if err != nil {
+			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		taskTree.Append(allNodeGroupTasks)
+		taskTree.Append(nodeGroupTasks)
 		logger.Info(taskTree.Describe())
 		errs := taskTree.DoAllSync()
 		if len(errs) > 0 {
@@ -185,7 +179,27 @@ func (m *Manager) postNodeCreationTasks(clientSet kubernetes.Interface, options 
 		return fmt.Errorf("failed to create nodegroups for cluster %q", m.cfg.Metadata.Name)
 	}
 
+	// Spot Ocean.
+	{
+		// Initialize a new raw REST client.
+		rawClient, err := m.ctl.NewRawClient(m.cfg)
+		if err != nil {
+			return err
+		}
+
+		// Execute post-creation actions.
+		if err := spot.RunPostCreation(m.cfg, clientSet, rawClient,
+			options.UpdateAuthConfigMap); err != nil {
+			return err
+		}
+	}
+
 	for _, ng := range m.cfg.NodeGroups {
+		if ng.SpotOcean != nil {
+			// skip Spot Ocean nodegroups
+			continue
+		}
+
 		if options.UpdateAuthConfigMap {
 			// authorise nodes to join
 			if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
