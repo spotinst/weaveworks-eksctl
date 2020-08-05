@@ -6,8 +6,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
 )
@@ -640,6 +643,46 @@ var _ = Describe("StackCollection Tasks", func() {
 
 				p = mockprovider.NewMockProvider()
 
+				p.MockCloudFormation().On("ListStacksPages", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+					consume := args[1].(func(p *cfn.ListStacksOutput, last bool) (shouldContinue bool))
+					out := &cfn.ListStacksOutput{
+						StackSummaries: []*cfn.StackSummary{
+							{
+								StackName: aws.String("eksctl-test-cluster-nodegroup-12345"),
+							},
+						},
+					}
+					cont := consume(out, true)
+					if !cont {
+						panic("unexpected return value from the paging function: shouldContinue was false. It becomes " +
+							"false only when subsequent DescribeStacks call(s) fail, which isn't expected in this test scenario")
+					}
+				}).Return(nil)
+
+				p.MockCloudFormation().On("DescribeStacks", mock.MatchedBy(func(input *cfn.DescribeStacksInput) bool {
+					return input.StackName != nil && *input.StackName == "eksctl-test-cluster-nodegroup-12345"
+				})).Return(&cfn.DescribeStacksOutput{
+					Stacks: []*cfn.Stack{
+						{
+							StackName:   aws.String("eksctl-test-cluster-nodegroup-12345"),
+							StackId:     aws.String("eksctl-test-cluster-nodegroup-12345-id"),
+							StackStatus: aws.String("CREATE_COMPLETE"),
+							Tags: []*cfn.Tag{
+								{
+									Key:   aws.String(api.NodeGroupNameTag),
+									Value: aws.String("12345"),
+								},
+							},
+							Outputs: []*cfn.Output{
+								{
+									OutputKey:   aws.String("InstanceRoleARN"),
+									OutputValue: aws.String("arn:aws:iam::1111:role/eks-nodes-base-role"),
+								},
+							},
+						},
+					},
+				}, nil)
+
 				cfg = newClusterConfig("test-cluster")
 
 				stackManager = NewStackCollection(p, cfg)
@@ -665,41 +708,28 @@ var _ = Describe("StackCollection Tasks", func() {
 					}
 					return managedNodeGroups
 				}
-
-				makeSpotNodeGroups := func(clusterID bool, names ...string) []*api.NodeGroup {
-					var nodeGroups []*api.NodeGroup
-					for _, name := range names {
-						ng := api.NewNodeGroup()
-						ng.Name = name
-						ng.SpotOcean = &api.NodeGroupSpotOcean{
-							Metadata: &api.NodeGroupSpotOceanMetadata{},
-						}
-						if clusterID {
-							ng.SpotOcean.Metadata.ClusterID = func(v string) *string { return &v }("foo")
-						}
-						nodeGroups = append(nodeGroups, ng)
-					}
-					return nodeGroups
-				}
-
 				// TODO use DescribeTable
 
 				// The supportsManagedNodes argument has no effect on the Describe call, so the values are alternated
 				// in these tests
 				{
-					tasks := stackManager.NewTasksToCreateUnmanagedNodeGroups(makeNodeGroups("bar", "foo"), true)
+					tasks, err := stackManager.NewTasksToCreateNodeGroups(makeNodeGroups("bar", "foo"), nil, true)
+					Expect(err).To(BeNil())
 					Expect(tasks.Describe()).To(Equal(`2 parallel tasks: { create nodegroup "bar", create nodegroup "foo" }`))
 				}
 				{
-					tasks := stackManager.NewTasksToCreateUnmanagedNodeGroups(makeNodeGroups("bar"), false)
+					tasks, err := stackManager.NewTasksToCreateNodeGroups(makeNodeGroups("bar"), nil, false)
+					Expect(err).To(BeNil())
 					Expect(tasks.Describe()).To(Equal(`1 task: { create nodegroup "bar" }`))
 				}
 				{
-					tasks := stackManager.NewTasksToCreateUnmanagedNodeGroups(makeNodeGroups("foo"), true)
+					tasks, err := stackManager.NewTasksToCreateNodeGroups(makeNodeGroups("foo"), nil, true)
+					Expect(err).To(BeNil())
 					Expect(tasks.Describe()).To(Equal(`1 task: { create nodegroup "foo" }`))
 				}
 				{
-					tasks := stackManager.NewTasksToCreateUnmanagedNodeGroups(nil, false)
+					tasks, err := stackManager.NewTasksToCreateNodeGroups(nil, nil, false)
+					Expect(err).To(BeNil())
 					Expect(tasks.Describe()).To(Equal(`no tasks`))
 				}
 				{
@@ -731,26 +761,6 @@ var _ = Describe("StackCollection Tasks", func() {
 					tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar"), nil, false, &task{id: 1})
 					Expect(err).To(BeNil())
 					Expect(tasks.Describe()).To(Equal(`2 sequential tasks: { create cluster control plane "test-cluster", 2 sequential sub-tasks: { task 1, create nodegroup "bar" } }`))
-				}
-				{
-					tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(makeSpotNodeGroups(true, "us1"), nil, true)
-					Expect(err).To(BeNil())
-					Expect(tasks.Describe()).To(Equal(`2 sequential tasks: { create cluster control plane "test-cluster", create nodegroup "us1" }`))
-				}
-				{
-					tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(makeSpotNodeGroups(false, "us1"), nil, true)
-					Expect(err).To(BeNil())
-					Expect(tasks.Describe()).To(Equal(`2 sequential tasks: { create cluster control plane "test-cluster", 2 sequential sub-tasks: { spot: create ocean cluster, create nodegroup "us1" } }`))
-				}
-				{
-					tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(makeSpotNodeGroups(true, "us1"), makeManagedNodeGroups("m1"), true)
-					Expect(err).To(BeNil())
-					Expect(tasks.Describe()).To(Equal(`2 sequential tasks: { create cluster control plane "test-cluster", 2 parallel sub-tasks: { create nodegroup "us1", create managed nodegroup "m1" } }`))
-				}
-				{
-					tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(makeSpotNodeGroups(false, "us1"), makeManagedNodeGroups("m1"), true)
-					Expect(err).To(BeNil())
-					Expect(tasks.Describe()).To(Equal(`2 sequential tasks: { create cluster control plane "test-cluster", 2 sequential sub-tasks: { spot: create ocean cluster, 2 parallel sub-tasks: { create nodegroup "us1", create managed nodegroup "m1" } } }`))
 				}
 			})
 		})

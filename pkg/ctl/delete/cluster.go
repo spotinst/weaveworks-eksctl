@@ -152,7 +152,7 @@ func doDeleteCluster(cmd *cmdutils.Cmd) error {
 
 		// Execute pre-deletion actions.
 		if err := spot.RunPreDeletion(ctl.Provider, cfg, cfg.NodeGroups,
-			stacks, spot.NewDeleteAllFilter(), false); err != nil {
+			stacks, spot.NewDeleteAllFilter(), false, 0, false); err != nil {
 			return err
 		}
 	}

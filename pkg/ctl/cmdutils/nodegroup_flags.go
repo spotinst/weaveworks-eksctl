@@ -91,10 +91,15 @@ func AddNodeGroupFilterFlags(fs *pflag.FlagSet, includeGlobs, excludeGlobs *[]st
 		"nodegroups to exclude (list of globs), e.g.: 'ng-team-?,prod-*'")
 }
 
-func AddSpotOceanCommonFlags(fs *pflag.FlagSet, spotProfile *string) {
-	fs.StringVar(spotProfile, "spot-profile", "", "credentials profile to use")
+func AddSpotOceanCommonFlags(fs *pflag.FlagSet, profile *string) {
+	fs.StringVar(profile, "spot-profile", "", "credentials profile to use")
 }
 
-func AddSpotOceanCreateNodeGroupFlags(fs *pflag.FlagSet, spotOcean *bool) {
-	fs.BoolVar(spotOcean, "spot-ocean", false, "create Ocean-managed nodegroup")
+func AddSpotOceanCreateNodeGroupFlags(fs *pflag.FlagSet, ocean *bool) {
+	fs.BoolVar(ocean, "spot-ocean", false, "create Ocean-managed nodegroup")
+}
+
+func AddSpotOceanDeleteNodeGroupFlags(fs *pflag.FlagSet, roll *bool, rollBatchSize *int) {
+	fs.BoolVar(roll, "spot-roll", false, "initiate a cluster roll before deletion")
+	fs.IntVar(rollBatchSize, "spot-roll-batch-size", 0, "percentage size of each batch in the initiated cluster roll")
 }

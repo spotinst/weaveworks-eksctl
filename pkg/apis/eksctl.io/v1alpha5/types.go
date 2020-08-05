@@ -1024,8 +1024,6 @@ type (
 		// +optional
 		Profile *string `json:"profile,omitempty"`
 		// +optional
-		ClusterID *string `json:"clusterId,omitempty"`
-		// +optional
 		DefaultLaunchSpec *bool `json:"defaultLaunchSpec,omitempty"`
 	}
 

@@ -137,20 +137,6 @@ func doCreateNodeGroups(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.C
 		logger.Info("nodegroup %q will use %q [%s/%s]", ng.Name, ng.AMI, ng.AMIFamily, cfg.Metadata.Version)
 	}
 
-	// Spot Ocean.
-	{
-		// List all nodegroup stacks.
-		stacks, err := stackManager.DescribeNodeGroupStacks()
-		if err != nil {
-			return err
-		}
-
-		// Execute pre-creation actions.
-		if err := spot.RunPreCreation(cfg, stacks); err != nil {
-			return err
-		}
-	}
-
 	nodeGroupService := eks.NewNodeGroupService(cfg, ctl.Provider.EC2())
 	if err := nodeGroupService.Normalize(cmdutils.ToBaseNodeGroups(cfg)); err != nil {
 		return err

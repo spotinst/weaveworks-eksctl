@@ -1275,9 +1275,6 @@
     },
     "NodeGroupSpotOceanMetadata": {
       "properties": {
-        "clusterId": {
-          "type": "string"
-        },
         "defaultLaunchSpec": {
           "type": "boolean"
         },
@@ -1287,7 +1284,6 @@
       },
       "preferredOrder": [
         "profile",
-        "clusterId",
         "defaultLaunchSpec"
       ],
       "additionalProperties": false,
