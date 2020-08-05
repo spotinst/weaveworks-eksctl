@@ -248,13 +248,12 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 	// All nodegroups are marked for deletion. We have to wait for their deletion
 	// to complete before proceeding for deletion of the Ocean cluster.
 	deleter := func(s *Stack, errs chan error) error {
-		attempt := 0
-		maxAttempts := 10
+		maxAttempts := 360 // 1 hour
+		delay := 10 * time.Second
 
-		for {
-			attempt++
+		for attempt := 1; ; attempt++ {
 			logger.Debug("spot: attempting to delete ocean "+
-				"cluster (attempt: %d/%d)", attempt, maxAttempts)
+				"cluster (attempt: %d)", attempt)
 
 			input := &cloudformation.ListImportsInput{
 				ExportName: aws.String(fmt.Sprintf("%s::%s",
@@ -280,7 +279,7 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 
 				logger.Debug("spot: waiting for %d importers "+
 					"to become deleted", len(output.Imports))
-				time.Sleep(10 * time.Second)
+				time.Sleep(delay)
 				continue
 			}
 

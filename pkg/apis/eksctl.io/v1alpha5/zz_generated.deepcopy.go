@@ -1255,11 +1255,6 @@ func (in *NodeGroupSpotOceanMetadata) DeepCopyInto(out *NodeGroupSpotOceanMetada
 		*out = new(string)
 		**out = **in
 	}
-	if in.ClusterID != nil {
-		in, out := &in.ClusterID, &out.ClusterID
-		*out = new(string)
-		**out = **in
-	}
 	if in.DefaultLaunchSpec != nil {
 		in, out := &in.DefaultLaunchSpec, &out.DefaultLaunchSpec
 		*out = new(bool)

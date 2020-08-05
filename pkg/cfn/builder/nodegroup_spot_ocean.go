@@ -53,7 +53,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 
 	// Credentials.
 	{
-		token, account, err := spot.LoadCredentials(n.spec.SpotOcean.Metadata.Profile)
+		var profile *string
+		if n.spec.SpotOcean.Metadata != nil {
+			profile = n.spec.SpotOcean.Metadata.Profile
+		}
+
+		token, account, err := spot.LoadCredentials(profile)
 		if err != nil {
 			return nil, err
 		}

@@ -99,7 +99,7 @@ func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProf
 	}
 
 	for _, ng := range cfg.NodeGroups {
-		if spot.NodeGroupManagedByOcean(ng, stacks) && !cmd.Plan {
+		if spot.IsNodeGroupManagedByOcean(ng, stacks) && !cmd.Plan {
 			if err := updateCredentials(ng); err != nil {
 				return err
 			}

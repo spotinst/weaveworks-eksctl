@@ -268,29 +268,12 @@ func doCreateCluster(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.Crea
 		return err
 	}
 
-	stackManager := ctl.NewStackManager(cfg)
-
 	for _, ng := range cfg.NodeGroups {
 		// resolve AMI
 		if err := eks.EnsureAMI(ctl.Provider, meta.Version, ng); err != nil {
 			return err
 		}
 		logger.Info("nodegroup %q will use %q [%s/%s]", ng.Name, ng.AMI, ng.AMIFamily, cfg.Metadata.Version)
-	}
-
-	// Spot Ocean.
-	{
-		// List all nodegroup stacks.
-		stacks, err := stackManager.DescribeNodeGroupStacks()
-		if err != nil && !strings.Contains(err.Error(),
-			"no eksctl-managed CloudFormation stacks found") {
-			return err
-		}
-
-		// Execute pre-creation actions.
-		if err := spot.RunPreCreation(cfg, stacks); err != nil {
-			return err
-		}
 	}
 
 	nodeGroupService := eks.NewNodeGroupService(cfg, ctl.Provider.EC2())

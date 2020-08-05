@@ -35,3 +35,15 @@ type CreateNodeGroupCmdParams struct {
 	SpotProfile string
 	SpotOcean   bool
 }
+
+// DeleteNodeGroupCmdParams groups CLI options for the delete nodegroup command.
+type DeleteNodeGroupCmdParams struct {
+	UpdateAuthConfigMap bool
+	Drain               bool
+	OnlyMissing         bool
+
+	// Spot Ocean.
+	SpotProfile       string
+	SpotRoll          bool
+	SpotRollBatchSize int
+}

@@ -66,32 +66,35 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(nodeGroups []*ap
 // NewTasksToCreateNodeGroups defines tasks required to create all of the nodegroups
 func (c *StackCollection) NewTasksToCreateNodeGroups(nodeGroups []*api.NodeGroup,
 	managedNodeGroups []*api.ManagedNodeGroup, supportsManagedNodes bool) (*TaskTree, error) {
-	tasks := &TaskTree{Parallel: false}
+	tasks := &TaskTree{Parallel: true}
 
 	// Spot Ocean.
-	{
-		oceanTasks, err := c.NewTasksToCreateSpotOceanNodeGroup(nodeGroups, supportsManagedNodes)
-		if err != nil {
-			return nil, err
-		}
+	oceanTasks, err := c.NewTasksToCreateSpotOceanNodeGroup(nodeGroups)
+	if err != nil {
+		return nil, err
+	}
+	if oceanTasks.Len() > 0 {
+		oceanTasks.IsSubTask = true
+		tasks.Parallel = false
+		tasks.Append(oceanTasks)
+	}
 
+	nodeGroupTasks := c.NewTasksToCreateUnmanagedNodeGroups(nodeGroups, supportsManagedNodes)
+	if nodeGroupTasks.Len() > 0 {
 		if oceanTasks.Len() > 0 {
-			oceanTasks.IsSubTask = true
-			tasks.Append(oceanTasks)
+			nodeGroupTasks.IsSubTask = true
+			tasks.Append(nodeGroupTasks)
+		} else {
+			tasks = nodeGroupTasks
 		}
 	}
 
-	// Nodegroups.
-	{
-		nodeGroupTasks := c.NewTasksToCreateUnmanagedNodeGroups(nodeGroups, supportsManagedNodes)
-		if nodeGroupTasks.Len() > 0 {
-			nodeGroupTasks.IsSubTask = true
-			tasks.Append(nodeGroupTasks)
-		}
-
-		managedNodeGroupTasks := c.NewTasksToCreateManagedNodeGroups(managedNodeGroups)
-		if managedNodeGroupTasks.Len() > 0 {
+	managedNodeGroupTasks := c.NewTasksToCreateManagedNodeGroups(managedNodeGroups)
+	if managedNodeGroupTasks.Len() > 0 {
+		if oceanTasks.Len() > 0 {
 			nodeGroupTasks.Append(managedNodeGroupTasks.tasks...)
+		} else {
+			tasks.Append(managedNodeGroupTasks.tasks...)
 		}
 	}
 
@@ -186,11 +189,17 @@ func (c *StackCollection) NewTasksToCreateIAMServiceAccounts(serviceAccounts []*
 // NewTasksToCreateSpotOceanNodeGroup defines tasks required to create Spot
 // Ocean cluster.
 func (c *StackCollection) NewTasksToCreateSpotOceanNodeGroup(
-	nodeGroups []*api.NodeGroup, supportsManagedNodes bool) (*TaskTree, error) {
+	nodeGroups []*api.NodeGroup) (*TaskTree, error) {
 	tasks := &TaskTree{Parallel: true}
 
+	// Describe stacks.
+	stacks, err := c.DescribeNodeGroupStacks()
+	if err != nil {
+		return nil, err
+	}
+
 	// Verify before proceeding.
-	ng, _, err := spot.ShouldCreateOceanNodeGroup(nodeGroups)
+	ng, _, err := spot.ShouldCreateOceanNodeGroup(nodeGroups, stacks)
 	if err != nil {
 		return nil, err
 	}
@@ -203,10 +212,9 @@ func (c *StackCollection) NewTasksToCreateSpotOceanNodeGroup(
 
 	// Add a new creation task.
 	tasks.Append(&nodeGroupTask{
-		info:                 "spot: create ocean cluster",
-		nodeGroup:            ng,
-		stackCollection:      c,
-		supportsManagedNodes: supportsManagedNodes,
+		info:            "spot: create ocean cluster",
+		nodeGroup:       ng,
+		stackCollection: c,
 	})
 
 	return tasks, nil
