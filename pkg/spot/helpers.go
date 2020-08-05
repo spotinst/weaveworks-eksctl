@@ -1,24 +1,33 @@
 package spot
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/kris-nova/logger"
+	"github.com/spotinst/spotinst-sdk-go/service/ocean"
+	oceanaws "github.com/spotinst/spotinst-sdk-go/service/ocean/providers/aws"
 	"github.com/spotinst/spotinst-sdk-go/spotinst"
+	"github.com/spotinst/spotinst-sdk-go/spotinst/client"
 	"github.com/spotinst/spotinst-sdk-go/spotinst/credentials"
 	"github.com/spotinst/spotinst-sdk-go/spotinst/featureflag"
+	"github.com/spotinst/spotinst-sdk-go/spotinst/log"
+	"github.com/spotinst/spotinst-sdk-go/spotinst/session"
 	"github.com/weaveworks/eksctl/pkg/addons"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	kubewrapper "github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/version"
 )
 
 // NewNodeGroup creates a new NodeGroup, and returns a pointer to it.
@@ -33,33 +42,6 @@ func NewNodeGroupForOcean() *api.NodeGroup {
 	ng := NewNodeGroup()
 	ng.Name = api.SpotOceanNodeGroupName
 	return ng
-}
-
-// RunPreCreation executes pre-creation actions.
-func RunPreCreation(clusterConfig *api.ClusterConfig, stacks []*cloudformation.Stack) error {
-	logger.Debug("spot: executing pre-creation actions")
-
-	for _, ng := range clusterConfig.NodeGroups {
-		if ng.SpotOcean == nil || (ng.SpotOcean.Metadata != nil &&
-			ng.SpotOcean.Metadata.ClusterID != nil) {
-			logger.Debug("spot: skipping nodegroup %q", ng.Name)
-			continue
-		}
-		logger.Debug("spot: handling nodegroup %q", ng.Name)
-
-		if ng.SpotOcean.Metadata == nil {
-			ng.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
-		}
-
-		if len(stacks) > 0 {
-			logger.Debug("spot: collecting ocean cluster identifier for nodegroup %q", ng.Name)
-			if err := ensureNodeGroupOceanClusterID(stacks, ng); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
 }
 
 // RunPreCreation executes post-creation actions.
@@ -91,7 +73,7 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 				rawClient,
 				clusterConfig,
 				false,
-				aws.StringValue(ng.SpotOcean.Metadata.Profile))
+				spotinst.StringValue(profileOrDefault(ng)))
 			if err := controller.Deploy(); err != nil {
 				return fmt.Errorf("spot: error installing ocean controller: %w", err)
 			}
@@ -104,22 +86,36 @@ func RunPostCreation(clusterConfig *api.ClusterConfig, clientSet kubernetes.Inte
 // RunPreDeletion executes pre-deletion actions.
 func RunPreDeletion(clusterProvider api.ClusterProvider,
 	clusterConfig *api.ClusterConfig, nodeGroups []*api.NodeGroup,
-	stacks []*cloudformation.Stack, shouldDelete DeleteFilter, plan bool) error {
+	stacks []*cloudformation.Stack, shouldDelete DeleteFilter, roll bool,
+	rollBatchSize int, plan bool) error {
 	logger.Debug("spot: executing pre-deletion actions")
 
-	LoadFeatureFlags()
-	if !plan && AllowCredentialsChanges.Enabled() {
-		logger.Debug("spot: updating credentials for existing nodegroups")
+	// Filter Ocean nodegroups that are marked for deletion.
+	oceanNodeGroups := make([]*api.NodeGroup, 0, len(nodeGroups))
+	for _, ng := range nodeGroups {
+		if shouldDelete(ng.Name) && IsNodeGroupManagedByOcean(ng, stacks) {
+			oceanNodeGroups = append(oceanNodeGroups, ng)
+		}
+	}
 
-		for _, ng := range nodeGroups {
-			if shouldDelete(ng.Name) && NodeGroupManagedByOcean(ng, stacks) {
+	LoadFeatureFlags()
+	if !plan && len(oceanNodeGroups) > 0 {
+		// Gracefully migrate all running workload.
+		if roll {
+			if err := initiateRoll(oceanNodeGroups, stacks, rollBatchSize); err != nil {
+				return err
+			}
+		}
+
+		// Update upstream credentials, if needed.
+		if AllowCredentialsChanges.Enabled() {
+			logger.Debug("spot: updating credentials for existing nodegroups")
+
+			for _, ng := range oceanNodeGroups {
 				if err := UpdateCredentials(clusterProvider, clusterConfig,
 					ng.Name, stacks); err != nil {
 					return err
 				}
-			} else {
-				logger.Debug("spot: skipping credentials update for "+
-					"nodegroup %q", ng.Name)
 			}
 		}
 	}
@@ -152,7 +148,8 @@ var ErrSpotMultipleDefaultLaunchSpecs = errors.New("spot: unable to detect " +
 
 // ShouldCreateOceanNodeGroup checks whether the nodegroup of the Ocean cluster
 // should be created and, if so, returns its NodeGroup configuration.
-func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, bool, error) {
+func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
+	stacks []*cloudformation.Stack) (*api.NodeGroup, bool, error) {
 	logger.Debug("spot: checking whether ocean cluster should be created")
 
 	var (
@@ -171,10 +168,18 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, bo
 		return nil, false, nil
 	}
 
+	// If there is already an existing cluster, we're done.
+	clusterID := getOceanClusterIDFromStacks(stacks)
+	if clusterID != "" {
+		logger.Debug("spot: ocean cluster already exists")
+		return nil, false, nil
+	}
+
 	// Find the default nodegroup and calculate the capacity.
 	for _, ng := range oceanNodeGroups {
 		// Is this the default nodegroup?
-		if aws.BoolValue(ng.SpotOcean.Metadata.DefaultLaunchSpec) {
+		if ng.SpotOcean.Metadata != nil &&
+			spotinst.BoolValue(ng.SpotOcean.Metadata.DefaultLaunchSpec) {
 			if oceanNodeGroup != nil {
 				logger.Debug("spot: multiple default nodegroups (%q and %q)",
 					ng.Name, oceanNodeGroup.Name)
@@ -188,19 +193,19 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, bo
 			if desired == nil {
 				desired = new(int)
 			}
-			*desired += aws.IntValue(ng.DesiredCapacity)
+			*desired += spotinst.IntValue(ng.DesiredCapacity)
 		}
 		if ng.MinSize != nil {
 			if minimum == nil {
 				minimum = new(int)
 			}
-			*minimum += aws.IntValue(ng.MinSize)
+			*minimum += spotinst.IntValue(ng.MinSize)
 		}
 		if ng.MaxSize != nil {
 			if maximum == nil {
 				maximum = new(int)
 			}
-			*maximum += aws.IntValue(ng.MaxSize)
+			*maximum += spotinst.IntValue(ng.MaxSize)
 		}
 	}
 
@@ -217,18 +222,13 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, bo
 
 	// Default of one node to run cluster-controller/metrics-server.
 	if desired == nil && minimum == nil {
-		oceanNodeGroup.DesiredCapacity = aws.Int(1)
-		oceanNodeGroup.MinSize = aws.Int(1)
-	}
-
-	// If there is already an existing cluster, we're done.
-	if oceanNodeGroup.SpotOcean.Metadata.ClusterID != nil {
-		logger.Debug("spot: ocean cluster already exists")
-		return nil, false, nil
+		oceanNodeGroup.DesiredCapacity = spotinst.Int(1)
+		oceanNodeGroup.MinSize = spotinst.Int(1)
 	}
 
 	// Configure the nodegroup name.
 	oceanNodeGroup.Name = api.SpotOceanNodeGroupName
+	oceanNodeGroup.Labels[api.NodeGroupNameLabel] = api.SpotOceanNodeGroupName
 
 	logger.Debug("spot: ocean cluster should be created")
 	return oceanNodeGroup, true, nil
@@ -244,7 +244,7 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 
 	// If there is no nodegroup for the Ocean cluster, let's bail early.
 	for _, s := range stacks {
-		if NodeGroupName(s) == api.SpotOceanNodeGroupName {
+		if getNodeGroupNameFromStack(s) == api.SpotOceanNodeGroupName {
 			oceanNodeGroupStack = s
 			break
 		}
@@ -257,11 +257,11 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 	// Do not delete if there is at least one nodegroup that is not marked for deletion.
 	if !shouldDelete(api.SpotOceanNodeGroupName) {
 		for _, s := range stacks {
-			ngName := NodeGroupName(s)
+			ngName := getNodeGroupNameFromStack(s)
 			ng := &api.NodeGroup{NodeGroupBase: &api.NodeGroupBase{Name: ngName}}
 
 			if !shouldDelete(ngName) && ngName != api.SpotOceanNodeGroupName &&
-				NodeGroupStatusIsNotTransitional(s) && NodeGroupManagedByOcean(ng, stacks) {
+				isStackStatusNotTransitional(s) && IsNodeGroupManagedByOcean(ng, stacks) {
 				logger.Debug("spot: at least one nodegroup remains "+
 					"active (%s); skipping ocean cluster deletion", ngName)
 				return nil, false, nil
@@ -273,38 +273,61 @@ func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
 	return oceanNodeGroupStack, true, nil // all nodegroups are marked for deletion
 }
 
-// ensureNodeGroupOceanClusterID retrieves the Ocean cluster identifier.
-func ensureNodeGroupOceanClusterID(stacks []*cloudformation.Stack, nodeGroup *api.NodeGroup) error {
-	for _, s := range stacks {
-		if NodeGroupName(s) == api.SpotOceanNodeGroupName {
-			if !NodeGroupStatusIsNotTransitional(s) {
-				return fmt.Errorf("spot: nodegroup %q is in transitional "+
-					"state %q", nodeGroup.Name, aws.StringValue(s.StackStatus))
-			}
-			return collectNodeGroupOceanClusterID(s, nodeGroup)
-		}
-	}
-	return nil
-}
+// getOceanClusterIDFromStacks returns the Ocean Cluster identifier.
+func getOceanClusterIDFromStacks(stacks []*cloudformation.Stack) string {
+	var clusterID string
 
-// collectNodeGroupOceanClusterID collects the Ocean cluster identifier from outputs.
-func collectNodeGroupOceanClusterID(stack *cloudformation.Stack, nodeGroup *api.NodeGroup) error {
-	if nodeGroup.SpotOcean.Metadata == nil {
-		nodeGroup.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
-	}
-
-	requiredCollectors := map[string]outputs.Collector{
+	collectors := map[string]outputs.Collector{
 		outputs.NodeGroupSpotOceanClusterID: func(s string) error {
-			nodeGroup.SpotOcean.Metadata.ClusterID = aws.String(s)
+			clusterID = s
 			return nil
 		},
 	}
 
-	return outputs.Collect(*stack, requiredCollectors, nil)
+	for _, s := range stacks {
+		if getNodeGroupNameFromStack(s) != api.SpotOceanNodeGroupName ||
+			!isStackStatusNotTransitional(s) {
+			continue
+		}
+		if err := outputs.Collect(*s, collectors, nil); err != nil {
+			continue
+		}
+		if clusterID != "" {
+			break
+		}
+	}
+
+	return clusterID
 }
 
-// NodeGroupName returns the name of the nodegroup.
-func NodeGroupName(stack *cloudformation.Stack) string {
+// getOceanLaunchSpecIDFromStacks returns the Ocean Launch Spec identifier.
+func getOceanLaunchSpecIDFromStacks(stacks []*cloudformation.Stack, ngName string) string {
+	var specID string
+
+	collectors := map[string]outputs.Collector{
+		outputs.NodeGroupSpotOceanLaunchSpecID: func(s string) error {
+			specID = s
+			return nil
+		},
+	}
+
+	for _, s := range stacks {
+		if getNodeGroupNameFromStack(s) != ngName || !isStackStatusNotTransitional(s) {
+			continue
+		}
+		if err := outputs.Collect(*s, collectors, nil); err != nil {
+			continue
+		}
+		if specID != "" {
+			break
+		}
+	}
+
+	return specID
+}
+
+// getNodeGroupNameFromStack returns the name of the nodegroup.
+func getNodeGroupNameFromStack(stack *cloudformation.Stack) string {
 	for _, tag := range stack.Tags {
 		switch *tag.Key {
 		case api.NodeGroupNameTag:
@@ -314,18 +337,18 @@ func NodeGroupName(stack *cloudformation.Stack) string {
 	return ""
 }
 
-// NodeGroupFromStacks returns the nodegroup by name.
-func NodeGroupFromStacks(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
+// getStackByNodeGroupName returns the nodegroup by name.
+func getStackByNodeGroupName(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
 	for _, stack := range stacks {
-		if NodeGroupName(stack) == name {
+		if getNodeGroupNameFromStack(stack) == name {
 			return stack
 		}
 	}
 	return nil
 }
 
-// NodeGroupStatusIsNotTransitional returns true when nodegroup status is non-transitional.
-func NodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
+// isStackStatusNotTransitional returns true when nodegroup status is non-transitional.
+func isStackStatusNotTransitional(stack *cloudformation.Stack) bool {
 	states := map[string]struct{}{
 		cloudformation.StackStatusCreateComplete:         {},
 		cloudformation.StackStatusUpdateComplete:         {},
@@ -336,17 +359,17 @@ func NodeGroupStatusIsNotTransitional(stack *cloudformation.Stack) bool {
 	return ok
 }
 
-// NodeGroupManagedByOcean returns a boolean indicating whether the nodegroup is managed by Ocean.
-func NodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformation.Stack) bool {
+// IsNodeGroupManagedByOcean returns a boolean indicating whether the nodegroup is managed by Ocean.
+func IsNodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformation.Stack) bool {
 	if nodeGroup.SpotOcean != nil { // fast path when using a config file
 		return true
 	}
 	for _, stack := range stacks { // slow path when using a flag
-		if nodeGroup.Name != NodeGroupName(stack) {
+		if nodeGroup.Name != getNodeGroupNameFromStack(stack) {
 			continue
 		}
 		for _, tag := range stack.Tags {
-			if aws.StringValue(tag.Key) == api.SpotOceanResourceTypeTag {
+			if spotinst.StringValue(tag.Key) == api.SpotOceanResourceTypeTag {
 				return true
 			}
 		}
@@ -371,7 +394,7 @@ func UpdateCredentials(clusterProvider api.ClusterProvider, clusterConfig *api.C
 	logger.Debug("spot: updating credentials for nodegroup %q", ngName)
 
 	// Find the stack by the name of the nodegroup.
-	stack := NodeGroupFromStacks(ngName, stacks)
+	stack := getStackByNodeGroupName(ngName, stacks)
 	if stack == nil {
 		logger.Debug("spot: couldn't find stack for nodegroup %q", ngName)
 		return nil
@@ -380,8 +403,8 @@ func UpdateCredentials(clusterProvider api.ClusterProvider, clusterConfig *api.C
 	// Set the credentials profile, if any.
 	var profile *string
 	for _, ng := range clusterConfig.NodeGroups {
-		if ng.Name == NodeGroupName(stack) && ng.SpotOcean != nil && ng.SpotOcean.Metadata != nil {
-			profile = ng.SpotOcean.Metadata.Profile
+		if ng.Name == getNodeGroupNameFromStack(stack) && ng.SpotOcean != nil {
+			profile = profileOrDefault(ng)
 		}
 	}
 
@@ -413,26 +436,26 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 	// Set parameters.
 	input := &cloudformation.UpdateStackInput{
 		StackName:           stack.StackName,
-		Capabilities:        aws.StringSlice([]string{cloudformation.CapabilityCapabilityIam}),
-		UsePreviousTemplate: aws.Bool(true),
+		Capabilities:        spotinst.StringSlice([]string{cloudformation.CapabilityCapabilityIam}),
+		UsePreviousTemplate: spotinst.Bool(true),
 		Parameters: []*cloudformation.Parameter{
 			{
-				ParameterKey:   aws.String(CredentialsTokenParameterKey),
-				ParameterValue: aws.String(token),
+				ParameterKey:   spotinst.String(CredentialsTokenParameterKey),
+				ParameterValue: spotinst.String(token),
 			},
 			{
-				ParameterKey:   aws.String(CredentialsAccountParameterKey),
-				ParameterValue: aws.String(account),
+				ParameterKey:   spotinst.String(CredentialsAccountParameterKey),
+				ParameterValue: spotinst.String(account),
 			},
 			{
-				ParameterKey:   aws.String(FeatureFlagsParameterKey),
-				ParameterValue: aws.String(convertFeatureFlags()),
+				ParameterKey:   spotinst.String(FeatureFlagsParameterKey),
+				ParameterValue: spotinst.String(convertFeatureFlags()),
 			},
 		},
 	}
 
 	// Update stack parameters.
-	logger.Debug("spot: updating stack %q", aws.StringValue(stack.StackName))
+	logger.Debug("spot: updating stack %q", spotinst.StringValue(stack.StackName))
 	_, err := cfnAPI.UpdateStack(input)
 	if err != nil {
 		awsErr, ok := err.(awserr.Error)
@@ -453,7 +476,6 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 		input := &cloudformation.DescribeStacksInput{
 			StackName: stack.StackName,
 		}
-
 		if err := cfnAPI.WaitUntilStackUpdateComplete(input); err != nil {
 			return err
 		}
@@ -549,6 +571,17 @@ func convertFeatureFlags() string {
 	return ff
 }
 
+// profileOrDefault returns the credentials profile that should be loaded.
+func profileOrDefault(nodeGroup *api.NodeGroup) *string {
+	profile := credentials.DefaultProfile()
+
+	if nodeGroup.SpotOcean != nil && nodeGroup.SpotOcean.Metadata != nil {
+		profile = spotinst.StringValue(nodeGroup.SpotOcean.Metadata.Profile)
+	}
+
+	return &profile
+}
+
 // DeleteFilter represents the type definition for a delete filter.
 type DeleteFilter func(ngName string) bool
 
@@ -570,4 +603,165 @@ func NewDeleteIncludedFilter(nodeGroups []*api.NodeGroup) DeleteFilter {
 		}
 		return false
 	}
+}
+
+// initiateRoll initiates a cluster roll to gracefully migrate all running workload.
+func initiateRoll(nodeGroups []*api.NodeGroup, stacks []*cloudformation.Stack, batchSize int) error {
+	logger.Debug("spot: initiating a cluster roll")
+
+	// Resolve Cluster ID.
+	clusterID := getOceanClusterIDFromStacks(stacks)
+	if clusterID == "" {
+		return fmt.Errorf("spot: couldn't find ocean cluster")
+	}
+
+	// Resolve Launch Spec IDs.
+	var specIDs []string
+	for _, ng := range nodeGroups {
+		specID := getOceanLaunchSpecIDFromStacks(stacks, ng.Name)
+		if specID == "" {
+			continue
+		}
+		specIDs = append(specIDs, specID)
+	}
+	if len(specIDs) == 0 {
+		return fmt.Errorf("spot: couldn't find ocean launch specs")
+	}
+
+	// Roll parameters.
+	input := &oceanaws.CreateRollInput{
+		Roll: &oceanaws.RollSpec{
+			LaunchSpecIDs:                specIDs,
+			ClusterID:                    spotinst.String(clusterID),
+			Comment:                      spotinst.String(fmt.Sprintf("created by eksctl")),
+			DisableLaunchSpecAutoScaling: spotinst.Bool(true),
+		},
+	}
+	if batchSize > 0 {
+		input.Roll.BatchSizePercentage = spotinst.Int(batchSize)
+	}
+
+	ctx := context.Background()
+	svc := newService()
+
+	logger.Debug("spot: rolling ocean launch specs %q", strings.Join(specIDs, "; "))
+	output, err := svc.CreateRoll(ctx, input)
+	if err != nil {
+		spotErrs, ok := err.(client.Errors)
+		if !ok {
+			return err
+		}
+		for _, spotErr := range spotErrs {
+			if !ignoreCreateRollError(spotErr.Message) {
+				return err
+			}
+		}
+		logger.Debug("spot: ocean launch specs has no active instances; nothing to roll")
+		return nil
+	}
+
+	// Wait for cluster roll to complete.
+	return waitUntilRollComplete(ctx, svc, clusterID, spotinst.StringValue(output.Roll.ID))
+}
+
+// ignoreCreateRollError ignores errors that may occur while initiating a cluster roll.
+func ignoreCreateRollError(errMsg string) bool {
+	errMsgs := []string{
+		"cluster has no active instances",
+	}
+	for _, msg := range errMsgs {
+		if strings.Contains(strings.ToLower(errMsg), msg) {
+			return true
+		}
+	}
+	return false
+}
+
+// waitUntilRollComplete waits for the cluster roll to complete.
+func waitUntilRollComplete(ctx context.Context, svc oceanaws.Service, clusterID, rollID string) error {
+	condFn := func() (bool, error) {
+		input := &oceanaws.ReadRollInput{
+			ClusterID: spotinst.String(clusterID),
+			RollID:    spotinst.String(rollID),
+		}
+
+		output, err := svc.ReadRoll(ctx, input)
+		if err != nil {
+			return true, err
+		}
+
+		return checkRollCompletionState(output.Roll.Status)
+	}
+
+	maxAttempts := 120
+	delay := 30 * time.Second
+	drainingTimeout := 5 * time.Minute
+
+	for attempt := 1; ; attempt++ {
+		logger.Debug("spot: waiting for cluster roll to complete (attempt: %d)", attempt)
+
+		// Execute the condition function.
+		done, err := condFn()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+
+		// Fail if the maximum number of attempts is reached.
+		if attempt == maxAttempts {
+			return fmt.Errorf("spot: exceeded wait attempts")
+		}
+
+		// Delay to wait before inspecting the resource again.
+		if err := aws.SleepWithContext(ctx, delay); err != nil {
+			return fmt.Errorf("spot: waiter context canceled: %v", err)
+		}
+	}
+
+	logger.Debug("spot: waiting for nodes to be drained")
+	if err := aws.SleepWithContext(ctx, drainingTimeout); err != nil {
+		return fmt.Errorf("spot: waiter context canceled: %v", err)
+	}
+
+	return nil
+}
+
+// checkRollCompletionState returns true if a completion state is reached.
+func checkRollCompletionState(status *string) (bool, error) {
+	states := map[string]request.WaiterState{
+		"COMPLETED": request.SuccessWaiterState,
+		"STOPPED":   request.SuccessWaiterState,
+		"FAILED":    request.FailureWaiterState,
+	}
+	state, completed := states[strings.ToUpper(spotinst.StringValue(status))]
+
+	if completed {
+		switch state {
+		case request.SuccessWaiterState:
+			// waiter completed
+			return true, nil
+		case request.FailureWaiterState:
+			// waiter failure state triggered
+			return true, fmt.Errorf("spot: failed waiting for successful state")
+		}
+	}
+
+	return false, nil
+}
+
+// newService returns a new Ocean service.
+func newService() oceanaws.Service {
+	cfg := spotinst.DefaultConfig()
+	cfg.WithLogger(newServiceLogger())
+	cfg.WithUserAgent("weaveworks-eksctl/" + version.GetVersion())
+	return ocean.New(session.New(cfg)).CloudProviderAWS()
+}
+
+// newServiceLogger returns a logger adapter.
+func newServiceLogger() log.Logger {
+	return log.LoggerFunc(func(format string, args ...interface{}) {
+		logger.Debug(format+"\n", args...)
+	})
 }

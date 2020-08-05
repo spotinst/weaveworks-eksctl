@@ -451,16 +451,23 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 
 	// Credentials.
 	{
-		token, account, err := spot.LoadCredentials(n.spec.SpotOcean.Metadata.Profile)
+		var profile *string
+		if n.spec.SpotOcean.Metadata != nil {
+			profile = n.spec.SpotOcean.Metadata.Profile
+		}
+
+		token, account, err := spot.LoadCredentials(profile)
 		if err != nil {
 			return nil, err
 		}
+
 		if token != "" {
 			res.Token = n.rs.newParameter(spot.CredentialsTokenParameterKey, &gfnv4.Parameter{
 				Type:    "String",
 				Default: token,
 			})
 		}
+
 		if account != "" {
 			res.Account = n.rs.newParameter(spot.CredentialsAccountParameterKey, &gfnv4.Parameter{
 				Type:    "String",
@@ -486,6 +493,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 		if err != nil {
 			return nil, err
 		}
+
 		if svc != "" {
 			res.ServiceToken = gfnt.MakeFnSubString(svc)
 		}
@@ -497,6 +505,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 		if err != nil {
 			return nil, err
 		}
+
 		if err := json.Unmarshal(b, &out); err != nil {
 			return nil, err
 		}
