@@ -402,6 +402,13 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 		}
 	}
 
+	// Instance Types.
+	{
+		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
+			spec.InstanceTypes = compute.InstanceTypes.Whitelist
+		}
+	}
+
 	// Labels.
 	{
 		if len(n.spec.Labels) > 0 {

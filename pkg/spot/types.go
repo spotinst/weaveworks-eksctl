@@ -50,6 +50,7 @@ type (
 		VolumeSize               *int                     `json:"rootVolumeSize,omitempty"`
 		EBSOptimized             *bool                    `json:"ebsOptimized,omitempty"`
 		SubnetIDs                interface{}              `json:"subnetIds,omitempty"`
+		InstanceTypes            []string                 `json:"instanceTypes,omitempty"`
 		IAMInstanceProfile       map[string]*gfn.Value    `json:"iamInstanceProfile,omitempty"`
 		SecurityGroupIDs         []*gfn.Value             `json:"securityGroupIds,omitempty"`
 		Tags                     []*NodeGroupTag          `json:"tags,omitempty"`
