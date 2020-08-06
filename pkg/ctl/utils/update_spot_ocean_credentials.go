@@ -39,11 +39,11 @@ func updateSpotOceanCredentials(cmd *cmdutils.Cmd) {
 		fs.StringVarP(&ng.Name, "name", "n", "", "name of the nodegroup to update")
 	})
 
+	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, false)
+
 	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
 		cmdutils.AddSpotOceanCommonFlags(fs, &spotProfile)
 	})
-
-	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, false)
 }
 
 func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProfile string, onlyMissing bool) error {
