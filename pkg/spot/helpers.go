@@ -165,6 +165,7 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 		}
 	}
 	if len(oceanNodeGroups) == 0 {
+		logger.Debug("spot: no nodegroups defined for ocean")
 		return nil, false, nil
 	}
 
