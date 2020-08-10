@@ -3,6 +3,7 @@ package manager
 import (
 	"fmt"
 
+	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
@@ -192,10 +193,15 @@ func (c *StackCollection) NewTasksToCreateSpotOceanNodeGroup(
 	nodeGroups []*api.NodeGroup) (*TaskTree, error) {
 	tasks := &TaskTree{Parallel: true}
 
-	// Describe stacks.
+	// Describe nodegroup stacks.
 	stacks, err := c.DescribeNodeGroupStacks()
 	if err != nil {
-		return nil, err
+		// Do not fail if there are no eksctl-managed nodegroups.
+		if err.Error() != c.errStackNotFound().Error() {
+			return nil, err
+		}
+
+		stacks = []*cfn.Stack{}
 	}
 
 	// Verify before proceeding.
@@ -203,7 +209,7 @@ func (c *StackCollection) NewTasksToCreateSpotOceanNodeGroup(
 	if err != nil {
 		return nil, err
 	}
-	if ng == nil { // already exists
+	if ng == nil { // already exists OR create without nodegroups
 		return tasks, nil
 	}
 
