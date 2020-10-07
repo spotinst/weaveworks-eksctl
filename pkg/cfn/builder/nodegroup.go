@@ -807,7 +807,16 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 	// Instance Types.
 	{
 		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
-			spec.InstanceTypes = compute.InstanceTypes.Whitelist
+			// Defaults to launchspec instance types.
+			types := compute.InstanceTypes.Types
+
+			// If no launchspec instance types are defined for a nodegroup, use
+			// the cluster level whitelist to maintain backward compatibility.
+			if len(compute.InstanceTypes.Types) == 0 {
+				types = compute.InstanceTypes.Whitelist
+			}
+
+			spec.InstanceTypes = types
 		}
 	}
 

@@ -1235,6 +1235,12 @@
           },
           "type": "array"
         },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "whitelist": {
           "items": {
             "type": "string"
@@ -1243,6 +1249,7 @@
         }
       },
       "preferredOrder": [
+        "types",
         "whitelist",
         "blacklist"
       ],
