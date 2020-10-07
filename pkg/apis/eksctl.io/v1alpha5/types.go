@@ -1055,6 +1055,8 @@ type (
 	// NodeGroupSpotOceanInstanceTypes holds the instance types configuration used by Spot Ocean.
 	NodeGroupSpotOceanInstanceTypes struct {
 		// +optional
+		Types []string `json:"types,omitempty"`
+		// +optional
 		Whitelist []string `json:"whitelist,omitempty"`
 		// +optional
 		Blacklist []string `json:"blacklist,omitempty"`
