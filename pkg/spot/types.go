@@ -53,6 +53,7 @@ type (
 		InstanceTypes            []string                 `json:"instanceTypes,omitempty"`
 		IAMInstanceProfile       map[string]*gfnt.Value   `json:"iamInstanceProfile,omitempty"`
 		SecurityGroupIDs         *gfnt.Value              `json:"securityGroupIds,omitempty"`
+		BlockDeviceMappings      []*NodeGroupBlockDevice  `json:"blockDeviceMappings,omitempty"`
 		Tags                     []*NodeGroupTag          `json:"tags,omitempty"`
 		LoadBalancers            []*NodeGroupLoadBalancer `json:"loadBalancers,omitempty"`
 		Labels                   []*NodeGroupLabel        `json:"labels,omitempty"`
@@ -93,6 +94,19 @@ type (
 		Type *string `json:"type,omitempty"`
 		Arn  *string `json:"arn,omitempty"`
 		Name *string `json:"name,omitempty"`
+	}
+
+	NodeGroupBlockDevice struct {
+		DeviceName *string                  `json:"deviceName,omitempty"`
+		EBS        *NodeGroupBlockDeviceEBS `json:"ebs,omitempty"`
+	}
+
+	NodeGroupBlockDeviceEBS struct {
+		VolumeSize *int    `json:"volumeSize,omitempty"`
+		VolumeType *string `json:"volumeType,omitempty"`
+		Encrypted  *bool   `json:"encrypted,omitempty"`
+		KMSKeyID   *string `json:"kmsKeyId,omitempty"`
+		IOPS       *int    `json:"iops,omitempty"`
 	}
 
 	NodeGroupTag struct {
