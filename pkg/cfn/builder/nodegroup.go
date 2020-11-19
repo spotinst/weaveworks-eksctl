@@ -746,10 +746,29 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 		SubnetIDs: vpcZoneIdentifier,
 	}
 
-	// Storage.
+	// Volume.
 	{
 		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
-			spec.VolumeSize = n.spec.VolumeSize
+			var (
+				kmsKeyID   *string
+				volumeIOPS *int
+			)
+			if api.IsSetAndNonEmptyString(n.spec.VolumeKmsKeyID) {
+				kmsKeyID = n.spec.VolumeKmsKeyID
+			}
+			if *n.spec.VolumeType == api.NodeVolumeTypeIO1 {
+				volumeIOPS = n.spec.VolumeIOPS
+			}
+			spec.BlockDeviceMappings = []*spot.NodeGroupBlockDevice{{
+				DeviceName: n.spec.VolumeName,
+				EBS: &spot.NodeGroupBlockDeviceEBS{
+					VolumeSize: n.spec.VolumeSize,
+					VolumeType: n.spec.VolumeType,
+					Encrypted:  n.spec.VolumeEncrypted,
+					KMSKeyID:   kmsKeyID,
+					IOPS:       volumeIOPS,
+				},
+			}}
 		}
 	}
 
