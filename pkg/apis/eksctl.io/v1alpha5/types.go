@@ -32,7 +32,7 @@ const (
 	Version1_18 = "1.18"
 
 	// DefaultVersion (default)
-	DefaultVersion = Version1_17
+	DefaultVersion = Version1_18
 
 	LatestVersion = Version1_18
 )
@@ -482,12 +482,15 @@ type KubernetesNetworkConfig struct {
 	ServiceIPv4CIDR string `json:"serviceIPv4CIDR,omitempty"`
 }
 
+type EKSCTLCreated string
+
 // ClusterStatus hold read-only attributes of a cluster
 type ClusterStatus struct {
-	Endpoint                 string `json:"endpoint,omitempty"`
-	CertificateAuthorityData []byte `json:"certificateAuthorityData,omitempty"`
-	ARN                      string `json:"arn,omitempty"`
-	StackName                string `json:"stackName,omitempty"`
+	Endpoint                 string        `json:"endpoint,omitempty"`
+	CertificateAuthorityData []byte        `json:"certificateAuthorityData,omitempty"`
+	ARN                      string        `json:"arn,omitempty"`
+	StackName                string        `json:"stackName,omitempty"`
+	EKSCTLCreated            EKSCTLCreated `json:"eksctlCreated,omitempty"`
 }
 
 // String returns canonical representation of ClusterMeta
@@ -899,6 +902,14 @@ type Operator struct {
 	// Instruct Flux to read-only mode and create the deploy key as read-only
 	// +optional
 	ReadOnly bool `json:"readOnly,omitempty"`
+
+	// Additional command line arguments for the Flux daemon
+	// +optional
+	AdditionalFluxArgs []string `json:"additionalFluxArgs,omitempty"`
+
+	// Additional command line arguments for the Helm Operator
+	// +optional
+	AdditionalHelmOperatorArgs []string `json:"additionalHelmOperatorArgs,omitempty"`
 }
 
 // Profile groups all details on a quickstart profile to enable on the cluster
@@ -1001,7 +1012,8 @@ type (
 
 	// NodeGroupSSH holds all the ssh access configuration to a NodeGroup
 	NodeGroupSSH struct {
-		// +optional
+		// +optional Enables/Disables the security group configuration. Values provided by SourceSecurityGroupIDs
+		// are ignored if set to false
 		Allow *bool `json:"allow"`
 		// +optional
 		PublicKeyPath *string `json:"publicKeyPath,omitempty"`
@@ -1070,6 +1082,8 @@ type (
 		Profile *string `json:"profile,omitempty"`
 		// +optional
 		DefaultLaunchSpec *bool `json:"defaultLaunchSpec,omitempty"`
+		// +optional
+		UseAsTemplateOnly *bool `json:"useAsTemplateOnly,omitempty"`
 	}
 
 	// NodeGroupSpotOceanStrategy holds the strategy configuration used by Spot Ocean.
@@ -1190,6 +1204,9 @@ type NodeGroupBase struct {
 	// AZs](/usage/autoscaling/#zone-aware-auto-scaling)
 	// +optional
 	AvailabilityZones []string `json:"availabilityZones,omitempty"`
+	// Limit nodes to specific subnets
+	// +optional
+	Subnets []string `json:"subnets,omitempty"`
 
 	// +optional
 	InstancePrefix string `json:"instancePrefix,omitempty"`

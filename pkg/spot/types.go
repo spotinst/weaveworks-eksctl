@@ -48,6 +48,7 @@ type (
 		KeyPair                  *gfnt.Value              `json:"keyPair,omitempty"`
 		AssociatePublicIPAddress *gfnt.Value              `json:"associatePublicIpAddress,omitempty"`
 		VolumeSize               *int                     `json:"rootVolumeSize,omitempty"`
+		UseAsTemplateOnly        *bool                    `json:"useAsTemplateOnly,omitempty"`
 		EBSOptimized             *bool                    `json:"ebsOptimized,omitempty"`
 		SubnetIDs                interface{}              `json:"subnetIds,omitempty"`
 		InstanceTypes            []string                 `json:"instanceTypes,omitempty"`

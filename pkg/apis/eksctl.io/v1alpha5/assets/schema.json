@@ -328,9 +328,9 @@
         },
         "version": {
           "type": "string",
-          "description": "Valid variants are: `\"1.14\"`, `\"1.15\"`, `\"1.16\"`, `\"1.17\"` (default), `\"1.18\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;1.14&quot;</code>, <code>&quot;1.15&quot;</code>, <code>&quot;1.16&quot;</code>, <code>&quot;1.17&quot;</code> (default), <code>&quot;1.18&quot;</code>.",
-          "default": "1.17",
+          "description": "Valid variants are: `\"1.14\"`, `\"1.15\"`, `\"1.16\"`, `\"1.17\"`, `\"1.18\"` (default).",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;1.14&quot;</code>, <code>&quot;1.15&quot;</code>, <code>&quot;1.16&quot;</code>, <code>&quot;1.17&quot;</code>, <code>&quot;1.18&quot;</code> (default).",
+          "default": "1.18",
           "enum": [
             "1.14",
             "1.15",
@@ -384,6 +384,9 @@
           },
           "type": "array"
         },
+        "eksctlCreated": {
+          "$ref": "#/definitions/EKSCTLCreated"
+        },
         "endpoint": {
           "type": "string"
         },
@@ -395,7 +398,8 @@
         "endpoint",
         "certificateAuthorityData",
         "arn",
-        "stackName"
+        "stackName",
+        "eksctlCreated"
       ],
       "additionalProperties": false,
       "description": "hold read-only attributes of a cluster",
@@ -494,6 +498,9 @@
       "additionalProperties": false,
       "description": "holds global subnet and all child subnets",
       "x-intellij-html-description": "holds global subnet and all child subnets"
+    },
+    "EKSCTLCreated": {
+      "type": "string"
     },
     "FargateProfile": {
       "required": [
@@ -776,6 +783,14 @@
           "description": "configures ssh access for this nodegroup",
           "x-intellij-html-description": "configures ssh access for this nodegroup"
         },
+        "subnets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Limit nodes to specific subnets",
+          "x-intellij-html-description": "Limit nodes to specific subnets"
+        },
         "tags": {
           "additionalProperties": {
             "type": "string"
@@ -819,6 +834,7 @@
         "amiFamily",
         "instanceType",
         "availabilityZones",
+        "subnets",
         "instancePrefix",
         "instanceName",
         "desiredCapacity",
@@ -1056,6 +1072,14 @@
           "description": "configures ssh access for this nodegroup",
           "x-intellij-html-description": "configures ssh access for this nodegroup"
         },
+        "subnets": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Limit nodes to specific subnets",
+          "x-intellij-html-description": "Limit nodes to specific subnets"
+        },
         "tags": {
           "additionalProperties": {
             "type": "string"
@@ -1114,6 +1138,7 @@
         "amiFamily",
         "instanceType",
         "availabilityZones",
+        "subnets",
         "instancePrefix",
         "instanceName",
         "desiredCapacity",
@@ -1363,7 +1388,9 @@
     "NodeGroupSSH": {
       "properties": {
         "allow": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Enables/Disables the security group configuration. Values provided by SourceSecurityGroupIDs are ignored if set to false",
+          "x-intellij-html-description": "Enables/Disables the security group configuration. Values provided by SourceSecurityGroupIDs are ignored if set to false"
         },
         "enableSsm": {
           "type": "boolean",
@@ -1530,11 +1557,15 @@
         },
         "profile": {
           "type": "string"
+        },
+        "useAsTemplateOnly": {
+          "type": "boolean"
         }
       },
       "preferredOrder": [
         "profile",
-        "defaultLaunchSpec"
+        "defaultLaunchSpec",
+        "useAsTemplateOnly"
       ],
       "additionalProperties": false,
       "description": "holds the metadata used by Spot Ocean.",
@@ -1624,6 +1655,22 @@
     },
     "Operator": {
       "properties": {
+        "additionalFluxArgs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Additional command line arguments for the Flux daemon",
+          "x-intellij-html-description": "Additional command line arguments for the Flux daemon"
+        },
+        "additionalHelmOperatorArgs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Additional command line arguments for the Helm Operator",
+          "x-intellij-html-description": "Additional command line arguments for the Helm Operator"
+        },
         "commitOperatorManifests": {
           "type": "boolean",
           "description": "Commit and push Flux manifests to the Git Repo on install",
@@ -1656,7 +1703,9 @@
         "label",
         "namespace",
         "withHelm",
-        "readOnly"
+        "readOnly",
+        "additionalFluxArgs",
+        "additionalHelmOperatorArgs"
       ],
       "additionalProperties": false,
       "description": "groups all configuration options related to the operator used to keep the cluster and the Git repository in sync.",

@@ -531,10 +531,11 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		Region:    gfnt.MakeRef("AWS::Region"),
 		Compute: &spot.NodeGroupCompute{
 			LaunchSpecification: &spot.NodeGroupLaunchSpec{
-				ImageID:      template.ImageId,
-				UserData:     template.UserData,
-				KeyPair:      template.KeyName,
-				EBSOptimized: n.spec.EBSOptimized,
+				ImageID:           template.ImageId,
+				UserData:          template.UserData,
+				KeyPair:           template.KeyName,
+				EBSOptimized:      n.spec.EBSOptimized,
+				UseAsTemplateOnly: n.spec.SpotOcean.Metadata.UseAsTemplateOnly,
 			},
 			SubnetIDs: vpcZoneIdentifier,
 		},
