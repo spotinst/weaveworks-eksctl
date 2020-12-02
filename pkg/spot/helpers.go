@@ -220,6 +220,9 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 	// No default nodegroup. Take the first one.
 	if oceanNodeGroup == nil {
 		oceanNodeGroup = oceanNodeGroups[0].DeepCopy()
+		if oceanNodeGroup.SpotOcean.Metadata == nil {
+			oceanNodeGroup.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
+		}
 	}
 	logger.Debug("ocean: using default nodegroup %q", oceanNodeGroup.Name)
 
