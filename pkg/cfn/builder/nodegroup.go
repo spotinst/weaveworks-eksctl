@@ -72,21 +72,21 @@ func (n *NodeGroupResourceSet) AddAllResources() error {
 	}
 	n.userData = gfnt.NewString(userData)
 
-	// Ensure MinSize is set, as it is required by the ASG cfn resource
-	if n.spec.MinSize == nil {
-		if n.spec.DesiredCapacity == nil {
-			defaultNodeCount := api.DefaultNodeCount
-			n.spec.MinSize = &defaultNodeCount
-		} else {
-			n.spec.MinSize = n.spec.DesiredCapacity
-		}
-		logger.Info("--nodes-min=%d was set automatically for nodegroup %s", *n.spec.MinSize, n.spec.Name)
-	} else if n.spec.DesiredCapacity != nil && *n.spec.DesiredCapacity < *n.spec.MinSize {
-		return fmt.Errorf("cannot use --nodes-min=%d and --nodes=%d at the same time", *n.spec.MinSize, *n.spec.DesiredCapacity)
-	}
-
-	// Ensure MaxSize is set, as it is required by the ASG cfn resource
 	if n.spec.SpotOcean == nil {
+		// Ensure MinSize is set, as it is required by the ASG cfn resource
+		if n.spec.MinSize == nil {
+			if n.spec.DesiredCapacity == nil {
+				defaultNodeCount := api.DefaultNodeCount
+				n.spec.MinSize = &defaultNodeCount
+			} else {
+				n.spec.MinSize = n.spec.DesiredCapacity
+			}
+			logger.Info("--nodes-min=%d was set automatically for nodegroup %s", *n.spec.MinSize, n.spec.Name)
+		} else if n.spec.DesiredCapacity != nil && *n.spec.DesiredCapacity < *n.spec.MinSize {
+			return fmt.Errorf("cannot use --nodes-min=%d and --nodes=%d at the same time", *n.spec.MinSize, *n.spec.DesiredCapacity)
+		}
+
+		// Ensure MaxSize is set, as it is required by the ASG cfn resource
 		if n.spec.MaxSize == nil {
 			if n.spec.DesiredCapacity == nil {
 				n.spec.MaxSize = n.spec.MinSize
@@ -518,10 +518,11 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		Region:    gfnt.MakeRef("AWS::Region"),
 		Compute: &spot.NodeGroupCompute{
 			LaunchSpecification: &spot.NodeGroupLaunchSpec{
-				ImageID:      template.ImageId,
-				UserData:     template.UserData,
-				KeyPair:      template.KeyName,
-				EBSOptimized: n.spec.EBSOptimized,
+				ImageID:           template.ImageId,
+				UserData:          template.UserData,
+				KeyPair:           template.KeyName,
+				EBSOptimized:      n.spec.EBSOptimized,
+				UseAsTemplateOnly: n.spec.SpotOcean.Metadata.UseAsTemplateOnly,
 			},
 			SubnetIDs: vpcZoneIdentifier,
 		},
@@ -707,13 +708,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			true)
 	}
 
-	return &spot.NodeGroupResource{
-		OceanCluster: cluster,
-		OceanSummary: &spot.NodeGroupSummary{
-			ImageID:  cluster.Compute.LaunchSpecification.ImageID,
-			Capacity: cluster.Capacity,
-		},
-	}, nil
+	return &spot.NodeGroupResource{Cluster: cluster}, nil
 }
 
 // newNodeGroupSpotOceanLaunchSpecResource returns a Spot Ocean launchspec resource.
@@ -899,15 +894,18 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 			true)
 	}
 
+	// Parameters.
+	params := spot.ResourceParameters{
+		OnDelete: map[string]interface{}{"forceDelete": true},
+	}
+	if nodes := spotinst.IntValue(n.spec.DesiredCapacity); nodes > 0 {
+		params.OnCreate = map[string]interface{}{"initialNodes": nodes}
+	}
+
 	return &spot.NodeGroupResource{
-		OceanLaunchSpec: spec,
-		OceanSummary: &spot.NodeGroupSummary{
-			ImageID: spec.ImageID,
-			Capacity: &spot.NodeGroupCapacity{
-				Target:  n.spec.DesiredCapacity,
-				Minimum: n.spec.MinSize,
-				Maximum: n.spec.MaxSize,
-			},
+		LaunchSpec: spec,
+		Resource: spot.Resource{
+			Parameters: params,
 		},
 	}, nil
 }
