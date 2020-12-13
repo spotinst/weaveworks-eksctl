@@ -1636,11 +1636,15 @@
         },
         "profile": {
           "type": "string"
+        },
+        "useAsTemplateOnly": {
+          "type": "boolean"
         }
       },
       "preferredOrder": [
         "profile",
-        "defaultLaunchSpec"
+        "defaultLaunchSpec",
+        "useAsTemplateOnly"
       ],
       "additionalProperties": false,
       "description": "holds the metadata used by Spot Ocean.",

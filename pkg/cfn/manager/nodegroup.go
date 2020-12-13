@@ -449,20 +449,6 @@ func getNodeGroupPaths(tags []*cfn.Tag) (*nodeGroupPaths, error) {
 			return fmt.Sprintf("%s.NodeGroup.Properties.%s", resourcesRootPath, field)
 		}
 
-		// Spot Ocean.
-		{
-			for _, tag := range tags {
-				if *tag.Key == api.SpotOceanResourceTypeTag {
-					return &nodeGroupPaths{
-						ImageID:         makePath("oceanSummary.imageId"),
-						DesiredCapacity: makePath("oceanSummary.capacity.target"),
-						MinSize:         makePath("oceanSummary.capacity.minimum"),
-						MaxSize:         makePath("oceanSummary.capacity.maximum"),
-					}, nil
-				}
-			}
-		}
-
 		return &nodeGroupPaths{
 			ImageID:         imageIDPath,
 			InstanceType:    resourcesRootPath + ".NodeGroupLaunchTemplate.Properties.LaunchTemplateData.InstanceType",
