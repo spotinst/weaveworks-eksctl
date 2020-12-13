@@ -1082,6 +1082,8 @@ type (
 		Profile *string `json:"profile,omitempty"`
 		// +optional
 		DefaultLaunchSpec *bool `json:"defaultLaunchSpec,omitempty"`
+		// +optional
+		UseAsTemplateOnly *bool `json:"useAsTemplateOnly,omitempty"`
 	}
 
 	// NodeGroupSpotOceanStrategy holds the strategy configuration used by Spot Ocean.

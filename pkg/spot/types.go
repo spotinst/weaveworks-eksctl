@@ -10,8 +10,9 @@ type (
 	Resource struct {
 		ResourceCredentials
 
-		ServiceToken *gfnt.Value `json:"ServiceToken,omitempty"`
-		FeatureFlags *gfnt.Value `json:"featureFlags,omitempty"`
+		ServiceToken *gfnt.Value        `json:"ServiceToken,omitempty"`
+		FeatureFlags *gfnt.Value        `json:"featureFlags,omitempty"`
+		Parameters   ResourceParameters `json:"parameters,omitempty"`
 	}
 
 	ResourceCredentials struct {
@@ -19,14 +20,17 @@ type (
 		Token   *gfnt.Value `json:"accessToken,omitempty"`
 	}
 
+	ResourceParameters struct {
+		OnCreate map[string]interface{} `json:"create,omitempty"`
+		OnUpdate map[string]interface{} `json:"update,omitempty"`
+		OnDelete map[string]interface{} `json:"delete,omitempty"`
+	}
+
 	NodeGroupResource struct {
 		Resource
 
-		OceanCluster    *NodeGroupCluster    `json:"ocean,omitempty"`
-		OceanLaunchSpec *NodeGroupLaunchSpec `json:"oceanLaunchSpec,omitempty"`
-
-		// for internal use only; used by `eksctl get nodegroup` command.
-		OceanSummary *NodeGroupSummary `json:"oceanSummary,omitempty"`
+		Cluster    *NodeGroupCluster    `json:"ocean,omitempty"`
+		LaunchSpec *NodeGroupLaunchSpec `json:"oceanLaunchSpec,omitempty"`
 	}
 
 	NodeGroupCluster struct {
@@ -48,6 +52,7 @@ type (
 		KeyPair                  *gfnt.Value              `json:"keyPair,omitempty"`
 		AssociatePublicIPAddress *gfnt.Value              `json:"associatePublicIpAddress,omitempty"`
 		VolumeSize               *int                     `json:"rootVolumeSize,omitempty"`
+		UseAsTemplateOnly        *bool                    `json:"useAsTemplateOnly,omitempty"`
 		EBSOptimized             *bool                    `json:"ebsOptimized,omitempty"`
 		SubnetIDs                interface{}              `json:"subnetIds,omitempty"`
 		InstanceTypes            []string                 `json:"instanceTypes,omitempty"`
@@ -160,9 +165,9 @@ type (
 // MarshalJSON implements the json.Marshaler interface.
 func (x *NodeGroupResource) MarshalJSON() ([]byte, error) {
 	var typ string
-	if x.OceanCluster != nil {
+	if x.Cluster != nil {
 		typ = "Custom::ocean"
-	} else if x.OceanLaunchSpec != nil {
+	} else if x.LaunchSpec != nil {
 		typ = "Custom::oceanLaunchSpec"
 	}
 	type Properties NodeGroupResource
