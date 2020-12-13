@@ -160,9 +160,9 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 	logger.Debug("ocean: checking whether cluster should be created")
 
 	var (
-		oceanNodeGroups           = make([]*api.NodeGroup, 0, len(nodeGroups))
-		oceanNodeGroup            *api.NodeGroup
-		desired, minimum, maximum *int
+		oceanNodeGroups                     = make([]*api.NodeGroup, 0, len(nodeGroups))
+		oceanNodeGroup, defaultNodeGroupRef *api.NodeGroup
+		desired, minimum, maximum           *int
 	)
 
 	// If there are no Ocean nodegroups, let's bail early.
@@ -188,21 +188,15 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 		// Is this the default nodegroup?
 		if ng.SpotOcean.Metadata != nil &&
 			spotinst.BoolValue(ng.SpotOcean.Metadata.DefaultLaunchSpec) {
-			if oceanNodeGroup != nil {
+			if defaultNodeGroupRef != nil {
 				logger.Debug("ocean: multiple default nodegroups (%q and %q)",
-					ng.Name, oceanNodeGroup.Name)
+					ng.Name, defaultNodeGroupRef.Name)
 				return nil, false, ErrSpotMultipleDefaultLaunchSpecs
 			}
-			oceanNodeGroup = ng.DeepCopy()
+			defaultNodeGroupRef = ng
 		}
 
 		// Sum up the capacity from all nodegroups.
-		if ng.DesiredCapacity != nil {
-			if desired == nil {
-				desired = new(int)
-			}
-			*desired += spotinst.IntValue(ng.DesiredCapacity)
-		}
 		if ng.MinSize != nil {
 			if minimum == nil {
 				minimum = new(int)
@@ -215,26 +209,50 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 			}
 			*maximum += spotinst.IntValue(ng.MaxSize)
 		}
+		if ng.DesiredCapacity != nil {
+			if desired == nil {
+				desired = new(int)
+			}
+			*desired += spotinst.IntValue(ng.DesiredCapacity)
+		}
 	}
 
-	// No default nodegroup. Take the first one.
-	if oceanNodeGroup == nil {
-		oceanNodeGroup = oceanNodeGroups[0].DeepCopy()
-	}
-	logger.Debug("ocean: using default nodegroup %q", oceanNodeGroup.Name)
-
-	// Set the capacity.
-	oceanNodeGroup.DesiredCapacity = desired
-	oceanNodeGroup.MinSize = minimum
-	oceanNodeGroup.MaxSize = maximum
-
-	// Default of one node to run cluster-controller/metrics-server.
-	if desired == nil && minimum == nil {
-		oceanNodeGroup.DesiredCapacity = spotinst.Int(1)
-		oceanNodeGroup.MinSize = spotinst.Int(1)
+	// No default nodegroup, use the first one.
+	if defaultNodeGroupRef == nil {
+		defaultNodeGroupRef = oceanNodeGroups[0]
 	}
 
-	// Configure the nodegroup name.
+	logger.Debug("ocean: using default nodegroup %q", defaultNodeGroupRef.Name)
+
+	// Copy the default nodegroup.
+	oceanNodeGroup = defaultNodeGroupRef.DeepCopy()
+	if oceanNodeGroup.SpotOcean == nil {
+		oceanNodeGroup.SpotOcean = new(api.NodeGroupSpotOcean)
+	}
+	if oceanNodeGroup.SpotOcean.Metadata == nil {
+		oceanNodeGroup.SpotOcean.Metadata = new(api.NodeGroupSpotOceanMetadata)
+	}
+	if oceanNodeGroup.SpotOcean.Metadata.UseAsTemplateOnly == nil {
+		oceanNodeGroup.SpotOcean.Metadata.UseAsTemplateOnly = spotinst.Bool(true)
+	}
+
+	// Configure the capacity (a minimum of one node is required for the Ocean Controller).
+	if spotinst.BoolValue(oceanNodeGroup.SpotOcean.Metadata.UseAsTemplateOnly) {
+		logger.Debug("ocean: default nodegroup configured as a template only")
+
+		if spotinst.IntValue(defaultNodeGroupRef.DesiredCapacity) < 1 {
+			defaultNodeGroupRef.DesiredCapacity = spotinst.Int(1) // initial nodes
+		}
+	} else {
+		oceanNodeGroup.DesiredCapacity = desired
+		oceanNodeGroup.MinSize = minimum
+		oceanNodeGroup.MaxSize = maximum
+		if spotinst.IntValue(desired) < 1 {
+			oceanNodeGroup.DesiredCapacity = spotinst.Int(1)
+		}
+	}
+
+	// Override the nodegroup name.
 	oceanNodeGroup.Name = api.SpotOceanNodeGroupName
 	oceanNodeGroup.Labels[api.NodeGroupNameLabel] = api.SpotOceanNodeGroupName
 

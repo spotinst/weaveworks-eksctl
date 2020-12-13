@@ -7,6 +7,7 @@ import (
 	"github.com/spotinst/spotinst-sdk-go/spotinst"
 	"github.com/spotinst/spotinst-sdk-go/spotinst/credentials"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/assetutil"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +40,7 @@ func (x *SpotOceanController) Deploy() (err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			if ae, ok := r.(*assetError); ok {
+			if ae, ok := r.(*assetutil.Error); ok {
 				err = ae
 			} else {
 				panic(r)
@@ -58,7 +59,7 @@ func (x *SpotOceanController) Deploy() (err error) {
 	}
 
 	// Deploy the controller and its resources (RBAC, etc.).
-	if err := x.applyResources(mustGenerateAsset(spotOceanControllerYamlBytes)); err != nil {
+	if err := x.applyResources(assetutil.MustLoad(spotOceanControllerYamlBytes)); err != nil {
 		return fmt.Errorf("error creating resources: %w", err)
 	}
 
