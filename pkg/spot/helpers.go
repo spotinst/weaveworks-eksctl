@@ -530,7 +530,9 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 // LoadCredentials loads and returns the user credentials.
 func LoadCredentials(profile *string) (string, string, error) {
 	if profile == nil {
-		profile = spotinst.String(credentials.DefaultProfile())
+		profile = spotinst.String(envOrDefault(
+			credentials.FileCredentialsEnvVarProfile,
+			credentials.DefaultProfile()))
 	}
 
 	logger.Debug("ocean: loading credentials from profile %q",
@@ -788,4 +790,13 @@ func newServiceLogger() log.Logger {
 	return log.LoggerFunc(func(format string, args ...interface{}) {
 		logger.Debug(format+"\n", args...)
 	})
+}
+
+// envOrDefault is a helper function that returns the value of the given
+// environment variable, if one exists, or the default value otherwise.
+func envOrDefault(key, value string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return value
 }
