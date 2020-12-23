@@ -168,7 +168,7 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.De
 
 	nodeGroupManager := nodegroup.New(cfg, ctl, clientSet)
 	if params.Drain && !params.SpotRoll {
-		err := nodeGroupManager.Drain(allNodeGroups, cmd.Plan, maxGracePeriod)
+		err := nodeGroupManager.Drain(allNodeGroups, cmd.Plan, params.MaxGracePeriod)
 		if err != nil {
 			return err
 		}

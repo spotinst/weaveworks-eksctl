@@ -71,7 +71,7 @@ func doUpdateSpotOceanCredentials(cmd *cmdutils.Cmd, ng *api.NodeGroup, spotProf
 		logger.Info("comparing %d nodegroups defined in the given config (%q) "+
 			"against remote state", len(cfg.NodeGroups), cmd.ClusterConfigFile)
 		if onlyMissing {
-			if err = ngFilter.SetOnlyRemote(stackManager, cfg); err != nil {
+			if err = ngFilter.SetOnlyRemote(ctl.Provider.EKS(), stackManager, cfg); err != nil {
 				return err
 			}
 		}
