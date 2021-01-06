@@ -143,9 +143,6 @@ func (c *NodeGroup) Create() error {
 			taskTree.Append(stackManager.NewClusterCompatTask())
 		}
 
-		allNodeGroupTasks := &tasks.TaskTree{
-			Parallel: true,
-		}
 		awsNodeUsesIRSA, err := eks.DoesAWSNodeUseIRSA(ctl.Provider, clientSet)
 		if err != nil {
 			return errors.Wrap(err, "couldn't check aws-node for annotation")
@@ -155,12 +152,12 @@ func (c *NodeGroup) Create() error {
 			logger.Debug("cluster has withOIDC enabled but is not using IRSA for CNI, will add CNI policy to node role")
 		}
 
-		nodeGroupTasks, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
+		nodeGroupTaskTree, err := stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA)
 		if err != nil {
 			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		taskTree.Append(nodeGroupTasks)
+		taskTree.Append(nodeGroupTaskTree)
 		logger.Info(taskTree.Describe())
 		errs := taskTree.DoAllSync()
 		if len(errs) > 0 {
