@@ -265,7 +265,7 @@ func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(shouldDelete func(s
 	}
 
 	// Verify before proceeding.
-	stack, _, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	stack, err := spot.ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return nil, err
 	}

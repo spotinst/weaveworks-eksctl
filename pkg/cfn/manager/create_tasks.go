@@ -188,7 +188,7 @@ func (c *StackCollection) NewSpotOceanNodeGroupTask(
 	}
 
 	// Verify before proceeding.
-	ng, _, err := spot.ShouldCreateOceanNodeGroup(nodeGroups, stacks)
+	ng, err := spot.ShouldCreateOceanNodeGroup(nodeGroups, stacks)
 	if err != nil {
 		return nil, err
 	}
