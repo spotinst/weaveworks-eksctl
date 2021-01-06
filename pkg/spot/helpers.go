@@ -126,11 +126,11 @@ func RunPreDeletion(clusterProvider api.ClusterProvider,
 		}
 	}
 
-	_, shouldDeleteOcean, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
+	stack, err := ShouldDeleteOceanNodeGroup(stacks, shouldDelete)
 	if err != nil {
 		return err
 	}
-	if shouldDeleteOcean {
+	if stack != nil {
 		if !plan && AllowCredentialsChanges.Enabled() {
 			if err = UpdateCredentials(clusterProvider,
 				clusterConfig, api.SpotOceanNodeGroupName, stacks); err != nil {
@@ -153,11 +153,10 @@ var ErrSpotMultipleDefaultLaunchSpecs = errors.New("ocean: unable to detect " +
 	"default ocean launch spec: multiple nodegroups configured with " +
 	"`spot.metadata.defaultLaunchSpec: true`")
 
-// ShouldCreateOceanNodeGroup checks whether the nodegroup of the Ocean cluster
-// should be created and, if so, returns its NodeGroup configuration.
-func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
-	stacks []*cloudformation.Stack) (*api.NodeGroup, bool, error) {
-	logger.Debug("ocean: checking whether cluster should be created")
+// DetermineOceanNodeGroup determines which nodegroup should be used to build
+// the Ocean cluster from.
+func DetermineOceanNodeGroup(nodeGroups []*api.NodeGroup) (*api.NodeGroup, error) {
+	logger.Debug("ocean: determining the default nodegroup")
 
 	var (
 		oceanNodeGroups                     = make([]*api.NodeGroup, 0, len(nodeGroups))
@@ -173,14 +172,7 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 	}
 	if len(oceanNodeGroups) == 0 {
 		logger.Debug("ocean: no nodegroups found")
-		return nil, false, nil
-	}
-
-	// If there is already an existing cluster, we're done.
-	clusterID := getOceanClusterIDFromStacks(stacks)
-	if clusterID != "" {
-		logger.Debug("ocean: cluster already exists")
-		return nil, false, nil
+		return nil, nil
 	}
 
 	// Find the default nodegroup and calculate the capacity.
@@ -191,7 +183,7 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 			if defaultNodeGroupRef != nil {
 				logger.Debug("ocean: multiple default nodegroups (%q and %q)",
 					ng.Name, defaultNodeGroupRef.Name)
-				return nil, false, ErrSpotMultipleDefaultLaunchSpecs
+				return nil, ErrSpotMultipleDefaultLaunchSpecs
 			}
 			defaultNodeGroupRef = ng
 		}
@@ -256,47 +248,64 @@ func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
 	oceanNodeGroup.Name = api.SpotOceanNodeGroupName
 	oceanNodeGroup.Labels[api.NodeGroupNameLabel] = api.SpotOceanNodeGroupName
 
-	logger.Debug("ocean: cluster should be created")
-	return oceanNodeGroup, true, nil
+	return oceanNodeGroup, nil
+}
+
+// ShouldCreateOceanNodeGroup checks whether the nodegroup of the Ocean cluster
+// should be created and, if so, returns its NodeGroup configuration.
+func ShouldCreateOceanNodeGroup(nodeGroups []*api.NodeGroup,
+	stacks []*cloudformation.Stack) (*api.NodeGroup, error) {
+	logger.Debug("ocean: checking whether cluster should be created")
+
+	// If there is already an existing Ocean cluster, we're done.
+	clusterID := getOceanClusterIDFromStacks(stacks)
+	if clusterID != "" {
+		logger.Debug("ocean: cluster already exists")
+		return nil, nil
+	}
+
+	// Ocean cluster doesn't already exist, so we have to determine whether to
+	// create a new one based on the given node groups.
+	return DetermineOceanNodeGroup(nodeGroups)
 }
 
 // ShouldDeleteOceanNodeGroup checks whether the nodegroup of the Ocean cluster
 // should be deleted and, if so, returns its Cloud Formation stack.
 func ShouldDeleteOceanNodeGroup(stacks []*cloudformation.Stack,
-	shouldDelete func(string) bool) (*cloudformation.Stack, bool, error) {
+	shouldDelete func(string) bool) (*cloudformation.Stack, error) {
 
 	logger.Debug("ocean: checking whether cluster should be deleted")
 	var oceanNodeGroupStack *cloudformation.Stack
 
 	// If there is no nodegroup for the Ocean cluster, let's bail early.
 	for _, s := range stacks {
-		if getNodeGroupNameFromStack(s) == api.SpotOceanNodeGroupName {
+		if GetNodeGroupNameFromStack(s) == api.SpotOceanNodeGroupName {
 			oceanNodeGroupStack = s
 			break
 		}
 	}
 	if oceanNodeGroupStack == nil {
 		logger.Debug("ocean: cluster does not exist")
-		return nil, false, nil
+		return nil, nil
 	}
 
 	// Do not delete if there is at least one nodegroup that is not marked for deletion.
 	if !shouldDelete(api.SpotOceanNodeGroupName) {
 		for _, s := range stacks {
-			ngName := getNodeGroupNameFromStack(s)
+			ngName := GetNodeGroupNameFromStack(s)
 			ng := &api.NodeGroup{NodeGroupBase: &api.NodeGroupBase{Name: ngName}}
 
 			if !shouldDelete(ngName) && ngName != api.SpotOceanNodeGroupName &&
-				isStackStatusNotTransitional(s) && IsNodeGroupManagedByOcean(ng, stacks) {
+				IsStackStatusNotTransitional(s) && IsNodeGroupManagedByOcean(ng, stacks) {
 				logger.Debug("ocean: at least one nodegroup remains "+
 					"active (%s), skipping ocean cluster deletion", ngName)
-				return nil, false, nil
+				return nil, nil
 			}
 		}
 	}
 
 	logger.Debug("ocean: cluster should be deleted")
-	return oceanNodeGroupStack, true, nil // all nodegroups are marked for deletion
+	return oceanNodeGroupStack, nil // all nodegroups are marked for deletion
 }
 
 // getOceanClusterIDFromStacks returns the Ocean Cluster identifier.
@@ -311,8 +320,8 @@ func getOceanClusterIDFromStacks(stacks []*cloudformation.Stack) string {
 	}
 
 	for _, s := range stacks {
-		if getNodeGroupNameFromStack(s) != api.SpotOceanNodeGroupName ||
-			!isStackStatusNotTransitional(s) {
+		if GetNodeGroupNameFromStack(s) != api.SpotOceanNodeGroupName ||
+			!IsStackStatusNotTransitional(s) {
 			continue
 		}
 		if err := outputs.Collect(*s, collectors, nil); err != nil {
@@ -338,7 +347,7 @@ func getOceanLaunchSpecIDFromStacks(stacks []*cloudformation.Stack, ngName strin
 	}
 
 	for _, s := range stacks {
-		if getNodeGroupNameFromStack(s) != ngName || !isStackStatusNotTransitional(s) {
+		if GetNodeGroupNameFromStack(s) != ngName || !IsStackStatusNotTransitional(s) {
 			continue
 		}
 		if err := outputs.Collect(*s, collectors, nil); err != nil {
@@ -352,8 +361,8 @@ func getOceanLaunchSpecIDFromStacks(stacks []*cloudformation.Stack, ngName strin
 	return specID
 }
 
-// getNodeGroupNameFromStack returns the name of the nodegroup.
-func getNodeGroupNameFromStack(stack *cloudformation.Stack) string {
+// GetNodeGroupNameFromStack returns the name of the nodegroup.
+func GetNodeGroupNameFromStack(stack *cloudformation.Stack) string {
 	for _, tag := range stack.Tags {
 		switch *tag.Key {
 		case api.NodeGroupNameTag:
@@ -363,18 +372,18 @@ func getNodeGroupNameFromStack(stack *cloudformation.Stack) string {
 	return ""
 }
 
-// getStackByNodeGroupName returns the nodegroup by name.
-func getStackByNodeGroupName(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
+// GetStackByNodeGroupName returns the nodegroup by name.
+func GetStackByNodeGroupName(name string, stacks []*cloudformation.Stack) *cloudformation.Stack {
 	for _, stack := range stacks {
-		if getNodeGroupNameFromStack(stack) == name {
+		if GetNodeGroupNameFromStack(stack) == name {
 			return stack
 		}
 	}
 	return nil
 }
 
-// isStackStatusNotTransitional returns true when nodegroup status is non-transitional.
-func isStackStatusNotTransitional(stack *cloudformation.Stack) bool {
+// IsStackStatusNotTransitional returns true when nodegroup status is non-transitional.
+func IsStackStatusNotTransitional(stack *cloudformation.Stack) bool {
 	states := map[string]struct{}{
 		cloudformation.StackStatusCreateComplete:         {},
 		cloudformation.StackStatusUpdateComplete:         {},
@@ -391,7 +400,7 @@ func IsNodeGroupManagedByOcean(nodeGroup *api.NodeGroup, stacks []*cloudformatio
 		return true
 	}
 	for _, stack := range stacks { // slow path when using a flag
-		if nodeGroup.Name != getNodeGroupNameFromStack(stack) {
+		if nodeGroup.Name != GetNodeGroupNameFromStack(stack) {
 			continue
 		}
 		for _, tag := range stack.Tags {
@@ -422,7 +431,7 @@ func UpdateCredentials(
 	logger.Debug("ocean: updating credentials for nodegroup %q", ngName)
 
 	// Find the stack by the name of the nodegroup.
-	stack := getStackByNodeGroupName(ngName, stacks)
+	stack := GetStackByNodeGroupName(ngName, stacks)
 	if stack == nil {
 		logger.Debug("ocean: couldn't find stack for nodegroup %q", ngName)
 		return nil
@@ -431,7 +440,7 @@ func UpdateCredentials(
 	// Set the credentials profile, if any.
 	var profile *string
 	for _, ng := range clusterConfig.NodeGroups {
-		if ng.Name == getNodeGroupNameFromStack(stack) &&
+		if ng.Name == GetNodeGroupNameFromStack(stack) &&
 			ng.SpotOcean != nil && ng.SpotOcean.Metadata != nil {
 			profile = ng.SpotOcean.Metadata.Profile
 		}

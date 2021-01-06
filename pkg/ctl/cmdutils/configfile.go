@@ -611,7 +611,6 @@ func parseList(arg string) ([]string, error) {
 	return csvReader.Read()
 }
 
-// NewCreateIAMServiceAccountLoader will load config or use flags for 'eksctl create iamserviceaccount'
 // NewUtilsSpotOceanUpdateCredentials will load config or use flags for
 // 'eksctl utils update-spot-ocean-credentials'.
 func NewUtilsSpotOceanUpdateCredentials(cmd *Cmd, ng *api.NodeGroup,
@@ -646,6 +645,23 @@ func NewUtilsSpotOceanUpdateCredentials(cmd *Cmd, ng *api.NodeGroup,
 		l.Plan = false
 
 		return nil
+	}
+
+	return l
+}
+
+// NewUtilsSpotOceanUpdateCluster will load config or use flags for
+// 'eksctl utils update-spot-ocean-cluster'.
+func NewUtilsSpotOceanUpdateCluster(cmd *Cmd) ClusterConfigLoader {
+	l := newCommonClusterConfigLoader(cmd)
+
+	l.flagsIncompatibleWithoutConfigFile.Insert(
+		"approve",
+	)
+
+	l.validateWithoutConfigFile = func() error {
+		return fmt.Errorf("cannot update cluster unless a config file " +
+			"is specified via --config-file/-f")
 	}
 
 	return l
