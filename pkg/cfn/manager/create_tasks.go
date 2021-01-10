@@ -35,18 +35,6 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(nodeGroups []*ap
 		IsSubTask: true,
 	}
 
-	// Post cluster creation.
-	{
-		if len(postClusterCreationTasks) > 0 {
-			postTasks := &TaskTree{
-				Parallel:  false,
-				IsSubTask: true,
-			}
-			postTasks.Append(postClusterCreationTasks...)
-			subTasks.Append(postTasks)
-		}
-	}
-
 	// Nodegroups.
 	{
 		ngTasks, err := c.NewNodeGroupTask(nodeGroups, managedNodeGroups, supportsManagedNodes, false)
@@ -61,6 +49,18 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(nodeGroups []*ap
 
 	if subTasks.Len() > 0 {
 		tasks.Append(subTasks)
+	}
+
+	// Post cluster creation.
+	{
+		if len(postClusterCreationTasks) > 0 {
+			postTasks := &TaskTree{
+				Parallel:  false,
+				IsSubTask: true,
+			}
+			postTasks.Append(postClusterCreationTasks...)
+			subTasks.Append(postTasks)
+		}
 	}
 
 	return &tasks, nil
