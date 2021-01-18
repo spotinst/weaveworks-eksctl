@@ -53,7 +53,7 @@ require (
 	golang.org/x/tools v0.0.0-20201208233053-a543418bbed2
 	k8s.io/api v0.19.4
 	k8s.io/apiextensions-apiserver v0.19.4
-	k8s.io/apimachinery v0.19.4
+	k8s.io/apimachinery v0.20.2
 	k8s.io/cli-runtime v0.19.4
 	k8s.io/client-go v0.19.4
 	k8s.io/cloud-provider v0.19.4
