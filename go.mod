@@ -40,8 +40,8 @@ require (
 	github.com/spf13/afero v1.5.1
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.0
 	github.com/spotinst/spotinst-sdk-go v1.70.0
+	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.6.7
 	github.com/tidwall/sjson v1.1.4
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
@@ -54,7 +54,7 @@ require (
 	k8s.io/api v0.19.4
 	k8s.io/apiextensions-apiserver v0.19.4
 	k8s.io/apimachinery v0.19.4
-	k8s.io/cli-runtime v0.19.4
+	k8s.io/cli-runtime v0.20.2
 	k8s.io/client-go v0.19.4
 	k8s.io/cloud-provider v0.19.4
 	k8s.io/code-generator v0.19.4
