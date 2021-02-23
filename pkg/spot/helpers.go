@@ -28,6 +28,7 @@ import (
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	kubewrapper "github.com/weaveworks/eksctl/pkg/kubernetes"
 	"github.com/weaveworks/eksctl/pkg/version"
+	"github.com/weaveworks/goformation/v4"
 )
 
 // NewNodeGroup creates a new NodeGroup, and returns a pointer to it.
@@ -453,7 +454,7 @@ func UpdateCredentials(
 	}
 
 	// Update upstream credentials.
-	if err := updateUpstreamCredentials(clusterProvider, stack, token, account); err != nil {
+	if err = updateStackParameters(clusterProvider, stack, token, account); err != nil {
 		return err
 	}
 
@@ -461,9 +462,8 @@ func UpdateCredentials(
 	return nil
 }
 
-// updateUpstreamCredentials updates the upstream credentials, stored in AWS
-// CloudFormation, by updating the stack parameters.
-func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
+// updateStackParameters updates the credentials stored in stack parameters.
+func updateStackParameters(clusterProvider api.ClusterProvider,
 	stack *cloudformation.Stack, token, account string) error {
 
 	var (
@@ -471,11 +471,15 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 		cfnWait = true
 	)
 
-	// Set parameters.
+	template, err := updateTemplateParameters(clusterProvider, stack, token, account)
+	if err != nil {
+		return err
+	}
+
 	input := &cloudformation.UpdateStackInput{
-		StackName:           stack.StackName,
-		Capabilities:        spotinst.StringSlice([]string{cloudformation.CapabilityCapabilityIam}),
-		UsePreviousTemplate: spotinst.Bool(true),
+		StackName:    stack.StackName,
+		Capabilities: spotinst.StringSlice([]string{cloudformation.CapabilityCapabilityIam}),
+		TemplateBody: template,
 		Parameters: []*cloudformation.Parameter{
 			{
 				ParameterKey:   spotinst.String(CredentialsTokenParameterKey),
@@ -505,16 +509,14 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 		return false
 	}
 
-	// Update stack parameters.
 	logger.Debug("ocean: updating stack %q", spotinst.StringValue(stack.StackName))
-	_, err := cfnAPI.UpdateStack(input)
-	if err != nil {
+	if _, err = cfnAPI.UpdateStack(input); err != nil {
 		awsErr, ok := err.(awserr.Error)
 		if !ok {
-			return fmt.Errorf("ocean: unexpected error: %v", err)
+			return fmt.Errorf("ocean: unexpected error: %w", err)
 		}
 		if !isIgnorableError(awsErr.Message()) {
-			return fmt.Errorf("ocean: upstream error: %v", err)
+			return fmt.Errorf("ocean: upstream error: %w", err)
 		}
 		cfnWait = false
 		logger.Debug("ocean: local and upstream credentials are the same "+
@@ -528,12 +530,53 @@ func updateUpstreamCredentials(clusterProvider api.ClusterProvider,
 			StackName: stack.StackName,
 		}
 		if err := cfnAPI.WaitUntilStackUpdateComplete(input); err != nil {
-			return fmt.Errorf("ocean: error waiting for stack update: %v", err)
+			return fmt.Errorf("ocean: error waiting for stack update: %w", err)
 		}
 	}
 
-	logger.Debug("ocean: successfully updated stack %q", stack.StackName)
+	logger.Debug("ocean: successfully updated stack %q", spotinst.StringValue(stack.StackName))
 	return nil
+}
+
+// updateTemplateParameters updates the credentials stored in template parameters.
+func updateTemplateParameters(clusterProvider api.ClusterProvider,
+	stack *cloudformation.Stack, token, account string) (*string, error) {
+
+	input := &cloudformation.GetTemplateInput{
+		StackName: stack.StackName,
+	}
+
+	output, err := clusterProvider.CloudFormation().GetTemplate(input)
+	if err != nil {
+		return nil, fmt.Errorf("ocean: error getting template: %w", err)
+	}
+
+	template, err := goformation.ParseJSON([]byte(spotinst.StringValue(output.TemplateBody)))
+	if err != nil {
+		return nil, fmt.Errorf("ocean: unexpected error parsing template: %w", err)
+	}
+
+	if p, ok := template.Parameters[CredentialsTokenParameterKey]; ok {
+		p.Default = token
+		template.Parameters[CredentialsTokenParameterKey] = p
+	}
+
+	if p, ok := template.Parameters[CredentialsAccountParameterKey]; ok {
+		p.Default = account
+		template.Parameters[CredentialsAccountParameterKey] = p
+	}
+
+	if p, ok := template.Parameters[FeatureFlagsParameterKey]; ok {
+		p.Default = LoadUpstreamFeatureFlags()
+		template.Parameters[FeatureFlagsParameterKey] = p
+	}
+
+	b, err := template.JSON()
+	if err != nil {
+		return nil, fmt.Errorf("ocean: unexpected error marshaling template: %w", err)
+	}
+
+	return spotinst.String(string(b)), nil
 }
 
 // LoadCredentials loads and returns the user credentials.
@@ -557,7 +600,7 @@ func LoadCredentials(profile *string) (string, string, error) {
 
 	c, err := config.Credentials.Get()
 	if err != nil {
-		return "", "", fmt.Errorf("ocean: error loading credentials: %v", err)
+		return "", "", fmt.Errorf("ocean: error loading credentials: %w", err)
 	}
 
 	return c.Token, c.Account, nil
@@ -698,11 +741,11 @@ func rollingUpdate(nodeGroups []*api.NodeGroup,
 	if err != nil {
 		spotErrs, ok := err.(client.Errors)
 		if !ok {
-			return fmt.Errorf("ocean: unexpected error: %v", err)
+			return fmt.Errorf("ocean: unexpected error: %w", err)
 		}
 		for _, spotErr := range spotErrs {
 			if !isIgnorableError(spotErr.Message) {
-				return fmt.Errorf("ocean: upstream error: %v", err)
+				return fmt.Errorf("ocean: upstream error: %w", err)
 			}
 		}
 		logger.Debug("ocean: no running instances, skipping rolling update")
@@ -752,13 +795,13 @@ func waitUntilRollingUpdateComplete(
 
 		// Delay to wait before inspecting the resource again.
 		if err := aws.SleepWithContext(ctx, delay); err != nil {
-			return fmt.Errorf("ocean: waiter context canceled: %v", err)
+			return fmt.Errorf("ocean: waiter context canceled: %w", err)
 		}
 	}
 
 	logger.Debug("ocean: waiting for nodes to be drained")
 	if err := aws.SleepWithContext(ctx, 5*time.Minute); err != nil {
-		return fmt.Errorf("ocean: waiter context canceled: %v", err)
+		return fmt.Errorf("ocean: waiter context canceled: %w", err)
 	}
 
 	logger.Debug("ocean: rolling update has been completed successfully")
