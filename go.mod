@@ -19,8 +19,8 @@ require (
 	github.com/github-release/github-release v0.9.0
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.8.0
-	github.com/golangci/golangci-lint v1.35.2
-	github.com/goreleaser/goreleaser v0.154.0
+	github.com/golangci/golangci-lint v1.36.0
+	github.com/goreleaser/goreleaser v0.157.0
 	github.com/inconshreveable/log15 v0.0.0-20200109203555-b30bc20e4fd1 // indirect
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/justinbarrick/go-k8s-portforward v1.0.4-0.20200904152830-b575325c1855
@@ -38,10 +38,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/spf13/afero v1.5.1
-	github.com/spf13/cobra v1.1.1
+	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.7.0
 	github.com/spotinst/spotinst-sdk-go v1.70.0
+	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.6.7
 	github.com/tidwall/sjson v1.1.4
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
