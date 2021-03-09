@@ -1,22 +1,24 @@
 package builder
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
+	"github.com/spotinst/spotinst-sdk-go/spotinst"
 	gfn "github.com/weaveworks/goformation/v4/cloudformation"
 	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
 	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
 
-	"github.com/kris-nova/logger"
-
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/vpc"
 )
 
@@ -34,11 +36,12 @@ type NodeGroupResourceSet struct {
 	vpc                  *gfnt.Value
 	userData             *gfnt.Value
 	vpcImporter          vpc.Importer
+	sharedTags           []*cfn.Tag
 }
 
 // NewNodeGroupResourceSet returns a resource set for a nodegroup embedded in a cluster config
 func NewNodeGroupResourceSet(ec2API ec2iface.EC2API, iamAPI iamiface.IAMAPI, spec *api.ClusterConfig, ng *api.NodeGroup,
-	supportsManagedNodes, forceAddCNIPolicy bool, vpcImporter vpc.Importer) *NodeGroupResourceSet {
+	sharedTags []*cfn.Tag, supportsManagedNodes, forceAddCNIPolicy bool, vpcImporter vpc.Importer) *NodeGroupResourceSet {
 	return &NodeGroupResourceSet{
 		rs:                   newResourceSet(),
 		supportsManagedNodes: supportsManagedNodes,
@@ -48,6 +51,7 @@ func NewNodeGroupResourceSet(ec2API ec2iface.EC2API, iamAPI iamiface.IAMAPI, spe
 		ec2API:               ec2API,
 		iamAPI:               iamAPI,
 		vpcImporter:          vpcImporter,
+		sharedTags:           sharedTags,
 	}
 }
 
@@ -124,7 +128,7 @@ func (n *NodeGroupResourceSet) newResource(name string, resource gfn.Resource) *
 
 func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 	launchTemplateName := gfnt.MakeFnSubString(fmt.Sprintf("${%s}", gfnt.StackName))
-	launchTemplateData, err := newLaunchTemplateData(n)
+	launchTemplateData, err := n.newLaunchTemplateData()
 	if err != nil {
 		return errors.Wrap(err, "could not add resources for nodegroup")
 	}
@@ -176,10 +180,15 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 		}
 	}
 
-	n.newResource("NodeGroupLaunchTemplate", &gfnec2.LaunchTemplate{
+	launchTemplate := &gfnec2.LaunchTemplate{
 		LaunchTemplateName: launchTemplateName,
 		LaunchTemplateData: launchTemplateData,
-	})
+	}
+
+	// Do not create a Launch Template resource for Spot-managed nodegroups.
+	if n.spec.SpotOcean == nil {
+		n.newResource("NodeGroupLaunchTemplate", launchTemplate)
+	}
 
 	vpcZoneIdentifier, err := AssignSubnets(n.spec.NodeGroupBase, n.vpcImporter, n.clusterSpec)
 	if err != nil {
@@ -213,8 +222,11 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup() error {
 		)
 	}
 
-	asg := nodeGroupResource(launchTemplateName, vpcZoneIdentifier, tags, n.spec)
-	n.newResource("NodeGroup", asg)
+	g, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags)
+	if err != nil {
+		return fmt.Errorf("failed to build nodegroup resource: %v", err)
+	}
+	n.newResource("NodeGroup", g)
 
 	return nil
 }
@@ -269,7 +281,7 @@ func (n *NodeGroupResourceSet) GetAllOutputs(stack cfn.Stack) error {
 	return n.rs.GetAllOutputs(stack)
 }
 
-func newLaunchTemplateData(n *NodeGroupResourceSet) (*gfnec2.LaunchTemplate_LaunchTemplateData, error) {
+func (n *NodeGroupResourceSet) newLaunchTemplateData() (*gfnec2.LaunchTemplate_LaunchTemplateData, error) {
 	launchTemplateData := &gfnec2.LaunchTemplate_LaunchTemplateData{
 		IamInstanceProfile: &gfnec2.LaunchTemplate_IamInstanceProfile{
 			Arn: n.instanceProfileARN,
@@ -331,7 +343,19 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 	}
 }
 
-func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interface{}, tags []map[string]interface{}, ng *api.NodeGroup) *awsCloudFormationResource {
+func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
+
+	if n.spec.SpotOcean != nil {
+		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
+	}
+
+	return n.newNodeGroupAutoScalingGroupResource(launchTemplate, vpcZoneIdentifier, tags)
+}
+
+func (n *NodeGroupResourceSet) newNodeGroupAutoScalingGroupResource(launchTemplate *gfnec2.LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
+	ng := n.spec
 	ngProps := map[string]interface{}{
 		"VPCZoneIdentifier": vpcZoneIdentifier,
 		"Tags":              tags,
@@ -360,10 +384,10 @@ func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interfa
 		ngProps["TargetGroupARNs"] = ng.TargetGroupARNs
 	}
 	if api.HasMixedInstances(ng) {
-		ngProps["MixedInstancesPolicy"] = *mixedInstancesPolicy(launchTemplateName, ng)
+		ngProps["MixedInstancesPolicy"] = n.mixedInstancesPolicy(launchTemplate.LaunchTemplateName)
 	} else {
 		ngProps["LaunchTemplate"] = map[string]interface{}{
-			"LaunchTemplateName": launchTemplateName,
+			"LaunchTemplateName": launchTemplate.LaunchTemplateName,
 			"Version":            gfnt.MakeFnGetAttString("NodeGroupLaunchTemplate", "LatestVersionNumber"),
 		}
 	}
@@ -379,10 +403,11 @@ func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interfa
 		UpdatePolicy: map[string]map[string]interface{}{
 			"AutoScalingRollingUpdate": rollingUpdate,
 		},
-	}
+	}, nil
 }
 
-func mixedInstancesPolicy(launchTemplateName *gfnt.Value, ng *api.NodeGroup) *map[string]interface{} {
+func (n *NodeGroupResourceSet) mixedInstancesPolicy(launchTemplateName *gfnt.Value) map[string]interface{} {
+	ng := n.spec
 	instanceTypes := ng.InstancesDistribution.InstanceTypes
 	overrides := make([]map[string]string, len(instanceTypes))
 
@@ -424,7 +449,7 @@ func mixedInstancesPolicy(launchTemplateName *gfnt.Value, ng *api.NodeGroup) *ma
 
 	policy["InstancesDistribution"] = instancesDistribution
 
-	return &policy
+	return policy
 }
 
 func metricsCollectionResource(asgMetricsCollection []api.MetricsCollection) []map[string]interface{} {
@@ -440,4 +465,481 @@ func metricsCollectionResource(asgMetricsCollection []api.MetricsCollection) []m
 		metricsCollections = append(metricsCollections, newCollection)
 	}
 	return metricsCollections
+}
+
+// newNodeGroupSpotOceanResource returns a Spot Ocean resource.
+func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfnec2.LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*awsCloudFormationResource, error) {
+
+	var res *spot.NodeGroupResource
+	var out awsCloudFormationResource
+	var err error
+
+	// Resource.
+	{
+		if n.spec.Name == api.SpotOceanNodeGroupName {
+			logger.Debug("ocean: building nodegroup %q as cluster", n.spec.Name)
+			res, err = n.newNodeGroupSpotOceanClusterResource(
+				launchTemplate, vpcZoneIdentifier, tags)
+		} else {
+			logger.Debug("ocean: building nodegroup %q as launchspec", n.spec.Name)
+			res, err = n.newNodeGroupSpotOceanLaunchSpecResource(
+				launchTemplate, vpcZoneIdentifier, tags)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Service Token.
+	{
+		res.ServiceToken = gfnt.MakeFnSubString(spot.LoadServiceToken())
+	}
+
+	// Credentials.
+	{
+		token, account, err := spot.LoadCredentials()
+		if err != nil {
+			return nil, err
+		}
+		if token != "" {
+			res.Token = n.rs.newParameter(spot.CredentialsTokenParameterKey, gfn.Parameter{
+				Type:    "String",
+				Default: token,
+			})
+		}
+		if account != "" {
+			res.Account = n.rs.newParameter(spot.CredentialsAccountParameterKey, gfn.Parameter{
+				Type:    "String",
+				Default: account,
+			})
+		}
+	}
+
+	// Feature Flags.
+	{
+		if ff := spot.LoadFeatureFlags(); ff != "" {
+			res.FeatureFlags = n.rs.newParameter(spot.FeatureFlagsParameterKey, gfn.Parameter{
+				Type:    "String",
+				Default: ff,
+			})
+		}
+	}
+
+	// Convert.
+	{
+		b, err := json.Marshal(res)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			return nil, err
+		}
+	}
+
+	return &out, nil
+}
+
+// newNodeGroupSpotOceanClusterResource returns a Spot Ocean cluster resource.
+func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTemplate *gfnec2.LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*spot.NodeGroupResource, error) {
+
+	template := launchTemplate.LaunchTemplateData
+	cluster := &spot.Cluster{
+		Name:      spotinst.String(n.clusterSpec.Metadata.Name),
+		ClusterID: spotinst.String(n.clusterSpec.Metadata.Name),
+		Region:    gfnt.MakeRef("AWS::Region"),
+		Compute: &spot.Compute{
+			LaunchSpecification: &spot.LaunchSpec{
+				ImageID:           template.ImageId,
+				UserData:          template.UserData,
+				KeyPair:           template.KeyName,
+				EBSOptimized:      n.spec.EBSOptimized,
+				UseAsTemplateOnly: spotinst.Bool(true),
+			},
+			SubnetIDs: vpcZoneIdentifier,
+		},
+	}
+
+	// Storage.
+	{
+		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
+			cluster.Compute.LaunchSpecification.VolumeSize = n.spec.VolumeSize
+		}
+	}
+
+	// Strategy.
+	{
+		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
+			cluster.Strategy = &spot.Strategy{
+				SpotPercentage:           strategy.SpotPercentage,
+				UtilizeReservedInstances: strategy.UtilizeReservedInstances,
+				FallbackToOnDemand:       strategy.FallbackToOnDemand,
+			}
+		}
+	}
+
+	// IAM.
+	{
+		if template.IamInstanceProfile != nil {
+			cluster.Compute.LaunchSpecification.IAMInstanceProfile = map[string]*gfnt.Value{
+				"arn": template.IamInstanceProfile.Arn,
+			}
+		}
+	}
+
+	// Networking.
+	{
+		if len(template.NetworkInterfaces) > 0 {
+			if template.NetworkInterfaces[0].AssociatePublicIpAddress != nil {
+				cluster.Compute.LaunchSpecification.AssociatePublicIPAddress = template.NetworkInterfaces[0].AssociatePublicIpAddress
+			}
+
+			if template.NetworkInterfaces[0].Groups != nil {
+				cluster.Compute.LaunchSpecification.SecurityGroupIDs = template.NetworkInterfaces[0].Groups
+			}
+		}
+	}
+
+	// Load Balancers.
+	{
+		var lbs []*spot.LoadBalancer
+
+		// ELBs.
+		if len(n.spec.ClassicLoadBalancerNames) > 0 {
+			for _, name := range n.spec.ClassicLoadBalancerNames {
+				lbs = append(lbs, &spot.LoadBalancer{
+					Type: spotinst.String("CLASSIC"),
+					Name: spotinst.String(name),
+				})
+			}
+		}
+
+		// ALBs.
+		if len(n.spec.TargetGroupARNs) > 0 {
+			for _, arn := range n.spec.TargetGroupARNs {
+				lbs = append(lbs, &spot.LoadBalancer{
+					Type: spotinst.String("TARGET_GROUP"),
+					ARN:  spotinst.String(arn),
+				})
+			}
+		}
+
+		if len(lbs) > 0 {
+			cluster.Compute.LaunchSpecification.LoadBalancers = lbs
+		}
+	}
+
+	// Tags.
+	{
+		var tagsKV []*spot.Tag
+
+		// Nodegroup tags.
+		if len(n.spec.Tags) > 0 {
+			for key, value := range n.spec.Tags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   spotinst.String(key),
+					Value: spotinst.String(value),
+				})
+			}
+		}
+
+		// Resource tags (Name, kubernetes.io/*, k8s.io/*, etc.).
+		if len(tags) > 0 {
+			for _, tag := range tags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   tag["Key"],
+					Value: tag["Value"],
+				})
+			}
+		}
+
+		// Shared tags (metadata.tags + eksctl's tags).
+		if len(n.sharedTags) > 0 {
+			for _, tag := range n.sharedTags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   spotinst.StringValue(tag.Key),
+					Value: spotinst.StringValue(tag.Value),
+				})
+			}
+		}
+
+		if len(tagsKV) > 0 {
+			cluster.Compute.LaunchSpecification.Tags = tagsKV
+		}
+	}
+
+	// Instance Types.
+	{
+		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
+			cluster.Compute.InstanceTypes = &spot.InstanceTypes{
+				Whitelist: compute.InstanceTypes.Whitelist,
+				Blacklist: compute.InstanceTypes.Blacklist,
+			}
+		}
+	}
+
+	// Scheduling.
+	{
+		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
+			if hours := scheduling.ShutdownHours; hours != nil {
+				cluster.Scheduling = &spot.Scheduling{
+					ShutdownHours: &spot.ShutdownHours{
+						IsEnabled:   hours.IsEnabled,
+						TimeWindows: hours.TimeWindows,
+					},
+				}
+			}
+
+			if tasks := scheduling.Tasks; len(tasks) > 0 {
+				if cluster.Scheduling == nil {
+					cluster.Scheduling = new(spot.Scheduling)
+				}
+
+				cluster.Scheduling.Tasks = make([]*spot.Task, len(tasks))
+				for i, task := range tasks {
+					cluster.Scheduling.Tasks[i] = &spot.Task{
+						IsEnabled:      task.IsEnabled,
+						Type:           task.Type,
+						CronExpression: task.CronExpression,
+					}
+				}
+			}
+		}
+	}
+
+	// Auto Scaler.
+	{
+		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil {
+			cluster.AutoScaler = &spot.AutoScaler{
+				IsEnabled:    autoScaler.Enabled,
+				IsAutoConfig: autoScaler.AutoConfig,
+				Cooldown:     autoScaler.Cooldown,
+			}
+
+			if headrooms := autoScaler.Headrooms; len(headrooms) > 0 {
+				cluster.AutoScaler.Headroom = &spot.Headroom{
+					CPUPerUnit:    headrooms[0].CPUPerUnit,
+					GPUPerUnit:    headrooms[0].GPUPerUnit,
+					MemoryPerUnit: headrooms[0].MemoryPerUnit,
+					NumOfUnits:    headrooms[0].NumOfUnits,
+				}
+			}
+		}
+	}
+
+	// Outputs.
+	{
+		n.rs.defineOutputWithoutCollector(
+			outputs.NodeGroupSpotOceanClusterID,
+			gfnt.MakeRef("NodeGroup"),
+			true)
+	}
+
+	return &spot.NodeGroupResource{Cluster: cluster}, nil
+}
+
+// newNodeGroupSpotOceanLaunchSpecResource returns a Spot Ocean launchspec resource.
+func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTemplate *gfnec2.LaunchTemplate,
+	vpcZoneIdentifier interface{}, tags []map[string]interface{}) (*spot.NodeGroupResource, error) {
+
+	// Import the Ocean cluster identifier.
+	oceanClusterStackName := fmt.Sprintf("eksctl-%s-nodegroup-ocean", n.clusterSpec.Metadata.Name)
+	oceanClusterID := gfnt.MakeFnImportValueString(fmt.Sprintf("%s::%s",
+		oceanClusterStackName,
+		outputs.NodeGroupSpotOceanClusterID))
+
+	template := launchTemplate.LaunchTemplateData
+	spec := &spot.LaunchSpec{
+		Name:      spotinst.String(n.spec.Name),
+		OceanID:   oceanClusterID,
+		ImageID:   template.ImageId,
+		UserData:  template.UserData,
+		SubnetIDs: vpcZoneIdentifier,
+	}
+
+	// Strategy.
+	{
+		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
+			spec.Strategy = &spot.Strategy{
+				SpotPercentage: strategy.SpotPercentage,
+			}
+		}
+	}
+
+	// Volume.
+	{
+		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
+			var (
+				volumeKMSKeyID *string
+				volumeIOPS     *int
+			)
+			if api.IsSetAndNonEmptyString(n.spec.VolumeKmsKeyID) {
+				volumeKMSKeyID = n.spec.VolumeKmsKeyID
+			}
+			if *n.spec.VolumeType == api.NodeVolumeTypeIO1 {
+				volumeIOPS = n.spec.VolumeIOPS
+			}
+			spec.BlockDeviceMappings = []*spot.BlockDevice{{
+				DeviceName: n.spec.VolumeName,
+				EBS: &spot.BlockDeviceEBS{
+					VolumeSize: n.spec.VolumeSize,
+					VolumeType: n.spec.VolumeType,
+					Encrypted:  n.spec.VolumeEncrypted,
+					KMSKeyID:   volumeKMSKeyID,
+					IOPS:       volumeIOPS,
+				},
+			}}
+		}
+	}
+
+	// IAM.
+	{
+		if template.IamInstanceProfile != nil {
+			spec.IAMInstanceProfile = map[string]*gfnt.Value{
+				"arn": template.IamInstanceProfile.Arn,
+			}
+		}
+	}
+
+	// Networking.
+	{
+		if len(template.NetworkInterfaces) > 0 {
+			if template.NetworkInterfaces[0].Groups != nil {
+				spec.SecurityGroupIDs = template.NetworkInterfaces[0].Groups
+			}
+		}
+	}
+
+	// Tags.
+	{
+		var tagsKV []*spot.Tag
+
+		// Nodegroup tags.
+		if len(n.spec.Tags) > 0 {
+			for key, value := range n.spec.Tags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   spotinst.String(key),
+					Value: spotinst.String(value),
+				})
+			}
+		}
+
+		// Resource tags (Name, kubernetes.io/*, k8s.io/*, etc.).
+		if len(tags) > 0 {
+			for _, tag := range tags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   tag["Key"],
+					Value: tag["Value"],
+				})
+			}
+		}
+
+		// Shared tags (metadata.tags + eksctl's tags).
+		if len(n.sharedTags) > 0 {
+			for _, tag := range n.sharedTags {
+				tagsKV = append(tagsKV, &spot.Tag{
+					Key:   spotinst.StringValue(tag.Key),
+					Value: spotinst.StringValue(tag.Value),
+				})
+			}
+		}
+
+		if len(tagsKV) > 0 {
+			spec.Tags = tagsKV
+		}
+	}
+
+	// Instance Types.
+	{
+		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
+			// Defaults to launchspec instance types.
+			types := compute.InstanceTypes.Types
+
+			// If no launchspec instance types are defined for a nodegroup, use
+			// the cluster level whitelist to maintain backward compatibility.
+			if len(compute.InstanceTypes.Types) == 0 {
+				types = compute.InstanceTypes.Whitelist
+			}
+
+			spec.InstanceTypes = types
+		}
+	}
+
+	// Labels.
+	{
+		if len(n.spec.Labels) > 0 {
+			labels := make([]*spot.Label, 0, len(n.spec.Labels))
+
+			for key, value := range n.spec.Labels {
+				labels = append(labels, &spot.Label{
+					Key:   spotinst.String(key),
+					Value: spotinst.String(value),
+				})
+			}
+
+			spec.Labels = labels
+		}
+	}
+
+	// Taints.
+	{
+		if len(n.spec.Taints) > 0 {
+			taints := make([]*spot.Taint, 0, len(n.spec.Taints))
+
+			for key, valueEffect := range n.spec.Taints {
+				taint := &spot.Taint{
+					Key: spotinst.String(key),
+				}
+				parts := strings.Split(valueEffect, ":")
+				if len(parts) >= 1 {
+					taint.Value = spotinst.String(parts[0])
+				}
+				if len(parts) > 1 {
+					taint.Effect = spotinst.String(parts[1])
+				}
+				taints = append(taints, taint)
+			}
+
+			spec.Taints = taints
+		}
+	}
+
+	// Auto Scaler.
+	{
+		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil && len(autoScaler.Headrooms) > 0 {
+			headrooms := make([]*spot.Headroom, len(autoScaler.Headrooms))
+
+			for i, headroom := range autoScaler.Headrooms {
+				headrooms[i] = &spot.Headroom{
+					CPUPerUnit:    headroom.CPUPerUnit,
+					GPUPerUnit:    headroom.GPUPerUnit,
+					MemoryPerUnit: headroom.MemoryPerUnit,
+					NumOfUnits:    headroom.NumOfUnits,
+				}
+			}
+
+			spec.AutoScaler = &spot.AutoScaler{
+				Headrooms: headrooms,
+			}
+		}
+	}
+
+	// Outputs.
+	{
+		n.rs.defineOutputWithoutCollector(
+			outputs.NodeGroupSpotOceanLaunchSpecID,
+			gfnt.MakeRef("NodeGroup"),
+			true)
+	}
+
+	return &spot.NodeGroupResource{
+		LaunchSpec: spec,
+		Resource: spot.Resource{
+			Parameters: spot.ResourceParameters{
+				OnCreate: map[string]interface{}{"initialNodes": spotinst.IntValue(n.spec.MinSize)},
+				OnDelete: map[string]interface{}{"forceDelete": true},
+			},
+		},
+	}, nil
 }
