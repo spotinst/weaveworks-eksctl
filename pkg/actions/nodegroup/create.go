@@ -133,19 +133,25 @@ func (m *Manager) Create(options CreateOpts, nodegroupFilter filter.NodeGroupFil
 			vpcImporter = vpc.NewSpecConfigImporter(*ctl.Status.ClusterInfo.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId, cfg.VPC)
 		}
 
-		allNodeGroupTasks := &tasks.TaskTree{
-			Parallel: true,
-		}
-		nodeGroupTasks := m.stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, supportsManagedNodes, !awsNodeUsesIRSA, vpcImporter)
-		if nodeGroupTasks.Len() > 0 {
-			allNodeGroupTasks.Append(nodeGroupTasks)
-		}
-		managedTasks := m.stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
-		if managedTasks.Len() > 0 {
-			allNodeGroupTasks.Append(managedTasks)
+		nodeGroupTasks, err := m.stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, !awsNodeUsesIRSA, vpcImporter)
+		if err != nil {
+			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 		}
 
-		taskTree.Append(allNodeGroupTasks)
+		// Spot Ocean.
+		{
+			for _, ng := range cfg.NodeGroups {
+				if ng.Name != api.SpotOceanNodeGroupName {
+					continue
+				}
+				svc := eks.NewNodeGroupService(cfg, ctl.Provider)
+				if err := svc.Normalize([]api.NodePool{ng}); err != nil {
+					return err
+				}
+			}
+		}
+
+		taskTree.Append(nodeGroupTasks)
 		logger.Info(taskTree.Describe())
 		errs := taskTree.DoAllSync()
 		if len(errs) > 0 {
@@ -194,8 +200,10 @@ func (m *Manager) postNodeCreationTasks(clientSet kubernetes.Interface, options 
 			}
 
 			// wait for nodes to join
-			if err := m.ctl.WaitForNodes(clientSet, ng); err != nil {
-				return err
+			if ng.SpotOcean == nil {
+				if err := m.ctl.WaitForNodes(clientSet, ng); err != nil {
+					return err
+				}
 			}
 		}
 	}

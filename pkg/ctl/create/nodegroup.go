@@ -18,6 +18,7 @@ import (
 type nodegroupOptions struct {
 	cmdutils.CreateNGOptions
 	cmdutils.CreateManagedNGOptions
+	cmdutils.CreateSpotOceanNodeGroupOptions
 	UpdateAuthConfigMap bool
 }
 
@@ -92,4 +93,8 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &options.SpotOcean)
+	})
 }
