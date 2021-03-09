@@ -217,6 +217,11 @@
         "secretsEncryption": {
           "$ref": "#/definitions/SecretsEncryption"
         },
+        "spotOcean": {
+          "$ref": "#/definitions/SpotOcean",
+          "description": "Spot Ocean.",
+          "x-intellij-html-description": "Spot Ocean."
+        },
         "status": {
           "$ref": "#/definitions/ClusterStatus"
         },
@@ -242,7 +247,8 @@
         "secretsEncryption",
         "status",
         "git",
-        "gitops"
+        "gitops",
+        "spotOcean"
       ],
       "additionalProperties": false,
       "description": "a simple config, to be replaced with Cluster API",
@@ -1338,6 +1344,11 @@
         "securityGroups": {
           "$ref": "#/definitions/NodeGroupSGs"
         },
+        "spotOcean": {
+          "$ref": "#/definitions/SpotOcean",
+          "description": "Spot Ocean.",
+          "x-intellij-html-description": "Spot Ocean."
+        },
         "ssh": {
           "$ref": "#/definitions/NodeGroupSSH",
           "description": "configures ssh access for this nodegroup",
@@ -1452,7 +1463,8 @@
         "targetGroupARNs",
         "bottlerocket",
         "clusterDNS",
-        "kubeletExtraConfig"
+        "kubeletExtraConfig",
+        "spotOcean"
       ],
       "additionalProperties": false,
       "description": "holds configuration attributes that are specific to a nodegroup",
@@ -1978,6 +1990,209 @@
       "additionalProperties": false,
       "description": "defines the configuration for KMS encryption provider",
       "x-intellij-html-description": "defines the configuration for KMS encryption provider"
+    },
+    "SpotOcean": {
+      "properties": {
+        "autoScaler": {
+          "$ref": "#/definitions/SpotOceanAutoScaler"
+        },
+        "compute": {
+          "$ref": "#/definitions/SpotOceanCompute"
+        },
+        "scheduling": {
+          "$ref": "#/definitions/SpotOceanScheduling"
+        },
+        "strategy": {
+          "$ref": "#/definitions/SpotOceanStrategy"
+        }
+      },
+      "preferredOrder": [
+        "strategy",
+        "compute",
+        "scheduling",
+        "autoScaler"
+      ],
+      "additionalProperties": false,
+      "description": "holds the configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the configuration used by Spot Ocean."
+    },
+    "SpotOceanAutoScaler": {
+      "properties": {
+        "autoConfig": {
+          "type": "boolean"
+        },
+        "cooldown": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "headrooms": {
+          "items": {
+            "$ref": "#/definitions/SpotOceanHeadroom"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "enabled",
+        "autoConfig",
+        "cooldown",
+        "headrooms"
+      ],
+      "additionalProperties": false,
+      "description": "holds the auto scaler configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the auto scaler configuration used by Spot Ocean."
+    },
+    "SpotOceanCompute": {
+      "properties": {
+        "instanceTypes": {
+          "$ref": "#/definitions/SpotOceanInstanceTypes"
+        }
+      },
+      "preferredOrder": [
+        "instanceTypes"
+      ],
+      "additionalProperties": false,
+      "description": "holds the compute configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the compute configuration used by Spot Ocean."
+    },
+    "SpotOceanHeadroom": {
+      "properties": {
+        "cpuPerUnit": {
+          "type": "integer"
+        },
+        "gpuPerUnit": {
+          "type": "integer"
+        },
+        "memoryPerUnit": {
+          "type": "integer"
+        },
+        "numOfUnits": {
+          "type": "integer"
+        }
+      },
+      "preferredOrder": [
+        "cpuPerUnit",
+        "gpuPerUnit",
+        "memoryPerUnit",
+        "numOfUnits"
+      ],
+      "additionalProperties": false,
+      "description": "holds the headroom configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the headroom configuration used by Spot Ocean."
+    },
+    "SpotOceanInstanceTypes": {
+      "properties": {
+        "blacklist": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "whitelist": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "types",
+        "whitelist",
+        "blacklist"
+      ],
+      "additionalProperties": false,
+      "description": "holds the instance types configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the instance types configuration used by Spot Ocean."
+    },
+    "SpotOceanScheduling": {
+      "properties": {
+        "shutdownHours": {
+          "$ref": "#/definitions/SpotOceanShutdownHours"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/definitions/SpotOceanTask"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "shutdownHours",
+        "tasks"
+      ],
+      "additionalProperties": false,
+      "description": "holds the scheduling configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the scheduling configuration used by Spot Ocean."
+    },
+    "SpotOceanShutdownHours": {
+      "properties": {
+        "isEnabled": {
+          "type": "boolean"
+        },
+        "timeWindows": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "isEnabled",
+        "timeWindows"
+      ],
+      "additionalProperties": false,
+      "description": "holds the shutdown hours configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the shutdown hours configuration used by Spot Ocean."
+    },
+    "SpotOceanStrategy": {
+      "properties": {
+        "fallbackToOnDemand": {
+          "type": "boolean"
+        },
+        "spotPercentage": {
+          "type": "integer"
+        },
+        "utilizeReservedInstances": {
+          "type": "boolean"
+        }
+      },
+      "preferredOrder": [
+        "spotPercentage",
+        "fallbackToOnDemand",
+        "utilizeReservedInstances"
+      ],
+      "additionalProperties": false,
+      "description": "holds the strategy configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the strategy configuration used by Spot Ocean."
+    },
+    "SpotOceanTask": {
+      "properties": {
+        "cronExpression": {
+          "type": "string"
+        },
+        "isEnabled": {
+          "type": "boolean"
+        },
+        "taskType": {
+          "type": "string"
+        }
+      },
+      "preferredOrder": [
+        "isEnabled",
+        "taskType",
+        "cronExpression"
+      ],
+      "additionalProperties": false,
+      "description": "holds the task configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the task configuration used by Spot Ocean."
     },
     "WellKnownPolicies": {
       "properties": {

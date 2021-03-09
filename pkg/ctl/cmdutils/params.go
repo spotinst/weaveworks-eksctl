@@ -1,6 +1,8 @@
 package cmdutils
 
 import (
+	"time"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
 
@@ -20,6 +22,7 @@ type CreateClusterCmdParams struct {
 	Fargate               bool
 	CreateNGOptions
 	CreateManagedNGOptions
+	CreateSpotOceanNodeGroupOptions
 }
 
 // CreateManagedNGOptions holds options for creating a managed nodegroup
@@ -33,4 +36,26 @@ type CreateManagedNGOptions struct {
 type CreateNGOptions struct {
 	InstallNeuronDevicePlugin bool
 	InstallNvidiaDevicePlugin bool
+}
+
+// CreateSpotOceanNodeGroupOptions holds options for creating a Spot Ocean nodegroup.
+type CreateSpotOceanNodeGroupOptions struct {
+	SpotOcean bool
+}
+
+// DeleteNodeGroupCmdParams groups CLI options for the delete nodegroup command.
+type DeleteNodeGroupCmdParams struct {
+	UpdateAuthConfigMap bool
+	Drain               bool
+	OnlyMissing         bool
+	DisableEviction     bool
+	MaxGracePeriod      time.Duration
+
+	DeleteSpotOceanNodeGroupOptions
+}
+
+// DeleteSpotOceanNodeGroupOptions holds options for deleting a Spot Ocean nodegroup.
+type DeleteSpotOceanNodeGroupOptions struct {
+	SpotRoll          bool
+	SpotRollBatchSize int
 }
