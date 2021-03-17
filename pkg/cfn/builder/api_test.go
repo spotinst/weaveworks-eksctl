@@ -581,7 +581,7 @@ var _ = Describe("CloudFormation template builder API", func() {
 			err = crs.AddAllResources()
 			Expect(err).ShouldNot(HaveOccurred())
 
-			ngrs = NewNodeGroupResourceSet(p, cfg, clusterStackName, ng, managedNodesSupport, false)
+			ngrs = NewNodeGroupResourceSet(p, cfg, clusterStackName, nil, ng, managedNodesSupport, false)
 			err = ngrs.AddAllResources()
 			Expect(err).ShouldNot(HaveOccurred())
 
