@@ -7,51 +7,92 @@ import (
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 )
 
 // NewTasksToCreateClusterWithNodeGroups defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works
 func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, supportsManagedNodes bool, postClusterCreationTasks ...tasks.Task) *tasks.TaskTree {
+	managedNodeGroups []*api.ManagedNodeGroup, supportsManagedNodes bool,
+	postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
 
 	taskTree := tasks.TaskTree{Parallel: false}
 
-	taskTree.Append(
-		&createClusterTask{
-			info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
-			stackCollection:      c,
-			supportsManagedNodes: supportsManagedNodes,
-		},
-	)
+	// Control plane.
+	{
+		taskTree.Append(
+			&createClusterTask{
+				info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
+				stackCollection:      c,
+				supportsManagedNodes: supportsManagedNodes,
+			},
+		)
+	}
 
-	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
-		nodeGroupTasks := c.NewUnmanagedNodeGroupTask(nodeGroups, supportsManagedNodes, false)
-
-		managedNodeGroupTasks := c.NewManagedNodeGroupTask(managedNodeGroups, false)
-		if managedNodeGroupTasks.Len() > 0 {
-			nodeGroupTasks.Append(managedNodeGroupTasks.Tasks...)
+	// Nodegroups.
+	{
+		nodeGroupTaskTree, err := c.NewNodeGroupTask(nodeGroups, managedNodeGroups, supportsManagedNodes, false)
+		if err != nil {
+			return nil, err
 		}
-
-		if nodeGroupTasks.Len() > 0 {
-			nodeGroupTasks.IsSubTask = true
-			taskTree.Append(nodeGroupTasks)
+		if nodeGroupTaskTree.Len() > 0 {
+			nodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(nodeGroupTaskTree)
 		}
 	}
 
-	if len(postClusterCreationTasks) > 0 {
-		postClusterCreationTaskTree := tasks.TaskTree{
-			Parallel:  false,
-			IsSubTask: true,
+	// Post cluster creation.
+	{
+		if len(postClusterCreationTasks) > 0 {
+			postTaskTree := &tasks.TaskTree{
+				Parallel:  false,
+				IsSubTask: true,
+			}
+			postTaskTree.Append(postClusterCreationTasks...)
+			taskTree.Append(postTaskTree)
 		}
-		postClusterCreationTaskTree.Append(postClusterCreationTasks...)
-		appendNodeGroupTasksTo(&postClusterCreationTaskTree)
-		taskTree.Append(&postClusterCreationTaskTree)
-	} else {
-		appendNodeGroupTasksTo(&taskTree)
 	}
 
-	return &taskTree
+	return &taskTree, nil
+}
+
+// NewNodeGroupTask defines tasks required to create all of the nodegroups
+func (c *StackCollection) NewNodeGroupTask(nodeGroups []*api.NodeGroup,
+	managedNodeGroups []*api.ManagedNodeGroup, supportsManagedNodes, forceAddCNIPolicy bool) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Spot Ocean.
+	oceanTaskTree, err := c.NewSpotOceanNodeGroupTask(nodeGroups)
+	if err != nil {
+		return nil, err
+	}
+	if oceanTaskTree.Len() > 0 {
+		oceanTaskTree.IsSubTask = true
+		taskTree.Parallel = false
+		taskTree.Append(oceanTaskTree)
+	}
+
+	nodeGroupTaskTree := c.NewUnmanagedNodeGroupTask(nodeGroups, supportsManagedNodes, forceAddCNIPolicy)
+	if nodeGroupTaskTree.Len() > 0 {
+		if oceanTaskTree.Len() > 0 {
+			nodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(nodeGroupTaskTree)
+		} else {
+			taskTree = nodeGroupTaskTree
+		}
+	}
+
+	managedNodeGroupTaskTree := c.NewManagedNodeGroupTask(managedNodeGroups, forceAddCNIPolicy)
+	if managedNodeGroupTaskTree.Len() > 0 {
+		if oceanTaskTree.Len() > 0 {
+			nodeGroupTaskTree.Append(managedNodeGroupTaskTree.Tasks...)
+		} else {
+			taskTree.Append(managedNodeGroupTaskTree.Tasks...)
+		}
+	}
+
+	return taskTree, nil
 }
 
 // NewUnmanagedNodeGroupTask defines tasks required to create all of the nodegroups
@@ -130,4 +171,37 @@ func (c *StackCollection) NewTasksToCreateIAMServiceAccounts(serviceAccounts []*
 		taskTree.Append(saTasks)
 	}
 	return taskTree
+}
+
+// NewSpotOceanNodeGroupTask defines tasks required to create Spot Ocean cluster.
+func (c *StackCollection) NewSpotOceanNodeGroupTask(
+	nodeGroups []*api.NodeGroup) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Describe nodegroup stacks.
+	stacks, err := c.DescribeNodeGroupStacks()
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify before proceeding.
+	ng, err := spot.ShouldCreateOceanNodeGroup(nodeGroups, stacks)
+	if err != nil {
+		return nil, err
+	}
+	if ng == nil { // already exists OR create without nodegroups
+		return taskTree, nil
+	}
+
+	// Allow post-creation actions to be performed on this nodegroup as well.
+	c.spec.NodeGroups = append(c.spec.NodeGroups, ng)
+
+	// Add a new creation task.
+	taskTree.Append(&nodeGroupTask{
+		info:            "create ocean cluster",
+		nodeGroup:       ng,
+		stackCollection: c,
+	})
+
+	return taskTree, nil
 }

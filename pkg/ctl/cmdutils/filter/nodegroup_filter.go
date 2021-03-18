@@ -141,7 +141,15 @@ func (f *NodeGroupFilter) loadLocalAndRemoteNodegroups(eksAPI eksiface.EKSAPI, l
 		}
 	}
 
-	// Log remote-only nodeg	roups  AND add them to the cluster config
+	// Spot Ocean.
+	for _, localNodeGroup := range clusterConfig.NodeGroups {
+		if localNodeGroup.SpotOcean != nil {
+			f.localNodegroups.Insert(api.SpotOceanNodeGroupName)
+			break
+		}
+	}
+
+	// Log remote-only nodegroups AND add them to the cluster config
 	for _, s := range nodeGroupsWithStacks {
 		remoteNodeGroupName := s.NodeGroupName
 		if !f.localNodegroups.Has(remoteNodeGroupName) {

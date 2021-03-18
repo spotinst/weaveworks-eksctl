@@ -16,9 +16,9 @@ import (
 )
 
 func createNodeGroupCmd(cmd *cmdutils.Cmd) {
-	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options nodegroup.CreateOpts, mngOptions cmdutils.CreateManagedNGOptions) error {
+	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options nodegroup.CreateOpts, mngOptions cmdutils.CreateManagedNGOptions, spotOptions cmdutils.CreateSpotOceanNodeGroupOptions) error {
 		ngFilter := filter.NewNodeGroupFilter()
-		if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, mngOptions).Load(); err != nil {
+		if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, mngOptions, spotOptions).Load(); err != nil {
 			return errors.Wrap(err, "couldn't create node group filter from command line options")
 		}
 		ctl, err := cmd.NewCtl()
@@ -30,7 +30,7 @@ func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 	})
 }
 
-type runFn func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options nodegroup.CreateOpts, mngOptions cmdutils.CreateManagedNGOptions) error
+type runFn func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options nodegroup.CreateOpts, mngOptions cmdutils.CreateManagedNGOptions, spotOptions cmdutils.CreateSpotOceanNodeGroupOptions) error
 
 func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 	cfg := api.NewClusterConfig()
@@ -38,8 +38,9 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 	cmd.ClusterConfig = cfg
 
 	var (
-		options    nodegroup.CreateOpts
-		mngOptions cmdutils.CreateManagedNGOptions
+		options     nodegroup.CreateOpts
+		mngOptions  cmdutils.CreateManagedNGOptions
+		spotOptions cmdutils.CreateSpotOceanNodeGroupOptions
 	)
 
 	cfg.Metadata.Version = "auto"
@@ -48,7 +49,7 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
-		return runFunc(cmd, ng, options, mngOptions)
+		return runFunc(cmd, ng, options, mngOptions, spotOptions)
 	}
 
 	exampleNodeGroupName := names.ForNodeGroup("", "")
@@ -76,4 +77,8 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &spotOptions.SpotOcean)
+	})
 }

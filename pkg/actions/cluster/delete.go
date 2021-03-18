@@ -9,16 +9,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/pkg/errors"
 
-	"github.com/weaveworks/eksctl/pkg/cfn/manager"
-	"github.com/weaveworks/eksctl/pkg/fargate"
-	"github.com/weaveworks/eksctl/pkg/kubernetes"
-
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/elb"
+	"github.com/weaveworks/eksctl/pkg/fargate"
+	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	ssh "github.com/weaveworks/eksctl/pkg/ssh/client"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
-
 	"github.com/weaveworks/logger"
 )
 
@@ -39,6 +38,21 @@ func deleteSharedResources(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, sta
 	ssh.DeleteKeys(cfg.Metadata.Name, ctl.Provider.EC2())
 
 	kubeconfig.MaybeDeleteConfig(cfg.Metadata)
+
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks()
+		if err != nil {
+			return err
+		}
+
+		// Execute pre-deletion actions.
+		if err := spot.RunPreDeletion(ctl.Provider, cfg, cfg.NodeGroups,
+			stacks, spot.NewDeleteAllFilter(), false, 0, false); err != nil {
+			return err
+		}
+	}
 
 	// only need to cleanup ELBs if the cluster has already been created.
 	if clusterOperable {
