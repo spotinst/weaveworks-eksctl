@@ -64,6 +64,7 @@ type (
 		Labels                   []*NodeGroupLabel        `json:"labels,omitempty"`
 		Taints                   []*NodeGroupTaint        `json:"taints,omitempty"`
 		AutoScaler               *NodeGroupAutoScaler     `json:"autoScale,omitempty"`
+		Strategy                 *NodeGroupStrategy       `json:"strategy,omitempty"`
 	}
 
 	NodeGroupSummary struct {

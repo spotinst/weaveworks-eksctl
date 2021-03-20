@@ -744,6 +744,15 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 		SubnetIDs: vpcZoneIdentifier,
 	}
 
+	// Strategy.
+	{
+		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
+			spec.Strategy = &spot.NodeGroupStrategy{
+				SpotPercentage: strategy.SpotPercentage,
+			}
+		}
+	}
+
 	// Volume.
 	{
 		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
