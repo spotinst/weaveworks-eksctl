@@ -5,7 +5,7 @@ module github.com/weaveworks/eksctl
 go 1.16
 
 require (
-	github.com/aws/aws-sdk-go v1.38.7
+	github.com/aws/aws-sdk-go v1.38.9
 	github.com/benjamintf1/unmarshalledmatchers v0.0.0-20190408201839-bb1c1f34eaea
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/bxcodec/faker v2.0.1+incompatible
@@ -44,7 +44,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spotinst/spotinst-sdk-go v1.80.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.6.8
+	github.com/tidwall/gjson v1.7.4
 	github.com/tidwall/sjson v1.1.5
 	github.com/tomnomnom/linkheader v0.0.0-20180905144013-02ca5825eb80 // indirect
 	github.com/vektra/mockery v1.1.2
