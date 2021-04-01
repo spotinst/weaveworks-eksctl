@@ -23,7 +23,7 @@ var _ = Describe("CloudFormation template", func() {
 		})
 
 		t.Outputs["aRole"] = Output{
-			Value: MakeFnGetAttString("aRole.Arn"),
+			Value: MakeFnGetAttString("aRole.ARN"),
 			Export: &OutputExport{
 				Name: MakeFnSubString(fmt.Sprintf("${%s}::aRole", StackName)),
 			},
@@ -72,11 +72,11 @@ var _ = Describe("CloudFormation template", func() {
 		Expect(t).To(HaveOutputs("aRole"))
 		Expect(t).ToNot(HaveOutputs("foo", "bar"))
 
-		Expect(t).To(HaveOutputWithValue("aRole", `{ "Fn::GetAtt": "aRole.Arn" }`))
+		Expect(t).To(HaveOutputWithValue("aRole", `{ "Fn::GetAtt": "aRole.ARN" }`))
 		Expect(t).To(HaveOutputExportedAs("aRole", `{ "Fn::Sub": "${AWS::StackName}::aRole" }`))
 
 		Expect(t).ToNot(HaveOutputExportedAs("aRole", `{}`))
-		Expect(t).ToNot(HaveOutputExportedAs("aRole", `{ "Fn::GetAtt": "aRole.Arn" }`))
+		Expect(t).ToNot(HaveOutputExportedAs("aRole", `{ "Fn::GetAtt": "aRole.ARN" }`))
 		Expect(t).ToNot(HaveOutputExportedAs("foo", `{ "Fn::Sub": "${AWS::StackName}::aRole" }`))
 	})
 
@@ -113,7 +113,7 @@ const templateExample1 = `{
 	"Outputs": {
 		"foo": { "Value": "bar" },
 		"aRole": {
-			"Value": { "Fn::GetAtt": "aRole.Arn" },
+			"Value": { "Fn::GetAtt": "aRole.ARN" },
 			"Export": { "Name": { "Fn::Sub": "${AWS::StackName}::aRole" } }
 		}
 	}

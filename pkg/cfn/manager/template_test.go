@@ -36,13 +36,13 @@ var _ = Describe("StackCollection Template", func() {
 		return cfg
 	}
 
-	rawJSONTemplate := `{"Outputs":{"ARN":{"Value":{"Fn::GetAtt":["ControlPlane","Arn"]},"Export":{"Name":{"Fn::Sub":"${AWS::StackName}::ARN"}}}}}`
+	rawJSONTemplate := `{"Outputs":{"ARN":{"Value":{"Fn::GetAtt":["ControlPlane","ARN"]},"Export":{"Name":{"Fn::Sub":"${AWS::StackName}::ARN"}}}}}`
 	rawYamlTemplate := `
 Outputs:
   ARN:
     Value: !GetAtt
       - ControlPlane
-      - Arn
+      - ARN
     Export:
       Name: !Sub '${AWS::StackName}::ARN'`
 	expectedJSONResponse := `{
@@ -51,7 +51,7 @@ Outputs:
       "Value": {
         "Fn::GetAtt": [
           "ControlPlane",
-          "Arn"
+          "ARN"
         ]
       },
       "Export": {
