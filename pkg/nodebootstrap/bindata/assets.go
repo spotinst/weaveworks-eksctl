@@ -29,7 +29,7 @@ import (
 func bindataRead(data []byte, name string) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewBuffer(data))
 	if err != nil {
-		return nil, fmt.Errorf("read %q: %w", name, err)
+		return nil, fmt.Errorf("read %q: %v", name, err)
 	}
 
 	var buf bytes.Buffer
@@ -37,7 +37,7 @@ func bindataRead(data []byte, name string) ([]byte, error) {
 	clErr := gz.Close()
 
 	if err != nil {
-		return nil, fmt.Errorf("read %q: %w", name, err)
+		return nil, fmt.Errorf("read %q: %v", name, err)
 	}
 	if clErr != nil {
 		return nil, err
@@ -381,9 +381,6 @@ var _bindata = map[string]func() (*asset, error){
 	"bindata/assets/kubelet.yaml":               bindataAssetsKubeletYaml,
 }
 
-// AssetDebug is true if the assets were built with the debug flag enabled.
-const AssetDebug = false
-
 // AssetDir returns the file names below a certain
 // directory embedded in the file by go-bindata.
 // For example if you run go-bindata on data/... and data contains the
@@ -425,18 +422,18 @@ type bintree struct {
 }
 
 var _bintree = &bintree{nil, map[string]*bintree{
-	"bindata": {nil, map[string]*bintree{
-		"assets": {nil, map[string]*bintree{
-			"10-eksctl.al2.conf": {bindataAssets10EksctlAl2Conf, map[string]*bintree{}},
-			"bootstrap.al2.sh": {bindataAssetsBootstrapAl2Sh, map[string]*bintree{}},
-			"bootstrap.helper.sh": {bindataAssetsBootstrapHelperSh, map[string]*bintree{}},
-			"bootstrap.legacy.al2.sh": {bindataAssetsBootstrapLegacyAl2Sh, map[string]*bintree{}},
-			"bootstrap.legacy.ubuntu.sh": {bindataAssetsBootstrapLegacyUbuntuSh, map[string]*bintree{}},
-			"bootstrap.ubuntu.sh": {bindataAssetsBootstrapUbuntuSh, map[string]*bintree{}},
-			"efa.al2.sh": {bindataAssetsEfaAl2Sh, map[string]*bintree{}},
-			"efa.managed.boothook": {bindataAssetsEfaManagedBoothook, map[string]*bintree{}},
-			"install-ssm.al2.sh": {bindataAssetsInstallSsmAl2Sh, map[string]*bintree{}},
-			"kubelet.yaml": {bindataAssetsKubeletYaml, map[string]*bintree{}},
+	"bindata": &bintree{nil, map[string]*bintree{
+		"assets": &bintree{nil, map[string]*bintree{
+			"10-eksctl.al2.conf":         &bintree{bindataAssets10EksctlAl2Conf, map[string]*bintree{}},
+			"bootstrap.al2.sh":           &bintree{bindataAssetsBootstrapAl2Sh, map[string]*bintree{}},
+			"bootstrap.helper.sh":        &bintree{bindataAssetsBootstrapHelperSh, map[string]*bintree{}},
+			"bootstrap.legacy.al2.sh":    &bintree{bindataAssetsBootstrapLegacyAl2Sh, map[string]*bintree{}},
+			"bootstrap.legacy.ubuntu.sh": &bintree{bindataAssetsBootstrapLegacyUbuntuSh, map[string]*bintree{}},
+			"bootstrap.ubuntu.sh":        &bintree{bindataAssetsBootstrapUbuntuSh, map[string]*bintree{}},
+			"efa.al2.sh":                 &bintree{bindataAssetsEfaAl2Sh, map[string]*bintree{}},
+			"efa.managed.boothook":       &bintree{bindataAssetsEfaManagedBoothook, map[string]*bintree{}},
+			"install-ssm.al2.sh":         &bintree{bindataAssetsInstallSsmAl2Sh, map[string]*bintree{}},
+			"kubelet.yaml":               &bintree{bindataAssetsKubeletYaml, map[string]*bintree{}},
 		}},
 	}},
 }}
