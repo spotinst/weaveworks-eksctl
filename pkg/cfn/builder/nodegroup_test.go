@@ -56,7 +56,7 @@ func TestGenerateNodeName(t *testing.T) {
 			fakeVPCImporter := new(vpcfakes.FakeImporter)
 
 			p := mockprovider.NewMockProvider()
-			n := NewNodeGroupResourceSet(p.EC2(), nil, clusterConfig, nodeGroup, false, false, fakeVPCImporter)
+			n := NewNodeGroupResourceSet(p.EC2(), nil, clusterConfig, nodeGroup, nil, false, false, fakeVPCImporter)
 			nodeName := generateNodeName(n.spec.NodeGroupBase, clusterConfig.Metadata)
 
 			assert.Equal(t, tt.expected, nodeName)

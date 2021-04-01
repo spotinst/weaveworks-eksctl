@@ -54,20 +54,30 @@ func (c *StackCollection) makeNodeGroupStackName(name string) string {
 
 // createNodeGroupTask creates the nodegroup
 func (c *StackCollection) createNodeGroupTask(errs chan error, ng *api.NodeGroup, supportsManagedNodes, forceAddCNIPolicy bool, vpcImporter vpc.Importer) error {
-	name := c.makeNodeGroupStackName(ng.Name)
-
-	logger.Info("building nodegroup stack %q", name)
-	stack := builder.NewNodeGroupResourceSet(c.ec2API, c.iamAPI, c.spec, ng, supportsManagedNodes, forceAddCNIPolicy, vpcImporter)
-	if err := stack.AddAllResources(); err != nil {
-		return err
-	}
-
 	if ng.Tags == nil {
 		ng.Tags = make(map[string]string)
 	}
 	ng.Tags[api.NodeGroupNameTag] = ng.Name
 	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
 	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
+
+	// Spot Ocean.
+	{
+		if ng.SpotOcean != nil {
+			if ng.Name == api.SpotOceanNodeGroupName {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
+			} else {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeLaunchSpec)
+			}
+		}
+	}
+
+	name := c.makeNodeGroupStackName(ng.Name)
+	logger.Info("building nodegroup stack %q", name)
+	stack := builder.NewNodeGroupResourceSet(c.ec2API, c.iamAPI, c.spec, ng, c.sharedTags, supportsManagedNodes, forceAddCNIPolicy, vpcImporter)
+	if err := stack.AddAllResources(); err != nil {
+		return err
+	}
 
 	return c.CreateStack(name, stack, ng.Tags, nil, errs)
 }
