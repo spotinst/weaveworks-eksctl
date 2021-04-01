@@ -6,24 +6,22 @@ import (
 	"os"
 	"strings"
 
-	"github.com/weaveworks/eksctl/pkg/kops"
-	"github.com/weaveworks/eksctl/pkg/utils"
-
-	"github.com/weaveworks/eksctl/pkg/actions/addon"
-
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/weaveworks/eksctl/pkg/actions/addon"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/gitops"
+	"github.com/weaveworks/eksctl/pkg/kops"
 	"github.com/weaveworks/eksctl/pkg/printers"
+	"github.com/weaveworks/eksctl/pkg/utils"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	"github.com/weaveworks/eksctl/pkg/utils/kubectl"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
@@ -95,6 +93,10 @@ func createClusterCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.C
 	cmdutils.AddInstanceSelectorOptions(cmd.FlagSetGroup, ng)
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
+
+	cmd.FlagSetGroup.InFlagSet("Spot", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
+	})
 
 	cmd.FlagSetGroup.InFlagSet("Output kubeconfig", func(fs *pflag.FlagSet) {
 		cmdutils.AddCommonFlagsForKubeconfig(fs, &params.KubeconfigPath, &params.AuthenticatorRoleARN, &params.SetContext, &params.AutoKubeconfigPath, exampleClusterName)
@@ -252,9 +254,12 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		if supported {
 			createAddonTasks := addon.CreateAddonTasks(cfg, ctl, true)
 			createAddonTasks.IsSubTask = true
-			taskTree = stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks, createAddonTasks)
+			taskTree, err = stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks, createAddonTasks)
 		} else {
-			taskTree = stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+			taskTree, err = stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to create cluster task tree: %v", err)
 		}
 
 		logger.Info(taskTree.Describe())
@@ -319,8 +324,10 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 			}
 
 			// wait for nodes to join
-			if err = ctl.WaitForNodes(clientSet, ng); err != nil {
-				return err
+			if ng.SpotOcean == nil {
+				if err = ctl.WaitForNodes(clientSet, ng); err != nil {
+					return err
+				}
 			}
 		}
 
