@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/aws/amazon-ec2-instance-selector/v2/pkg/selector"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
@@ -175,19 +176,26 @@ func (m *Manager) nodeCreationTasks(options CreateOpts, nodegroupFilter filter.N
 		vpcImporter = vpc.NewSpecConfigImporter(*m.ctl.Status.ClusterInfo.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId, cfg.VPC)
 	}
 
-	allNodeGroupTasks := &tasks.TaskTree{
-		Parallel: true,
-	}
-	nodeGroupTasks := m.stackManager.NewUnmanagedNodeGroupTask(cfg.NodeGroups, !awsNodeUsesIRSA, vpcImporter)
-	if nodeGroupTasks.Len() > 0 {
-		allNodeGroupTasks.Append(nodeGroupTasks)
-	}
-	managedTasks := m.stackManager.NewManagedNodeGroupTask(cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
-	if managedTasks.Len() > 0 {
-		allNodeGroupTasks.Append(managedTasks)
+	nodeGroupTasks, err := m.stackManager.NewNodeGroupTask(cfg.NodeGroups, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
+	if err != nil {
+		return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 	}
 
-	taskTree.Append(allNodeGroupTasks)
+	// Spot Ocean.
+	{
+		for _, ng := range cfg.NodeGroups {
+			if ng.Name != api.SpotOceanClusterNodeGroupName {
+				continue
+			}
+			logger.Debug("ocean: normalizing cluster nodegroup")
+			svc := eks.NewNodeGroupService(m.ctl.Provider, selector.New(m.ctl.Provider.Session()))
+			if err := svc.Normalize([]api.NodePool{ng}, meta); err != nil {
+				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
+			}
+		}
+	}
+
+	taskTree.Append(nodeGroupTasks)
 	if err := m.init.DoAllNodegroupStackTasks(taskTree, meta.Region, meta.Name); err != nil {
 		return err
 	}
