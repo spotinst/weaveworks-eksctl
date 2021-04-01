@@ -211,6 +211,12 @@ const (
 	// AddonNameTag defines the tag of the IAM service account name
 	AddonNameTag = "alpha.eksctl.io/addon-name"
 
+	// SpotOceanResourceTypeTag defines the tag name of the Spot Ocean resource type.
+	SpotOceanResourceTypeTag = "ocean.spot.io/resource-type" // [cluster | launchspec]
+
+	// SpotOceanNodeGroupName defines the name of the Spot Ocean nodegroup.
+	SpotOceanNodeGroupName = "ocean"
+
 	// ClusterNameLabel defines the tag of the cluster name
 	ClusterNameLabel = "alpha.eksctl.io/cluster-name"
 
@@ -293,6 +299,16 @@ const (
 	DefaultNodeVolumeIO1IOPS = 100
 	// DefaultNodeVolumeGP3IOPS defines the default throughput for gp3, set to the min value
 	DefaultNodeVolumeGP3IOPS = 3000
+)
+
+// SpotOceanResourceType defines the Ocean resource type.
+type SpotOceanResourceType string
+
+const (
+	// SpotOceanResourceTypeCluster defines an Ocean cluster resource type.
+	SpotOceanResourceTypeCluster SpotOceanResourceType = "cluster"
+	// SpotOceanResourceTypeLaunchSpec defines an Ocean launchspec resource type.
+	SpotOceanResourceTypeLaunchSpec SpotOceanResourceType = "launchspec"
 )
 
 var (
@@ -543,7 +559,18 @@ func (c ClusterConfig) LogString() string {
 		modes = append(modes, "managed nodes")
 	}
 	if len(c.NodeGroups) > 0 {
-		modes = append(modes, "un-managed nodes")
+		for _, ng := range c.NodeGroups {
+			if ng.SpotOcean == nil {
+				modes = append(modes, "un-managed nodes")
+				break
+			}
+		}
+		for _, ng := range c.NodeGroups {
+			if ng.SpotOcean != nil {
+				modes = append(modes, "ocean managed nodes")
+				break
+			}
+		}
 	}
 	return fmt.Sprintf("%s with %s", c.Metadata.LogString(), strings.Join(modes, " and "))
 }
@@ -649,6 +676,10 @@ type ClusterConfig struct {
 	// future gitops plans, replacing the Git configuration above
 	// +optional
 	GitOps *GitOps `json:"gitops,omitempty"`
+
+	// Spot Ocean.
+	// +optional
+	SpotOcean *SpotOcean `json:"spotOcean,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -848,6 +879,10 @@ type NodeGroup struct {
 	// [Customize `kubelet` config](/usage/customizing-the-kubelet/)
 	// +optional
 	KubeletExtraConfig *InlineDocument `json:"kubeletExtraConfig,omitempty"`
+
+	// Spot Ocean.
+	// +optional
+	SpotOcean *SpotOcean `json:"spotOcean,omitempty"`
 }
 
 func (n *NodeGroup) InstanceTypeList() []string {
@@ -1162,6 +1197,97 @@ type (
 		// settings](https://github.com/bottlerocket-os/bottlerocket/#description-of-settings)
 		// +optional
 		Settings *InlineDocument `json:"settings,omitempty"`
+	}
+)
+
+type (
+	// SpotOcean holds the configuration used by Spot Ocean.
+	SpotOcean struct {
+		// +optional
+		Strategy *SpotOceanStrategy `json:"strategy,omitempty"`
+		// +optional
+		Compute *SpotOceanCompute `json:"compute,omitempty"`
+		// +optional
+		Scheduling *SpotOceanScheduling `json:"scheduling,omitempty"`
+		// +optional
+		AutoScaler *SpotOceanAutoScaler `json:"autoScaler,omitempty"`
+	}
+
+	// SpotOceanStrategy holds the strategy configuration used by Spot Ocean.
+	SpotOceanStrategy struct {
+		// +optional
+		SpotPercentage *int `json:"spotPercentage,omitempty"`
+		// +optional
+		FallbackToOnDemand *bool `json:"fallbackToOnDemand,omitempty"`
+		// +optional
+		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
+		// +optional
+		UtilizeCommitments *bool `json:"utilizeCommitments,omitempty"`
+	}
+
+	// SpotOceanCompute holds the compute configuration used by Spot Ocean.
+	SpotOceanCompute struct {
+		InstanceTypes *SpotOceanInstanceTypes `json:"instanceTypes,omitempty"`
+	}
+
+	// SpotOceanInstanceTypes holds the instance types configuration used by Spot Ocean.
+	SpotOceanInstanceTypes struct {
+		// +optional
+		Types []string `json:"types,omitempty"`
+		// +optional
+		Whitelist []string `json:"whitelist,omitempty"`
+		// +optional
+		Blacklist []string `json:"blacklist,omitempty"`
+	}
+
+	// SpotOceanScheduling holds the scheduling configuration used by Spot Ocean.
+	SpotOceanScheduling struct {
+		// +optional
+		ShutdownHours *SpotOceanShutdownHours `json:"shutdownHours,omitempty"`
+		// +optional
+		Tasks []*SpotOceanTask `json:"tasks,omitempty"`
+	}
+
+	// SpotOceanShutdownHours holds the shutdown hours configuration used by Spot Ocean.
+	SpotOceanShutdownHours struct {
+		// +optional
+		IsEnabled *bool `json:"isEnabled,omitempty"`
+		// +optional
+		TimeWindows []string `json:"timeWindows,omitempty"`
+	}
+
+	// SpotOceanTask holds the task configuration used by Spot Ocean.
+	SpotOceanTask struct {
+		// +optional
+		IsEnabled *bool `json:"isEnabled,omitempty"`
+		// +optional
+		Type *string `json:"taskType,omitempty"`
+		// +optional
+		CronExpression *string `json:"cronExpression,omitempty"`
+	}
+
+	// SpotOceanAutoScaler holds the auto scaler configuration used by Spot Ocean.
+	SpotOceanAutoScaler struct {
+		// +optional
+		Enabled *bool `json:"enabled,omitempty"`
+		// +optional
+		AutoConfig *bool `json:"autoConfig,omitempty"`
+		// +optional
+		Cooldown *int `json:"cooldown,omitempty"`
+		// +optional
+		Headrooms []*SpotOceanHeadroom `json:"headrooms,omitempty"`
+	}
+
+	// SpotOceanHeadroom holds the headroom configuration used by Spot Ocean.
+	SpotOceanHeadroom struct {
+		// +optional
+		CPUPerUnit *int `json:"cpuPerUnit,omitempty"`
+		// +optional
+		GPUPerUnit *int `json:"gpuPerUnit,omitempty"`
+		// +optional
+		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
+		// +optional
+		NumOfUnits *int `json:"numOfUnits,omitempty"`
 	}
 )
 
