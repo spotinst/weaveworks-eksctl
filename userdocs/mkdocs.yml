@@ -38,6 +38,7 @@ nav:
             - usage/autoscaling.md
             - usage/custom-ami-support.md
             - usage/windows-worker-nodes.md
+            - usage/spot-ocean-nodegroups.md
         - Security:
             - usage/security.md
             - usage/kms-encryption.md
