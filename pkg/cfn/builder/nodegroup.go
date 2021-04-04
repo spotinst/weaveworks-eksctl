@@ -559,7 +559,6 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 	{
 		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
 			cluster.Strategy = &spot.NodeGroupStrategy{
-				SpotPercentage:           strategy.SpotPercentage,
 				UtilizeReservedInstances: strategy.UtilizeReservedInstances,
 				FallbackToOnDemand:       strategy.FallbackToOnDemand,
 			}
