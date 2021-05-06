@@ -1236,6 +1236,8 @@ type (
 		Cooldown *int `json:"cooldown,omitempty"`
 		// +optional
 		Headrooms []*NodeGroupSpotOceanAutoScalerHeadroom `json:"headrooms,omitempty"`
+		// +optional
+		ResourceLimits *NodeGroupSpotOceanResourceLimits `json:"resourceLimits,omitempty"`
 	}
 
 	// NodeGroupSpotOceanAutoScalerHeadroom holds the headroom configuration used by Spot Ocean.
@@ -1248,6 +1250,12 @@ type (
 		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
 		// +optional
 		NumOfUnits *int `json:"numOfUnits,omitempty"`
+	}
+
+	// NodeGroupSpotOceanResourceLimits holds the resource limits configuration used by Spot Ocean.
+	NodeGroupSpotOceanResourceLimits struct {
+		// +optional
+		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
 	}
 )
 

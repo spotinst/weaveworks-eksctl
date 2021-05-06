@@ -891,20 +891,34 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanLaunchSpecResource(launchTem
 
 	// Auto Scaler.
 	{
-		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil && len(autoScaler.Headrooms) > 0 {
-			headrooms := make([]*spot.NodeGroupAutoScalerHeadroom, len(autoScaler.Headrooms))
+		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil {
+			// Headroom.
+			{
+				if len(autoScaler.Headrooms) > 0 {
+					headrooms := make([]*spot.NodeGroupAutoScalerHeadroom, len(autoScaler.Headrooms))
 
-			for i, headroom := range autoScaler.Headrooms {
-				headrooms[i] = &spot.NodeGroupAutoScalerHeadroom{
-					CPUPerUnit:    headroom.CPUPerUnit,
-					GPUPerUnit:    headroom.GPUPerUnit,
-					MemoryPerUnit: headroom.MemoryPerUnit,
-					NumOfUnits:    headroom.NumOfUnits,
+					for i, headroom := range autoScaler.Headrooms {
+						headrooms[i] = &spot.NodeGroupAutoScalerHeadroom{
+							CPUPerUnit:    headroom.CPUPerUnit,
+							GPUPerUnit:    headroom.GPUPerUnit,
+							MemoryPerUnit: headroom.MemoryPerUnit,
+							NumOfUnits:    headroom.NumOfUnits,
+						}
+					}
+
+					spec.AutoScaler = &spot.NodeGroupAutoScaler{
+						Headrooms: headrooms,
+					}
 				}
 			}
 
-			spec.AutoScaler = &spot.NodeGroupAutoScaler{
-				Headrooms: headrooms,
+			// Resource Limits.
+			{
+				if autoScaler.ResourceLimits != nil {
+					spec.ResourceLimits = &spot.NodeGroupResourceLimits{
+						MaxInstanceCount: autoScaler.ResourceLimits.MaxInstanceCount,
+					}
+				}
 			}
 		}
 	}

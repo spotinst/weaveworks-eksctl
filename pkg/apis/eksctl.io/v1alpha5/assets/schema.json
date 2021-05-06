@@ -1725,13 +1725,17 @@
             "$ref": "#/definitions/NodeGroupSpotOceanAutoScalerHeadroom"
           },
           "type": "array"
+        },
+        "resourceLimits": {
+          "$ref": "#/definitions/NodeGroupSpotOceanResourceLimits"
         }
       },
       "preferredOrder": [
         "enabled",
         "autoConfig",
         "cooldown",
-        "headrooms"
+        "headrooms",
+        "resourceLimits"
       ],
       "additionalProperties": false,
       "description": "holds the auto scaler configuration used by Spot Ocean.",
@@ -1821,6 +1825,19 @@
       "additionalProperties": false,
       "description": "holds the metadata used by Spot Ocean.",
       "x-intellij-html-description": "holds the metadata used by Spot Ocean."
+    },
+    "NodeGroupSpotOceanResourceLimits": {
+      "properties": {
+        "maxInstanceCount": {
+          "type": "integer"
+        }
+      },
+      "preferredOrder": [
+        "maxInstanceCount"
+      ],
+      "additionalProperties": false,
+      "description": "holds the resource limits configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the resource limits configuration used by Spot Ocean."
     },
     "NodeGroupSpotOceanScheduling": {
       "properties": {

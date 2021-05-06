@@ -65,6 +65,7 @@ type (
 		Taints                   []*NodeGroupTaint        `json:"taints,omitempty"`
 		AutoScaler               *NodeGroupAutoScaler     `json:"autoScale,omitempty"`
 		Strategy                 *NodeGroupStrategy       `json:"strategy,omitempty"`
+		ResourceLimits           *NodeGroupResourceLimits `json:"resourceLimits,omitempty"`
 	}
 
 	NodeGroupSummary struct {
@@ -149,6 +150,10 @@ type (
 		GPUPerUnit    *int `json:"gpuPerUnit,omitempty"`
 		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
 		NumOfUnits    *int `json:"numOfUnits,omitempty"`
+	}
+
+	NodeGroupResourceLimits struct {
+		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
 	}
 
 	NodeGroupLabel struct {
