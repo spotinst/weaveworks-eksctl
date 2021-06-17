@@ -60,7 +60,7 @@ require (
 	golang.org/x/tools v0.1.3
 	k8s.io/api v0.19.5
 	k8s.io/apiextensions-apiserver v0.19.5
-	k8s.io/apimachinery v0.19.5
+	k8s.io/apimachinery v0.21.1
 	k8s.io/cli-runtime v0.19.5
 	k8s.io/client-go v0.19.5
 	k8s.io/cloud-provider v0.19.5
