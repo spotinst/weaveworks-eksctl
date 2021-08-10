@@ -46,7 +46,7 @@ require (
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
-	github.com/spotinst/spotinst-sdk-go v1.82.0
+	github.com/spotinst/spotinst-sdk-go v1.85.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.8.1
 	github.com/tidwall/sjson v1.1.7
@@ -66,7 +66,7 @@ require (
 	k8s.io/client-go v0.21.2
 	k8s.io/cloud-provider v0.21.2
 	k8s.io/code-generator v0.21.2
-	k8s.io/kops v1.19.0
+	k8s.io/kops v1.21.0
 	k8s.io/kubelet v0.21.2
 	k8s.io/legacy-cloud-providers v0.21.2
 	sigs.k8s.io/aws-iam-authenticator v0.5.2
