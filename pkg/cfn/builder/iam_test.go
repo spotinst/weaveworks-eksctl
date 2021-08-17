@@ -63,7 +63,7 @@ var _ = Describe("template builder for IAM", func() {
 			"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
 		]`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can construct an iamserviceaccount addon template with one inline policy", func() {
@@ -118,7 +118,7 @@ var _ = Describe("template builder for IAM", func() {
             ]
         }`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can construct an iamserviceaccount addon template with a custom role name", func() {
@@ -213,7 +213,7 @@ var _ = Describe("template builder for IAM", func() {
             ]
         }`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can construct an iamserviceaccount addon template with one managed policy and a permissions boundary", func() {
@@ -250,7 +250,7 @@ var _ = Describe("template builder for IAM", func() {
 		]`))
 			Expect(t).To(HaveResourceWithPropertyValue("Role1", "PermissionsBoundary", `"arn:aws:iam::aws:policy/policy/boundary"`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can construct an iamserviceaccount addon template with all the wellKnownPolicies", func() {
@@ -294,7 +294,7 @@ var _ = Describe("template builder for IAM", func() {
 		      }
             ]`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can parse an iamserviceaccount addon template", func() {
@@ -313,7 +313,7 @@ var _ = Describe("template builder for IAM", func() {
 
 			Expect(t).To(HaveResourceWithPropertyValue("Role1", "AssumeRolePolicyDocument", expectedServiceAccountAssumeRolePolicyDocument))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 	})
 
@@ -361,7 +361,7 @@ var _ = Describe("template builder for IAM", func() {
 			"arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
 		]`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 
 		It("can construct an iamrole template with attachPolicy", func() {
@@ -412,7 +412,7 @@ var _ = Describe("template builder for IAM", func() {
 		   ]
 		}`))
 
-			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.Arn" }`))
+			Expect(t).To(HaveOutputWithValue("Role1", `{ "Fn::GetAtt": "Role1.ARN" }`))
 		})
 	})
 })
