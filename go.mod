@@ -131,7 +131,6 @@ require (
 	github.com/google/certificate-transparency-go v1.1.2-0.20210511102531-373a877eec92 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/go-github/v32 v32.1.0 // indirect
-	github.com/google/go-github/v35 v35.3.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/rpmpack v0.0.0-20210518075352-dc539ef4f2ea // indirect
@@ -227,7 +226,6 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
-	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7 // indirect
 	github.com/pelletier/go-toml v1.9.3
 	github.com/phayes/checkstyle v0.0.0-20170904204023-bfd46e6a821d // indirect
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
@@ -248,7 +246,6 @@ require (
 	github.com/sanathkr/go-yaml v0.0.0-20170819195128-ed9d249f429b // indirect
 	github.com/sanathkr/yaml v0.0.0-20170819201035-0056894fa522 // indirect
 	github.com/sanposhiho/wastedassign/v2 v2.0.6 // indirect
-	github.com/sassoftware/go-rpmutils v0.0.0-20190420191620-a8f1baeba37b // indirect
 	github.com/securego/gosec/v2 v2.8.1 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/sethvargo/go-password v0.2.0
@@ -265,7 +262,7 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.8.1 // indirect
-	github.com/spotinst/spotinst-sdk-go v1.85.0 // indirect
+	github.com/spotinst/spotinst-sdk-go v1.99.0
 	github.com/ssgreg/nlreturn/v2 v2.1.0 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.7.0
