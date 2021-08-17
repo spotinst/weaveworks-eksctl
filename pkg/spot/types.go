@@ -52,7 +52,7 @@ type (
 		AssociatePublicIPAddress *gfnt.Value            `json:"associatePublicIpAddress,omitempty"`
 		VolumeSize               *int                   `json:"rootVolumeSize,omitempty"`
 		UseAsTemplateOnly        *bool                  `json:"useAsTemplateOnly,omitempty"`
-		EBSOptimized             *bool                  `json:"ebsOptimized,omitempty"`
+		EBSOptimized             *gfnt.Value            `json:"ebsOptimized,omitempty"`
 		SubnetIDs                interface{}            `json:"subnetIds,omitempty"`
 		InstanceTypes            []string               `json:"instanceTypes,omitempty"`
 		IAMInstanceProfile       map[string]*gfnt.Value `json:"iamInstanceProfile,omitempty"`
@@ -93,16 +93,17 @@ type (
 	}
 
 	BlockDevice struct {
-		DeviceName *string         `json:"deviceName,omitempty"`
+		DeviceName *gfnt.Value     `json:"deviceName,omitempty"`
 		EBS        *BlockDeviceEBS `json:"ebs,omitempty"`
 	}
 
 	BlockDeviceEBS struct {
-		VolumeSize *int    `json:"volumeSize,omitempty"`
-		VolumeType *string `json:"volumeType,omitempty"`
-		Encrypted  *bool   `json:"encrypted,omitempty"`
-		KMSKeyID   *string `json:"kmsKeyId,omitempty"`
-		IOPS       *int    `json:"iops,omitempty"`
+		VolumeSize *gfnt.Value `json:"volumeSize,omitempty"`
+		VolumeType *gfnt.Value `json:"volumeType,omitempty"`
+		Encrypted  *gfnt.Value `json:"encrypted,omitempty"`
+		KMSKeyID   *gfnt.Value `json:"kmsKeyId,omitempty"`
+		IOPS       *gfnt.Value `json:"iops,omitempty"`
+		Throughput *gfnt.Value `json:"throughput,omitempty"`
 	}
 
 	Tag struct {
