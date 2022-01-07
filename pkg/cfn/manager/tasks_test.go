@@ -73,7 +73,7 @@ var _ = Describe("StackCollection Tasks", func() {
 			{
 				tasks := stackManager.NewUnmanagedNodeGroupTask(makeNodeGroups("bar", "foo"), false, fakeVPCImporter)
 				Expect(tasks.Describe()).To(Equal(`
-2 parallel tasks: { create nodegroup "bar", create nodegroup "foo" 
+2 parallel tasks: { create nodegroup "bar", create nodegroup "foo"
 }
 `))
 			}
@@ -92,18 +92,18 @@ var _ = Describe("StackCollection Tasks", func() {
 			{
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar", "foo"), nil, true)
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
-    } 
+    }
 }
 `))
 			}
 			{
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar"), nil, false)
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", create nodegroup "bar" 
+2 sequential tasks: { create cluster control plane "test-cluster", create nodegroup "bar"
 }
 `))
 			}
@@ -114,35 +114,35 @@ var _ = Describe("StackCollection Tasks", func() {
 			{
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar", "foo"), makeManagedNodeGroups("m1", "m2"), false)
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    4 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    4 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
         create managed nodegroup "m1",
         create managed nodegroup "m2",
-    } 
+    }
 }
 `))
 			}
 			{
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("foo"), makeManagedNodeGroups("m1"), true)
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 parallel sub-tasks: {
         create nodegroup "foo",
         create managed nodegroup "m1",
-    } 
+    }
 }
 `))
 			}
 			{
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar"), nil, false, &task{id: 1})
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 sequential sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 sequential sub-tasks: {
         task 1,
         create nodegroup "bar",
-    } 
+    }
 }
 `))
 			}
@@ -155,11 +155,11 @@ var _ = Describe("StackCollection Tasks", func() {
 			It("appends the AssignIpv6AddressOnCreation task to occur after the cluster creation", func() {
 				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(makeNodeGroups("bar", "foo"), nil, true)
 				Expect(tasks.Describe()).To(Equal(`
-3 sequential tasks: { create cluster control plane "test-cluster", set AssignIpv6AddressOnCreation to true for public subnets and EnableDns64 to true for private subnets, 
-    2 parallel sub-tasks: { 
+3 sequential tasks: { create cluster control plane "test-cluster", set AssignIpv6AddressOnCreation to true for public subnets and EnableDns64 to true for private subnets,
+    2 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
-    } 
+    }
 }
 `))
 			})

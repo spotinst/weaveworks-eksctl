@@ -108,6 +108,10 @@ func createClusterCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.C
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
 
+	cmd.FlagSetGroup.InFlagSet("Spot Ocean", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanCreateNodeGroupFlags(fs, &params.SpotOcean)
+	})
+
 	cmd.FlagSetGroup.InFlagSet("Output kubeconfig", func(fs *pflag.FlagSet) {
 		cmdutils.AddCommonFlagsForKubeconfig(fs, &params.KubeconfigPath, &params.AuthenticatorRoleARN, &params.SetContext, &params.AutoKubeconfigPath, exampleClusterName)
 		fs.BoolVar(&params.WriteKubeconfig, "write-kubeconfig", true, "toggle writing of kubeconfig")
@@ -285,7 +289,24 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	taskTree := stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+	taskTree, err := stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+	if err != nil {
+		return err
+	}
+
+	// Spot Ocean.
+	{
+		for _, ng := range cfg.NodeGroups {
+			if ng.Name != api.SpotOceanClusterNodeGroupName {
+				continue
+			}
+			logger.Debug("ocean: normalizing cluster nodegroup")
+			svc := eks.NewNodeGroupService(ctl.Provider, selector.New(ctl.Provider.Session()))
+			if err := svc.Normalize([]api.NodePool{ng}, meta); err != nil {
+				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
+			}
+		}
+	}
 
 	logger.Info(taskTree.Describe())
 	if errs := taskTree.DoAllSync(); len(errs) > 0 {
@@ -348,8 +369,10 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 			}
 
 			// wait for nodes to join
-			if err = ctl.WaitForNodes(clientSet, ng); err != nil {
-				return err
+			if ng.SpotOcean == nil {
+				if err = ctl.WaitForNodes(clientSet, ng); err != nil {
+					return err
+				}
 			}
 		}
 

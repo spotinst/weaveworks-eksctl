@@ -138,8 +138,10 @@ func (c *ClusterProvider) UpdateAuthConfigMap(nodeGroups []*api.NodeGroup, clien
 		}
 
 		// wait for nodes to join
-		if err := c.WaitForNodes(clientSet, ng); err != nil {
-			return err
+		if ng.SpotOcean == nil {
+			if err := c.WaitForNodes(clientSet, ng); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
