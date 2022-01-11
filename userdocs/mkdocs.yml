@@ -42,6 +42,7 @@ nav:
             - usage/container-runtime.md
             - usage/windows-worker-nodes.md
             - usage/nodegroup-additional-volume-mappings.md
+            - usage/spot-ocean-nodegroups.md
         - GitOps:
             - usage/gitops-v2.md
         - Security:
