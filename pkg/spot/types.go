@@ -146,6 +146,7 @@ type (
 	ResourceLimits struct {
 		MaxVCPU          *int `json:"maxvCPU,omitempty"`
 		MaxMemoryGiB     *int `json:"maxMemoryGib,omitempty"`
+		MinInstanceCount *int `json:"minInstanceCount,omitempty"`
 		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
 	}
 

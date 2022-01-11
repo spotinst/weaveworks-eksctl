@@ -2321,9 +2321,13 @@
       "properties": {
         "maxInstanceCount": {
           "type": "integer"
+        },
+        "minInstanceCount": {
+          "type": "integer"
         }
       },
       "preferredOrder": [
+        "minInstanceCount",
         "maxInstanceCount"
       ],
       "additionalProperties": false,

@@ -879,6 +879,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 			if autoScaler.ResourceLimits != nil {
 				spec.ResourceLimits = &spot.ResourceLimits{
+					MinInstanceCount: autoScaler.ResourceLimits.MinInstanceCount,
 					MaxInstanceCount: autoScaler.ResourceLimits.MaxInstanceCount,
 				}
 			}

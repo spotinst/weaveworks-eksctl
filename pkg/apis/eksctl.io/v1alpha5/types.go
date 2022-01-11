@@ -1359,6 +1359,8 @@ type (
 	// SpotOceanVirtualNodeGroupResourceLimits holds the resource limits configuration used by Spot Ocean.
 	SpotOceanVirtualNodeGroupResourceLimits struct {
 		// +optional
+		MinInstanceCount *int `json:"minInstanceCount,omitempty"`
+		// +optional
 		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
 	}
 )
