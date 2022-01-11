@@ -12,15 +12,16 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
+	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
+	"github.com/weaveworks/eksctl/pkg/eks"
+	"github.com/weaveworks/eksctl/pkg/elb"
 	"github.com/weaveworks/eksctl/pkg/fargate"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 
 	awseks "github.com/aws/aws-sdk-go/service/eks"
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/eks"
-	"github.com/weaveworks/eksctl/pkg/elb"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	ssh "github.com/weaveworks/eksctl/pkg/ssh/client"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,6 +59,22 @@ func deleteSharedResources(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, sta
 			return err
 		}
 	}
+
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks()
+		if err != nil {
+			return err
+		}
+
+		// Execute pre-delete actions.
+		if err := spot.RunPreDelete(ctl.Provider, cfg, cfg.NodeGroups,
+			stacks, spot.NewAlwaysFilter(), false, 0, false); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
