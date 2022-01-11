@@ -523,18 +523,11 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 				ImageID:           template.ImageId,
 				UserData:          template.UserData,
 				KeyPair:           template.KeyName,
-				EBSOptimized:      n.spec.EBSOptimized,
+				EBSOptimized:      template.EbsOptimized,
 				UseAsTemplateOnly: spotinst.Bool(true),
 			},
 			SubnetIDs: vpcZoneIdentifier,
 		},
-	}
-
-	// Storage.
-	{
-		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
-			cluster.Compute.LaunchSpecification.VolumeSize = n.spec.VolumeSize
-		}
 	}
 
 	// IAM.
@@ -741,27 +734,26 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		}
 	}
 
-	// Storage.
+	// Block Device Mappings.
 	{
-		if n.spec.VolumeSize != nil && spotinst.IntValue(n.spec.VolumeSize) > 0 {
-			var volumeKMSKeyID *string
-			var volumeIOPS *int
-			if api.IsSetAndNonEmptyString(n.spec.VolumeKmsKeyID) {
-				volumeKMSKeyID = n.spec.VolumeKmsKeyID
+		if devs := template.BlockDeviceMappings; len(devs) > 0 {
+			spec.BlockDeviceMappings = make([]*spot.BlockDevice, len(devs))
+			for i, d := range devs {
+				dev := &spot.BlockDevice{
+					DeviceName: d.DeviceName,
+				}
+				if d.Ebs != nil {
+					dev.EBS = &spot.BlockDeviceEBS{
+						VolumeSize: d.Ebs.VolumeSize,
+						VolumeType: d.Ebs.VolumeType,
+						Encrypted:  d.Ebs.Encrypted,
+						KMSKeyID:   d.Ebs.KmsKeyId,
+						IOPS:       d.Ebs.Iops,
+						Throughput: d.Ebs.Throughput,
+					}
+				}
+				spec.BlockDeviceMappings[i] = dev
 			}
-			if *n.spec.VolumeType == api.NodeVolumeTypeIO1 {
-				volumeIOPS = n.spec.VolumeIOPS
-			}
-			spec.BlockDeviceMappings = []*spot.BlockDevice{{
-				DeviceName: n.spec.VolumeName,
-				EBS: &spot.BlockDeviceEBS{
-					VolumeSize: n.spec.VolumeSize,
-					VolumeType: n.spec.VolumeType,
-					Encrypted:  n.spec.VolumeEncrypted,
-					KMSKeyID:   volumeKMSKeyID,
-					IOPS:       volumeIOPS,
-				},
-			}}
 		}
 	}
 

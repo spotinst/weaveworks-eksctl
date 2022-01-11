@@ -25,20 +25,20 @@ import (
 	"github.com/weaveworks/goformation/v4"
 )
 
-// NewOceanVirtualNodeGroup creates a new Ocean Virtual Nodegroup, and returns
-// a pointer to it.
+// NewOceanVirtualNodeGroup returns a new NodeGroup object for the Ocean Virtual NodeGroup.
 func NewOceanVirtualNodeGroup() *api.NodeGroup {
 	ng := api.NewNodeGroup()
 	ng.SpotOcean = new(api.SpotOceanVirtualNodeGroup)
 	return ng
 }
 
-// NewOceanClusterNodeGroup creates a new Ocean Cluster, and returns
-// a pointer to it.
+// NewOceanClusterNodeGroup returns a new NodeGroup object for the Ocean Cluster.
 func NewOceanClusterNodeGroup(clusterSpec *api.ClusterConfig) *api.NodeGroup {
 	ng := NewOceanVirtualNodeGroup()
 	ng.Name = api.SpotOceanClusterNodeGroupName
 	ng.PrivateNetworking = shouldUsePrivateNetworking(clusterSpec)
+	// TODO(liran): Support is not available at the Ocean Virtual Nodegroup level.
+	ng.EBSOptimized = shouldUseEBSOptimization(clusterSpec)
 	api.SetNodeGroupDefaults(ng, clusterSpec.Metadata)
 	return ng
 }
@@ -147,6 +147,21 @@ func shouldUsePrivateNetworking(clusterSpec *api.ClusterConfig) (private bool) {
 		}
 	}
 	return
+}
+
+// shouldUseEBSOptimization returns true whether the Ocean Cluster should make
+// use of EBS optimization.
+func shouldUseEBSOptimization(clusterSpec *api.ClusterConfig) *bool {
+	optimized := false
+	if len(clusterSpec.NodeGroups) > 0 {
+		for _, ng := range clusterSpec.NodeGroups {
+			if ng.SpotOcean != nil && spotinst.BoolValue(ng.EBSOptimized) {
+				optimized = true
+				break
+			}
+		}
+	}
+	return spotinst.Bool(optimized)
 }
 
 // ShouldDeleteOceanCluster checks whether the Ocean Cluster should be deleted
