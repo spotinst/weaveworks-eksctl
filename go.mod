@@ -42,7 +42,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spotinst/spotinst-sdk-go v1.85.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.13.0
+	github.com/tidwall/gjson v1.14.0
 	github.com/tidwall/sjson v1.2.4
 	github.com/tj/assert v0.0.3
 	github.com/vektra/mockery v1.1.2
