@@ -40,7 +40,7 @@ require (
 	github.com/spf13/afero v1.8.0
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
-	github.com/spotinst/spotinst-sdk-go v1.85.0
+	github.com/spotinst/spotinst-sdk-go v1.109.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.13.0
 	github.com/tidwall/sjson v1.2.4
@@ -431,7 +431,7 @@ require (
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/gorp.v1 v1.7.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.66.2 // indirect
+	gopkg.in/ini.v1 v1.66.3 // indirect
 	gopkg.in/mail.v2 v2.3.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
