@@ -3,10 +3,13 @@ package manager
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/kris-nova/logger"
@@ -14,9 +17,11 @@ import (
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/awsapi"
+	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/cfn/waiter"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/weaveworks/eksctl/pkg/utils/apierrors"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 )
@@ -103,7 +108,7 @@ func (c *StackCollection) NewTasksToDeleteNodeGroups(nodeGroupStacks []NodeGroup
 
 	for _, s := range nodeGroupStacks {
 
-		if !shouldDelete(s.NodeGroupName) {
+		if !shouldDelete(s.NodeGroupName) || s.NodeGroupName == api.SpotOceanClusterNodeGroupName {
 			continue
 		}
 
@@ -126,6 +131,18 @@ func (c *StackCollection) NewTasksToDeleteNodeGroups(nodeGroupStacks []NodeGroup
 				stack: s.Stack,
 				call:  c.DeleteStackBySpec,
 			})
+		}
+	}
+
+	// Spot Ocean.
+	{
+		oceanTaskTree, err := c.NewTasksToDeleteSpotOceanNodeGroup(context.TODO(), shouldDelete)
+		if err != nil {
+			return nil, err
+		}
+		if oceanTaskTree.Len() > 0 {
+			oceanTaskTree.IsSubTask = true
+			taskTree.Append(oceanTaskTree)
 		}
 	}
 
@@ -334,6 +351,118 @@ func stacksToServiceAccountMap(stacks []*types.Stack) map[string]*types.Stack {
 	}
 
 	return stackMap
+}
+
+// NewTaskToDeleteAddonIAM defines tasks required to delete all of the addons
+func (c *StackCollection) NewTaskToDeleteAddonIAM(ctx context.Context, wait bool) (*tasks.TaskTree, error) {
+	stacks, err := c.GetIAMAddonsStacks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	taskTree := &tasks.TaskTree{Parallel: true}
+	for _, s := range stacks {
+		info := fmt.Sprintf("delete addon IAM %q", *s.StackName)
+
+		deleteStackTasks := &tasks.TaskTree{
+			Parallel:  false,
+			IsSubTask: true,
+		}
+		if wait {
+			deleteStackTasks.Append(&taskWithStackSpec{
+				info:  info,
+				stack: s,
+				call:  c.DeleteStackBySpecSync,
+			})
+		} else {
+			deleteStackTasks.Append(&asyncTaskWithStackSpec{
+				info:  info,
+				stack: s,
+				call:  c.DeleteStackBySpec,
+			})
+		}
+		taskTree.Append(deleteStackTasks)
+	}
+	return taskTree, nil
+
+}
+
+// NewTasksToDeleteSpotOceanNodeGroup defines tasks required to delete Ocean nodegroup.
+func (c *StackCollection) NewTasksToDeleteSpotOceanNodeGroup(ctx context.Context, shouldDelete func(string) bool) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Check whether the Ocean Cluster's nodegroup should be deleted.
+	stacks, err := c.ListNodeGroupStacks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	stack, err := spot.ShouldDeleteOceanCluster(stacks, shouldDelete)
+	if err != nil {
+		return nil, err
+	}
+	if stack == nil { // nothing to do
+		return taskTree, nil
+	}
+
+	// ignoreListImportsError ignores errors that may occur while listing imports.
+	ignoreListImportsError := func(errMsg string) bool {
+		errMsgs := []string{
+			"not imported by any stack",
+			"does not exist",
+		}
+		for _, msg := range errMsgs {
+			if strings.Contains(strings.ToLower(errMsg), msg) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// All nodegroups are marked for deletion. We need to wait for their deletion
+	// to complete before deleting the Ocean Cluster.
+	deleter := func(ctx context.Context, s *Stack, errs chan error) error {
+		maxAttempts := 360 // 1 hour
+		delay := 10 * time.Second
+
+		for attempt := 1; ; attempt++ {
+			logger.Debug("ocean: attempting to delete cluster (attempt: %d)", attempt)
+
+			input := &cloudformation.ListImportsInput{
+				ExportName: aws.String(fmt.Sprintf("%s::%s",
+					aws.ToString(s.StackName), outputs.NodeGroupSpotOceanClusterID)),
+			}
+
+			output, err := c.cloudformationAPI.ListImports(ctx, input)
+			if err != nil {
+				if !ignoreListImportsError(err.Error()) {
+					return err
+				}
+			}
+
+			if output != nil && len(output.Imports) > 0 {
+				if attempt+1 > maxAttempts {
+					return fmt.Errorf("ocean: max attempts reached: " +
+						"giving up waiting for importers to become deleted")
+				}
+
+				logger.Debug("ocean: waiting for %d importers "+
+					"to become deleted", len(output.Imports))
+				time.Sleep(delay)
+				continue
+			}
+
+			logger.Debug("ocean: no more importers, deleting cluster...")
+			return c.DeleteStackBySpecSync(ctx, s, errs)
+		}
+	}
+
+	// Add a new deletion task.
+	taskTree.Append(&taskWithStackSpec{
+		info:  "delete ocean cluster",
+		stack: stack,
+		call:  deleter,
+	})
+
+	return taskTree, nil
 }
 
 func clusterHasOIDCProvider(cluster *ekstypes.Cluster) (hasOIDC bool, found bool) {
