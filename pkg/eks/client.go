@@ -129,14 +129,21 @@ func (c *ClusterProvider) ServerVersion(rawClient *kubewrapper.RawClient) (strin
 // UpdateAuthConfigMap creates or adds a nodegroup IAM role in the auth ConfigMap for the given nodegroup.
 func (c *ClusterProvider) UpdateAuthConfigMap(nodeGroups []*api.NodeGroup, clientSet kubernetes.Interface) error {
 	for _, ng := range nodeGroups {
+		// skip ocean cluster
+		if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {
+			continue
+		}
+
 		// authorise nodes to join
 		if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 			return err
 		}
 
 		// wait for nodes to join
-		if err := c.WaitForNodes(clientSet, ng); err != nil {
-			return err
+		if ng.SpotOcean == nil {
+			if err := c.WaitForNodes(clientSet, ng); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -74,7 +74,7 @@ var _ = Describe("StackCollection Tasks", func() {
 			{
 				tasks := stackManager.NewUnmanagedNodeGroupTask(context.Background(), makeNodeGroups("bar", "foo"), false, fakeVPCImporter)
 				Expect(tasks.Describe()).To(Equal(`
-2 parallel tasks: { create nodegroup "bar", create nodegroup "foo" 
+2 parallel tasks: { create nodegroup "bar", create nodegroup "foo"
 }
 `))
 			}
@@ -91,59 +91,65 @@ var _ = Describe("StackCollection Tasks", func() {
 				Expect(tasks.Describe()).To(Equal(`no tasks`))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), nil)
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), nil)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
-    } 
+    }
 }
 `))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar"), nil)
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar"), nil)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", create nodegroup "bar" 
+2 sequential tasks: { create cluster control plane "test-cluster", create nodegroup "bar"
 }
 `))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), nil, nil)
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), nil, nil)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`1 task: { create cluster control plane "test-cluster" }`))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), makeManagedNodeGroups("m1", "m2"))
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), makeManagedNodeGroups("m1", "m2"))
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    4 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    4 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
         create managed nodegroup "m1",
         create managed nodegroup "m2",
-    } 
+    }
 }
 `))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("foo"), makeManagedNodeGroups("m1"))
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("foo"), makeManagedNodeGroups("m1"))
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 parallel sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 parallel sub-tasks: {
         create nodegroup "foo",
         create managed nodegroup "m1",
-    } 
+    }
 }
 `))
 			}
 			{
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar"), nil, &task{id: 1})
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar"), nil, &task{id: 1})
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-2 sequential tasks: { create cluster control plane "test-cluster", 
-    2 sequential sub-tasks: { 
+2 sequential tasks: { create cluster control plane "test-cluster",
+    2 sequential sub-tasks: {
         task 1,
         create nodegroup "bar",
-    } 
+    }
 }
 `))
 			}
@@ -154,13 +160,14 @@ var _ = Describe("StackCollection Tasks", func() {
 				cfg.KubernetesNetworkConfig.IPFamily = api.IPV6Family
 			})
 			It("appends the AssignIpv6AddressOnCreation task to occur after the cluster creation", func() {
-				tasks := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), nil)
+				tasks, err := stackManager.NewTasksToCreateClusterWithNodeGroups(context.Background(), makeNodeGroups("bar", "foo"), nil)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(tasks.Describe()).To(Equal(`
-3 sequential tasks: { create cluster control plane "test-cluster", set AssignIpv6AddressOnCreation to true for public subnets, 
-    2 parallel sub-tasks: { 
+3 sequential tasks: { create cluster control plane "test-cluster", set AssignIpv6AddressOnCreation to true for public subnets,
+    2 parallel sub-tasks: {
         create nodegroup "bar",
         create nodegroup "foo",
-    } 
+    }
 }
 `))
 			})
