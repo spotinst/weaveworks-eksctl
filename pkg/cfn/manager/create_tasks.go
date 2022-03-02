@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/weaveworks/eksctl/pkg/spot"
-
-	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
 	"github.com/kris-nova/logger"
@@ -42,13 +40,20 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
 	}
 
-	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
+	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) error {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
+
 		nodeGroupTasks := &tasks.TaskTree{
 			Parallel:  true,
 			IsSubTask: true,
 		}
+
 		disableAccessEntryCreation := accessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap
+		if oceanManagedNodeGroupTasks, err := c.NewSpotOceanNodeGroupTask(ctx, vpcImporter); oceanManagedNodeGroupTasks.Len() > 0 && err == nil {
+			oceanManagedNodeGroupTasks.IsSubTask = true
+			nodeGroupTasks.Parallel = false
+			nodeGroupTasks.Append(oceanManagedNodeGroupTasks)
+		}
 		if unmanagedNodeGroupTasks := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, false, false, disableAccessEntryCreation, vpcImporter); unmanagedNodeGroupTasks.Len() > 0 {
 			unmanagedNodeGroupTasks.IsSubTask = true
 			nodeGroupTasks.Append(unmanagedNodeGroupTasks)
@@ -61,7 +66,11 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		if nodeGroupTasks.Len() > 0 {
 			taskTree.Append(nodeGroupTasks)
 		}
+
+		return nil
 	}
+
+	appendErr: error
 
 	if len(postClusterCreationTasks) > 0 {
 		postClusterCreationTaskTree := &tasks.TaskTree{
@@ -69,12 +78,13 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 			IsSubTask: true,
 		}
 		postClusterCreationTaskTree.Append(postClusterCreationTasks...)
-		appendNodeGroupTasksTo(postClusterCreationTaskTree)
+		appendErr = appendNodeGroupTasksTo(postClusterCreationTaskTree)
 		taskTree.Append(postClusterCreationTaskTree)
 	} else {
-		appendNodeGroupTasksTo(&taskTree)
+		appendErr = appendNodeGroupTasksTo(&taskTree)
 	}
-	return &taskTree, nil
+
+	return &taskTree, appendErr
 }
 
 // NewUnmanagedNodeGroupTask returns tasks for creating self-managed nodegroups.

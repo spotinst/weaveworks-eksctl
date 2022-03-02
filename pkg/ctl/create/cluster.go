@@ -365,7 +365,8 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, cfg.AccessConfig.AccessEntries, makeAccessEntryCreator(cfg.Metadata.Name, stackManager), postClusterCreationTasks)
+	//TODO idan - add changes here after merge: taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, cfg.AccessConfig, makeAccessEntryCreator(cfg.Metadata.Name, stackManager), postClusterCreationTasks)
+	taskTree, err := stackManager.NewTasksToCreateClusterWithNodeGroups(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
 
 	if err != nil {
 		return fmt.Errorf("ocean: failed to create cluster nodegroup: %v", err)
@@ -378,13 +379,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				continue
 			}
 			logger.Debug("ocean: normalizing cluster nodegroup")
-
-			instanceSelector, err := selector.New(ctx, ctl.AWSProvider.AWSConfig())
-			if err != nil {
-				return fmt.Errorf("ocean: failed to create instance selector: %v", err)
-			}
-
-			svc := eks.NewNodeGroupService(ctl.AWSProvider, instanceSelector, nil)
+			svc := eks.NewNodeGroupService(ctl.AWSProvider, selector.New(ctl.AWSProvider.Session()), nil)
 			if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
 				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
 			}
@@ -465,6 +460,9 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				}
 
 				for _, ng := range cfg.NodeGroups {
+					if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {
+						continue
+					}
 					if ng.SpotOcean == nil {
 						if err := eks.WaitForNodes(ngCtx, clientSet, ng); err != nil {
 							return err

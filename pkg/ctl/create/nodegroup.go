@@ -21,6 +21,15 @@ import (
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
 )
+// TODO idan - this suppose to be removed now in the new version
+/*type nodegroupOptions struct {
+	cmdutils.CreateNGOptions
+	cmdutils.CreateManagedNGOptions
+	cmdutils.CreateSpotOceanNodeGroupOptions
+	UpdateAuthConfigMap     bool
+	SkipOutdatedAddonsCheck bool
+	SubnetIDs               []string
+}*/
 
 func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 	createNodeGroupCmdWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options *cmdutils.NodeGroupOptions) error {
@@ -86,6 +95,7 @@ func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 	})
 }
 
+//TODO idan - please check cmdutils.NodeGroupOptions
 type runFn func(cmd *cmdutils.Cmd, ng *api.NodeGroup, options *cmdutils.NodeGroupOptions) error
 
 func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {

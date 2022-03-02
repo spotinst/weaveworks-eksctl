@@ -48,9 +48,9 @@ type NodeGroupOptions struct {
 	VPCImporter        vpc.Importer
 	SkipEgressRules    bool
 	DisableAccessEntry bool
-	SharedTags        []types.Tag
 	// DisableAccessEntryResource disables creation of an access entry resource but still attaches the UsesAccessEntry tag.
 	DisableAccessEntryResource bool
+	SharedTags                 []types.Tag
 }
 
 // NodeGroupResourceSet stores the resource information of the nodegroup
@@ -137,7 +137,7 @@ func (n *NodeGroupResourceSet) AddAllResources(ctx context.Context) error {
 
 	// Avoid creating IAM resources for the Ocean Cluster resource set as it
 	// will only be used as a template for Ocean Virtual Node Groups.
-	if n.spec.Name != api.SpotOceanClusterNodeGroupName {
+	if ng.Name != api.SpotOceanClusterNodeGroupName {
 		if err := n.addResourcesForIAM(ctx); err != nil {
 			return err
 		}
@@ -309,7 +309,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 	}
 
 	// Do not create a Launch Template resource for Spot-managed nodegroups.
-	if n.spec.SpotOcean == nil {
+	if ng.SpotOcean == nil {
 		n.newResource("NodeGroupLaunchTemplate", launchTemplate)
 	}
 
@@ -360,12 +360,12 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		}
 	}
 
-	g, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags)
+	asg, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags, ng)
 
-	if g == nil {
+	if asg == nil {
 		return fmt.Errorf("failed to build nodegroup resource: %v", err)
 	}
-	n.newResource("NodeGroup", g)
+	n.newResource("NodeGroup", asg)
 
 	return nil
 }
@@ -550,6 +550,7 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
 	vpcZoneIdentifier interface{}, tags []map[string]string) (*awsCloudFormationResource, error) {
 
+	//TODO idan - please check what can be done here
 	if n.spec.SpotOcean != nil {
 		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
 	}
@@ -750,6 +751,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTemplate *gfnec2.LaunchTemplate,
 	vpcZoneIdentifier interface{}, resourceTags []map[string]string) (*spot.ResourceNodeGroup, error) {
 
+	//TODO idan - make sure to get "ng" instead of using the "n" interface
 	template := launchTemplate.LaunchTemplateData
 	cluster := &spot.Cluster{
 		Name:      spotinst.String(n.clusterSpec.Metadata.Name),
@@ -874,13 +876,6 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 					Whitelist: compute.InstanceTypes.Whitelist,
 					Blacklist: compute.InstanceTypes.Blacklist,
 				}
-			}
-		}
-
-		// ResourceTagSpecification
-		if compute := spotOcean.Compute; compute != nil && compute.ResourceTagSpecification != nil && compute.ResourceTagSpecification.Volumes != nil {
-			cluster.Compute.LaunchSpecification.ResourceTagSpecification = &spot.ResourceTagSpecification{
-				Volumes: &spot.Volumes{ShouldTag: compute.ResourceTagSpecification.Volumes.ShouldTag},
 			}
 		}
 
@@ -1083,20 +1078,6 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		}
 	}
 
-	// Images
-	{
-		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.Images != nil &&
-			len(compute.Images) > 0 && template.ImageId != nil {
-			imagesSlice := make([]*spot.Images, len(compute.Images)+1)
-			imagesSlice[0] = &spot.Images{ImageId: spotinst.String(template.ImageId.String())}
-			for i, imageId := range compute.Images {
-
-				imagesSlice[i+1] = &spot.Images{ImageId: imageId.ImageId}
-			}
-			spec.Images = imagesSlice
-			spec.ImageID = nil
-		}
-	}
 	// Scheduling.
 	{
 		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
@@ -1224,11 +1205,6 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 				n.spec.MinSize = &initialNodes
 			}
 		}
-	}
-
-	// Restrict Scale Down.
-	if restrictScaleDown := n.spec.SpotOcean.RestrictScaleDown; restrictScaleDown != nil {
-		spec.RestrictScaleDown = restrictScaleDown
 	}
 
 	return &spot.ResourceNodeGroup{

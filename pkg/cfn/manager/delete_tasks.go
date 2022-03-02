@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
 	"github.com/weaveworks/eksctl/pkg/actions/accessentry"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/awsapi"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/cfn/waiter"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
@@ -388,39 +388,6 @@ func stacksToServiceAccountMap(stacks []*types.Stack) map[string]*types.Stack {
 	}
 
 	return stackMap
-}
-
-// NewTaskToDeleteAddonIAM defines tasks required to delete all of the addons
-func (c *StackCollection) NewTaskToDeleteAddonIAM(ctx context.Context, wait bool) (*tasks.TaskTree, error) {
-	stacks, err := c.GetIAMAddonsStacks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	taskTree := &tasks.TaskTree{Parallel: true}
-	for _, s := range stacks {
-		info := fmt.Sprintf("delete addon IAM %q", *s.StackName)
-
-		deleteStackTasks := &tasks.TaskTree{
-			Parallel:  false,
-			IsSubTask: true,
-		}
-		if wait {
-			deleteStackTasks.Append(&taskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpecSync,
-			})
-		} else {
-			deleteStackTasks.Append(&asyncTaskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpec,
-			})
-		}
-		taskTree.Append(deleteStackTasks)
-	}
-	return taskTree, nil
-
 }
 
 // NewTasksToDeleteSpotOceanNodeGroup defines tasks required to delete Ocean nodegroup.
