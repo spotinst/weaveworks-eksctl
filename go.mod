@@ -12,20 +12,21 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.9
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.3
-	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.21.1
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.23.5
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.16.4
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.15.10
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.17.3
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.49.1
-	github.com/aws/aws-sdk-go-v2/service/eks v1.21.2
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.14.5
-	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.18.6
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.50.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.21.4
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.14.8
+	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.18.8
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.9
 	github.com/aws/aws-sdk-go-v2/service/kms v1.18.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.1
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.27.4
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.9
 	github.com/aws/smithy-go v1.12.0
+	github.com/awslabs/goformation v1.4.1
 	github.com/benjamintf1/unmarshalledmatchers v0.0.0-20190408201839-bb1c1f34eaea
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/bxcodec/faker v2.0.1+incompatible
@@ -59,6 +60,7 @@ require (
 	github.com/spf13/afero v1.9.2
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
+	github.com/spotinst/spotinst-sdk-go v1.85.0
 	github.com/stretchr/testify v1.8.0
 	github.com/tidwall/gjson v1.14.1
 	github.com/tidwall/sjson v1.2.4
@@ -383,7 +385,6 @@ require (
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.10.1 // indirect
-	github.com/spotinst/spotinst-sdk-go v1.85.0 // indirect
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect

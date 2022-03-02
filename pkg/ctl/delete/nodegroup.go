@@ -17,34 +17,27 @@ import (
 	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
+	"github.com/weaveworks/eksctl/pkg/spot"
 )
 
 func deleteNodeGroupCmd(cmd *cmdutils.Cmd) {
-	deleteNodeGroupWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap, deleteNodeGroupDrain, onlyMissing bool, maxGracePeriod, podEvictionWaitPeriod time.Duration, disableEviction bool, parallel int) error {
-		return doDeleteNodeGroup(cmd, ng, updateAuthConfigMap, deleteNodeGroupDrain, onlyMissing, maxGracePeriod, podEvictionWaitPeriod, disableEviction, parallel)
+	deleteNodeGroupWithRunFunc(cmd, func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.DeleteNodeGroupCmdParams) error {
+		return doDeleteNodeGroup(cmd, ng, params)
 	})
 }
 
-func deleteNodeGroupWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap, deleteNodeGroupDrain, onlyMissing bool, maxGracePeriod, podEvictionWaitPeriod time.Duration, disableEviction bool, parallel int) error) {
+func deleteNodeGroupWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.DeleteNodeGroupCmdParams) error) {
 	cfg := api.NewClusterConfig()
 	ng := api.NewNodeGroup()
 	cmd.ClusterConfig = cfg
 
-	var (
-		updateAuthConfigMap   bool
-		deleteNodeGroupDrain  bool
-		onlyMissing           bool
-		maxGracePeriod        time.Duration
-		podEvictionWaitPeriod time.Duration
-		disableEviction       bool
-		parallel              int
-	)
+	params := &cmdutils.DeleteNodeGroupCmdParams{}
 
 	cmd.SetDescription("nodegroup", "Delete a nodegroup", "", "ng")
 
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
-		return runFunc(cmd, ng, updateAuthConfigMap, deleteNodeGroupDrain, onlyMissing, maxGracePeriod, podEvictionWaitPeriod, disableEviction, parallel)
+		return runFunc(cmd, ng, params)
 	}
 
 	cmd.FlagSetGroup.InFlagSet("General", func(fs *pflag.FlagSet) {
@@ -54,16 +47,16 @@ func deleteNodeGroupWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cm
 		cmdutils.AddConfigFileFlag(fs, &cmd.ClusterConfigFile)
 		cmdutils.AddApproveFlag(fs, cmd)
 		cmdutils.AddNodeGroupFilterFlags(fs, &cmd.Include, &cmd.Exclude)
-		fs.BoolVar(&onlyMissing, "only-missing", false, "Only delete nodegroups that are not defined in the given config file")
-		cmdutils.AddUpdateAuthConfigMap(fs, &updateAuthConfigMap, "Remove nodegroup IAM role from aws-auth configmap")
-		fs.BoolVar(&deleteNodeGroupDrain, "drain", true, "Drain and cordon all nodes in the nodegroup before deletion")
+		fs.BoolVar(&params.OnlyMissing, "only-missing", false, "Only delete nodegroups that are not defined in the given config file")
+		cmdutils.AddUpdateAuthConfigMap(fs, &params.UpdateAuthConfigMap, "Remove nodegroup IAM role from aws-auth configmap")
+		fs.BoolVar(&params.DeleteNodeGroupDrain, "drain", true, "Drain and cordon all nodes in the nodegroup before deletion")
 		defaultMaxGracePeriod, _ := time.ParseDuration("10m")
-		fs.DurationVar(&maxGracePeriod, "max-grace-period", defaultMaxGracePeriod, "Maximum pods termination grace period")
+		fs.DurationVar(&params.MaxGracePeriod, "max-grace-period", defaultMaxGracePeriod, "Maximum pods termination grace period")
 		defaultPodEvictionWaitPeriod, _ := time.ParseDuration("10s")
-		fs.DurationVar(&podEvictionWaitPeriod, "pod-eviction-wait-period", defaultPodEvictionWaitPeriod, "Duration to wait after failing to evict a pod")
+		fs.DurationVar(&params.PodEvictionWaitPeriod, "pod-eviction-wait-period", defaultPodEvictionWaitPeriod, "Duration to wait after failing to evict a pod")
 		defaultDisableEviction := false
-		fs.BoolVar(&disableEviction, "disable-eviction", defaultDisableEviction, "Force drain to use delete, even if eviction is supported. This will bypass checking PodDisruptionBudgets, use with caution.")
-		fs.IntVar(&parallel, "parallel", 1, "Number of nodes to drain in parallel. Max 25")
+		fs.BoolVar(&params.DisableEviction, "disable-eviction", defaultDisableEviction, "Force drain to use delete, even if eviction is supported. This will bypass checking PodDisruptionBudgets, use with caution.")
+		fs.IntVar(&params.Parallel, "parallel", 1, "Number of nodes to drain in parallel. Max 25")
 
 		cmd.Wait = false
 		cmdutils.AddWaitFlag(fs, &cmd.Wait, "deletion of all resources")
@@ -71,9 +64,13 @@ func deleteNodeGroupWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cm
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
+
+	cmd.FlagSetGroup.InFlagSet("Spot Ocean", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanDeleteNodeGroupFlags(fs, &params.SpotRoll, &params.SpotRollBatchSize)
+	})
 }
 
-func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap, deleteNodeGroupDrain, onlyMissing bool, maxGracePeriod time.Duration, podEvictionWaitPeriod time.Duration, disableEviction bool, parallel int) error {
+func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *cmdutils.DeleteNodeGroupCmdParams) error {
 	ngFilter := filter.NewNodeGroupFilter()
 
 	if err := cmdutils.NewDeleteAndDrainNodeGroupLoader(cmd, ng, ngFilter).Load(); err != nil {
@@ -101,7 +98,7 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 
 	if cmd.ClusterConfigFile != "" {
 		logger.Info("comparing %d nodegroups defined in the given config (%q) against remote state", len(cfg.NodeGroups), cmd.ClusterConfigFile)
-		if onlyMissing {
+		if params.OnlyMissing {
 			err = ngFilter.SetOnlyRemote(ctx, ctl.AWSProvider.EKS(), stackManager, cfg)
 			if err != nil {
 				return err
@@ -114,11 +111,53 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 		}
 	}
 
-	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
+	// Spot Ocean.
+	{
+		// List all nodegroup stacks.
+		stacks, err := stackManager.DescribeNodeGroupStacks(ctx)
+		if err != nil {
+			return err
+		}
 
+		// Filter nodegroups.
+		nodeGroups := ngFilter.FilterMatching(cfg.NodeGroups)
+		nodeGroupsIncludedFilter := spot.NewContainsFilter(nodeGroups)
+
+		// Execute pre-delete actions.
+		if err := spot.RunPreDelete(ctx, ctl.AWSProvider, cfg, nodeGroups, stacks,
+			nodeGroupsIncludedFilter, params.SpotRoll, params.SpotRollBatchSize, cmd.Plan); err != nil {
+			return err
+		}
+
+		// Recreate the API client to regenerate the embedded STS token.
+		if params.SpotRoll {
+			// By default, pre-signed STS URLs are valid for 15 minutes after
+			// timestamp in x-amz-date header, which means the actual token
+			// expiration is 14 minutes (aws-iam-authenticator sets the token
+			// expiration to 1 minute before the pre-signed URL expires for
+			// some cushion).  We have to regenerate the token here since
+			// rolling one or more nodegroups may take longer to complete.
+			clientSet, err = ctl.NewStdClientSet(cfg)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Explicitly include Ocean nodegroup.
+		if cmd.ClusterConfigFile == "" {
+			for _, ng := range cfg.NodeGroups {
+				if ng.Name == api.SpotOceanClusterNodeGroupName {
+					ngFilter.AppendIncludeNames(api.SpotOceanClusterNodeGroupName)
+					break
+				}
+			}
+		}
+	}
+
+	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
 	logFiltered()
 
-	if updateAuthConfigMap {
+	if params.UpdateAuthConfigMap {
 		for _, ng := range cfg.NodeGroups {
 			if ng.IAM == nil || ng.IAM.InstanceRoleARN == "" {
 				if err := ctl.GetNodeGroupIAM(ctx, stackManager, ng); err != nil {
@@ -131,16 +170,16 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 	allNodeGroups := cmdutils.ToKubeNodeGroups(cfg)
 
 	nodeGroupManager := nodegroup.New(cfg, ctl, clientSet, selector.New(ctl.AWSProvider.Session()))
-	if deleteNodeGroupDrain {
+	if params.Drain && !params.SpotRoll {
 		cmdutils.LogIntendedAction(cmd.Plan, "drain %d nodegroup(s) in cluster %q", len(allNodeGroups), cfg.Metadata.Name)
 
 		drainInput := &nodegroup.DrainInput{
 			NodeGroups:            allNodeGroups,
 			Plan:                  cmd.Plan,
-			MaxGracePeriod:        maxGracePeriod,
-			PodEvictionWaitPeriod: podEvictionWaitPeriod,
-			DisableEviction:       disableEviction,
-			Parallel:              parallel,
+			MaxGracePeriod:        params.MaxGracePeriod,
+			PodEvictionWaitPeriod: params.PodEvictionWaitPeriod,
+			DisableEviction:       params.DisableEviction,
+			Parallel:              params.Parallel,
 		}
 		ctx, cancel := context.WithTimeout(ctx, cmd.ProviderConfig.WaitTimeout)
 		defer cancel()
@@ -158,7 +197,7 @@ func doDeleteNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, updateAuthConfigMap
 		return err
 	}
 
-	if updateAuthConfigMap {
+	if params.UpdateAuthConfigMap {
 		cmdutils.LogIntendedAction(cmd.Plan, "delete %d nodegroups from auth ConfigMap in cluster %q", len(cfg.NodeGroups), cfg.Metadata.Name)
 		if !cmd.Plan {
 			for _, ng := range cfg.NodeGroups {
