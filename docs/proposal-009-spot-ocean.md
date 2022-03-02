@@ -23,7 +23,7 @@ In process.
 
 ## Summary
 
-We implemented Spot Ocean structures that are based on the eksctl Cluster and NodeGroup structures from release `0.145.0`. This implementation
+We implemented Spot Ocean structures that are based on the eksctl Cluster and NodeGroup structures from release `0.146.0`. This implementation
 allows spot-ocean users to utilize eksctl in various ways on their clusters and node groups.
 We note that no dependencies exist between the spot-ocean and eksctl structures that could create problematic issues in the future.
 
@@ -34,6 +34,16 @@ single command.
 
 b) Modifying clusters and/or node groups with spot ocean integration using a
 single command.
+
+Spot by Netapp pledges to fully maintain this integration.
+This includes:
+- Monthly updates with new features
+- Code reviews and feature assessment from the direct EKSCTL community
+- Feature parity with our direct API and UI enabling EKSCTL all the latest features
+- Spot by Netapp fully managing Support and maintenance of this integration
+  - Bug fixes directly from the EKSCTL community
+  - Urgent 24/7 support available on our platform
+  - Ensuring full compatibility with the newest versions of Kubernetes and EKS
 
 ## Motivation
 
@@ -95,4 +105,4 @@ Following maintenance or the release of a new feature, we check the following:
 
 ## Alternatives
 
-The current alternative is use of our own branch forked from the main eksctl branch [repo](https://github.com/spotinst/weaveworks-eksctl/releases/tag/v0.144.0) for customer purposes.
+The current alternative is use of our own branch forked from the main eksctl branch [repo](https://github.com/spotinst/weaveworks-eksctl/releases/tag/v0.146.0) for customer purposes.
