@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/weaveworks/eksctl/pkg/spot"
+
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,18 +25,47 @@ const (
 // NewTasksToCreateClusterWithNodeGroups defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
 func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Context, nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, postClusterCreationTasks ...tasks.Task) *tasks.TaskTree {
+	managedNodeGroups []*api.ManagedNodeGroup, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
 
 	taskTree := tasks.TaskTree{Parallel: false}
 
-	taskTree.Append(
-		&createClusterTask{
-			info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
-			stackCollection:      c,
-			supportsManagedNodes: true,
-			ctx:                  ctx,
-		},
-	)
+	// Control plane.
+	{
+		taskTree.Append(
+			&createClusterTask{
+				info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
+				stackCollection:      c,
+				supportsManagedNodes: true,
+				ctx:                  ctx,
+			},
+		)
+	}
+
+/*	// Nodegroups. old version TODO idan - check changes
+	{
+		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
+		nodeGroupTaskTree, err := c.NewNodeGroupTask(ctx, nodeGroups, managedNodeGroups, false, vpcImporter)
+		if err != nil {
+			return nil, err
+		}
+
+		if nodeGroupTaskTree.Len() > 0 {
+			nodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(nodeGroupTaskTree)
+		}
+	}
+
+	// Post creation tasks.
+	{
+		if len(postClusterCreationTasks) > 0 {
+			postTaskTree := &tasks.TaskTree{
+				Parallel:  false,
+				IsSubTask: true,
+			}
+			postTaskTree.Append(postClusterCreationTasks...)
+			taskTree.Append(postTaskTree)
+		}
+	}*/
 
 	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
@@ -68,7 +99,46 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Cont
 		appendNodeGroupTasksTo(&taskTree)
 	}
 
-	return &taskTree
+	return &taskTree, nil
+}
+
+// NewNodeGroupTask defines tasks required to create all of the nodegroups
+func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, managedNodeGroups []*api.ManagedNodeGroup,
+	forceAddCNIPolicy bool, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Spot Ocean.
+	{
+		oceanTaskTree, err := c.NewSpotOceanNodeGroupTask(ctx, vpcImporter)
+		if err != nil {
+			return nil, err
+		}
+		if oceanTaskTree.Len() > 0 {
+			oceanTaskTree.IsSubTask = true
+			taskTree.Parallel = false
+			taskTree.Append(oceanTaskTree)
+		}
+	}
+
+	// Managed.
+	{
+		managedNodeGroupTaskTree := c.NewManagedNodeGroupTask(ctx, managedNodeGroups, forceAddCNIPolicy, vpcImporter)
+		if managedNodeGroupTaskTree.Len() > 0 {
+			managedNodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(managedNodeGroupTaskTree)
+		}
+	}
+
+	// Unmanaged.
+	{
+		nodeGroupTaskTree := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, forceAddCNIPolicy, vpcImporter)
+		if nodeGroupTaskTree.Len() > 0 {
+			nodeGroupTaskTree.IsSubTask = true
+			taskTree.Append(nodeGroupTaskTree)
+		}
+	}
+
+	return taskTree, nil
 }
 
 // NewUnmanagedNodeGroupTask defines tasks required to create all of the nodegroups
@@ -171,4 +241,33 @@ func (c *StackCollection) NewTasksToCreateIAMServiceAccounts(serviceAccounts []*
 		taskTree.Append(saTasks)
 	}
 	return taskTree
+}
+
+// NewSpotOceanNodeGroupTask defines tasks required to create Ocean Cluster.
+func (c *StackCollection) NewSpotOceanNodeGroupTask(ctx context.Context, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Check whether the Ocean Cluster should be created.
+	stacks, err := c.ListNodeGroupStacks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ng := spot.ShouldCreateOceanCluster(c.spec, stacks)
+	if ng == nil { // already exists OR --without-nodegroup
+		return taskTree, nil
+	}
+
+	// Allow post-create actions on this nodegroup.
+	c.spec.NodeGroups = append(c.spec.NodeGroups, ng)
+
+	// Add a new task.
+	taskTree.Append(&nodeGroupTask{
+		info:            "create ocean cluster",
+		nodeGroup:       ng,
+		stackCollection: c,
+		vpcImporter:     vpcImporter,
+		ctx:             ctx,
+	})
+
+	return taskTree, nil
 }

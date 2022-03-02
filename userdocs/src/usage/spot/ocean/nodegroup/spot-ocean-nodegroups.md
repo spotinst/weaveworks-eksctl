@@ -92,36 +92,3 @@ By design, AWS nodegroups are immutable. This means that if you need to change s
 Please refer to [Deleting and draining](../../../managing-nodegroups.md#deleting-and-draining) documentation for further details.
 ## Ocean VNGs Advantage
 By using Ocean VNGs, those changes on AWS nodegroups are made for you automatically by only modifying the configuration of the spotOcean object of the nodegroup.
-## Ocean Multi Architecture Per VNG
-To Leverage double AMI per vng. You have to take care of using one image from each architecture, that share same block device and are present
-in  the availability zones,
-
-The following configuration file example enables us to use different architecture in same vng that managed by Ocean.
-```yaml
-# cluster.yaml
-# A cluster with multiple architecture .
----
-apiVersion: eksctl.io/v1alpha5
-availabilityZones:
-    - us-east-1c
-    - us-east-1b
-kind: ClusterConfig
-....
-nodeGroups:
-    - name: ng-multi-arch
-      amiFamily: AmazonLinux2
-      ami: ami-0f8a7ce57b519af8b
-      overrideBootstrapCommand: |
-          #!/bin/bash
-          /etc/eks/bootstrap.sh cluster-name
-
-      spotOcean:
-          compute:
-              images:
-                  - id: ami-0b09e8575fff525e1
-          autoScaler:
-              resourceLimits:
-                  minInstanceCount: 1
-                  maxInstanceCount: 1
-
-```

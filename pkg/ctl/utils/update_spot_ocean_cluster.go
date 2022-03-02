@@ -76,13 +76,7 @@ func doUpdateSpotOceanCluster(cmd *cmdutils.Cmd) error {
 	}
 
 	ng := spot.NewOceanClusterNodeGroup(cfg)
-
-	instanceSelector, err := selector.New(ctx, ctl.AWSProvider.AWSConfig())
-	if err != nil {
-		return err
-	}
-
-	nodeGroupService := eks.NewNodeGroupService(ctl.AWSProvider, instanceSelector, nil)
+	nodeGroupService := eks.NewNodeGroupService(ctl.AWSProvider, selector.New(ctl.AWSProvider.Session()), nil)
 	if err := nodeGroupService.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
 		return err
 	}
