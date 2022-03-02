@@ -62,7 +62,7 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 		if err := createRole(m.resourceSet, m.clusterConfig.IAM, m.nodeGroup.IAM, true, m.forceAddCNIPolicy); err != nil {
 			return err
 		}
-		nodeRole = gfnt.MakeFnGetAttString(cfnIAMInstanceRoleName, "Arn")
+		nodeRole = gfnt.MakeFnGetAttString(cfnIAMInstanceRoleName, "ARN")
 	} else {
 		nodeRole = gfnt.NewString(NormalizeARN(m.nodeGroup.IAM.InstanceRoleARN))
 	}
