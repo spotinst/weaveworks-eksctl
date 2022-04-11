@@ -366,6 +366,11 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		}
 
 		for _, ng := range cfg.NodeGroups {
+			// skip ocean cluster
+			if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {
+				continue
+			}
+
 			// authorise nodes to join
 			if err = authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 				return err
