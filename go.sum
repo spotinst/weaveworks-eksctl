@@ -1835,8 +1835,8 @@ github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH
 github.com/spf13/viper v1.9.0/go.mod h1:+i6ajR7OX2XaiBkrcZJFK21htRk7eDeLg7+O6bhUPP4=
 github.com/spf13/viper v1.13.0 h1:BWSJ/M+f+3nmdz9bxB+bWX28kkALN2ok11D0rSo8EJU=
 github.com/spf13/viper v1.13.0/go.mod h1:Icm2xNL3/8uyh/wFuB1jI7TiTNKp8632Nwegu+zgdYw=
-github.com/spotinst/spotinst-sdk-go v1.129.0 h1:1HuySAZ0LuBTmPWGa2I1c6CHx8j+mnrf7B475F2Ub9o=
-github.com/spotinst/spotinst-sdk-go v1.129.0/go.mod h1:C6mrT7+mqOgPyabacjyYTvilu8Xm96mvTvrZQhj99WI=
+github.com/spotinst/spotinst-sdk-go v1.132.0 h1:oQ9pZJTP6Z3NFjMhud0TuohSybc7V+qrzxrb9G82bI8=
+github.com/spotinst/spotinst-sdk-go v1.132.0/go.mod h1:C6mrT7+mqOgPyabacjyYTvilu8Xm96mvTvrZQhj99WI=
 github.com/src-d/gcfg v1.4.0/go.mod h1:p/UMsR43ujA89BJY9duynAwIpvqEujIH/jFlfL7jWoI=
 github.com/ssgreg/nlreturn/v2 v2.2.1 h1:X4XDI7jstt3ySqGU86YGAURbxw3oTDPK9sPEi6YEwQ0=
 github.com/ssgreg/nlreturn/v2 v2.2.1/go.mod h1:E/iiPB78hV7Szg2YfRgyIrk1AD6JVMTRkkxBiELzh2I=
