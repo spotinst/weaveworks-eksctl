@@ -29,6 +29,8 @@ import (
 // Values for `KubernetesVersion`
 // All valid values should go in this block
 const (
+	Version1_22 = "1.22"
+
 	Version1_23 = "1.23"
 
 	Version1_24 = "1.24"
@@ -84,9 +86,6 @@ const (
 
 	// Version1_21 represents Kubernetes version 1.21.x
 	Version1_21 = "1.21"
-
-	// Version1_22 represents Kubernetes version 1.22.x
-	Version1_22 = "1.22"
 )
 
 // Not yet supported versions
@@ -205,14 +204,14 @@ const (
 	DefaultRegion = RegionUSWest2
 )
 
-func defaultVolumeTypeForRegion(region string) string {
-	switch region {
-	case RegionUSISOEast1, RegionUSISOBEast1:
-		return NodeVolumeTypeIO1
-	default:
-		return DefaultNodeVolumeType
-	}
-}
+// Partitions
+const (
+	PartitionAWS      = "aws"
+	PartitionChina    = "aws-cn"
+	PartitionUSGov    = "aws-us-gov"
+	PartitionISOEast  = "aws-iso"
+	PartitionISOBEast = "aws-iso-b"
+)
 
 // Values for `NodeAMIFamily`
 // All valid values of supported families should go in this block
@@ -289,13 +288,6 @@ const (
 
 	// AddonNameTag defines the tag of the IAM service account name
 	AddonNameTag = "alpha.eksctl.io/addon-name"
-
-	// SpotOceanResourceTypeTag defines the tag used to indicate Spot Ocean resource types.
-	SpotOceanResourceTypeTag = "ocean.spot.io/resource-type" // [cluster | virtualnodegroup]
-
-	// SpotOceanClusterNodeGroupName defines the name of the nodegroup used by
-	// Spot Ocean Cluster resource.
-	SpotOceanClusterNodeGroupName = "ocean"
 
 	// ClusterNameLabel defines the tag of the cluster name
 	ClusterNameLabel = "alpha.eksctl.io/cluster-name"
@@ -374,7 +366,7 @@ const (
 	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-iso-east-1
 	eksResourceAccountUSISOEast1 = "725322719131"
 
-	// eksResourceAccountUSISOBEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
+	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
 	eksResourceAccountUSISOBEast1 = "187977181151"
 )
 
@@ -441,21 +433,6 @@ const (
 var (
 	// DefaultIPFamily defines the default IP family to use when creating a new VPC and cluster.
 	DefaultIPFamily = IPV4Family
-)
-
-// SpotOceanResourceType defines the Ocean resource type.
-type SpotOceanResourceType string
-
-const (
-	// SpotOceanResourceTypeCluster defines an Ocean Cluster resource type.
-	SpotOceanResourceTypeCluster SpotOceanResourceType = "cluster"
-	// SpotOceanResourceTypeVirtualNodeGroup defines an Ocean Virtual Node Group resource type.
-	SpotOceanResourceTypeVirtualNodeGroup SpotOceanResourceType = "virtualnodegroup"
-)
-
-// types of Spot Ocean Task that are only supported in VNGs
-const (
-	SpotOceanTaskTypeManualHeadroomUpdate = "manualHeadroomUpdate"
 )
 
 var (
@@ -538,6 +515,22 @@ func SupportedRegions() []string {
 	}
 }
 
+// Partition gives the partition a region belongs to
+func Partition(region string) string {
+	switch region {
+	case RegionUSGovWest1, RegionUSGovEast1:
+		return PartitionUSGov
+	case RegionCNNorth1, RegionCNNorthwest1:
+		return PartitionChina
+	case RegionUSISOEast1:
+		return PartitionISOEast
+	case RegionUSISOBEast1:
+		return PartitionISOBEast
+	default:
+		return PartitionAWS
+	}
+}
+
 // DeprecatedVersions are the versions of Kubernetes that EKS used to support
 // but no longer does. See also:
 // https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html
@@ -555,7 +548,6 @@ func DeprecatedVersions() []string {
 		Version1_19,
 		Version1_20,
 		Version1_21,
-		Version1_22,
 	}
 }
 
@@ -572,6 +564,7 @@ func IsDeprecatedVersion(version string) bool {
 // SupportedVersions are the versions of Kubernetes that EKS supports
 func SupportedVersions() []string {
 	return []string{
+		Version1_22,
 		Version1_23,
 		Version1_24,
 		Version1_25,
@@ -737,18 +730,7 @@ func (c ClusterConfig) LogString() string {
 		modes = append(modes, "managed nodes")
 	}
 	if len(c.NodeGroups) > 0 {
-		for _, ng := range c.NodeGroups {
-			if ng.SpotOcean == nil {
-				modes = append(modes, "un-managed nodes")
-				break
-			}
-		}
-		for _, ng := range c.NodeGroups {
-			if ng.SpotOcean != nil {
-				modes = append(modes, "ocean managed nodes")
-				break
-			}
-		}
+		modes = append(modes, "un-managed nodes")
 	}
 	return fmt.Sprintf("%s with %s", c.Metadata.LogString(), strings.Join(modes, " and "))
 }
@@ -941,10 +923,6 @@ type ClusterConfig struct {
 	// Outpost specifies the Outpost configuration.
 	// +optional
 	Outpost *Outpost `json:"outpost,omitempty"`
-
-	// Spot Ocean.
-	// +optional
-	SpotOcean *SpotOceanCluster `json:"spotOcean,omitempty"`
 }
 
 // Outpost holds the Outpost configuration.
@@ -1258,10 +1236,6 @@ type NodeGroup struct {
 	// The cluster should have been created with all of the local zones specified in this field.
 	// +optional
 	LocalZones []string `json:"localZones,omitempty"`
-
-	// Spot Ocean.
-	// +optional
-	SpotOcean *SpotOceanVirtualNodeGroup `json:"spotOcean,omitempty"`
 }
 
 // GetContainerRuntime returns the container runtime.
@@ -1484,196 +1458,6 @@ type (
 		// when updating a nodegroup (specified as percentage)
 		// +optional
 		MaxUnavailablePercentage *int `json:"maxUnavailablePercentage,omitempty"`
-	}
-)
-
-type (
-	// SpotOceanCluster holds the configuration used by Spot Ocean Cluster.
-	SpotOceanCluster struct {
-		// +optional
-		Strategy *SpotOceanClusterStrategy `json:"strategy,omitempty"`
-		// +optional
-		Compute *SpotOceanClusterCompute `json:"compute,omitempty"`
-		// +optional
-		AutoScaler *SpotOceanClusterAutoScaler `json:"autoScaler,omitempty"`
-		// +optional
-		Scheduling *SpotOceanClusterScheduling `json:"scheduling,omitempty"`
-	}
-
-	// SpotOceanVirtualNodeGroup holds the configuration used by Spot Ocean Virtual Node Group.
-	SpotOceanVirtualNodeGroup struct {
-		// +optional
-		Strategy *SpotOceanVirtualNodeGroupStrategy `json:"strategy,omitempty"`
-		// +optional
-		Compute *SpotOceanVirtualNodeGroupCompute `json:"compute,omitempty"`
-		// +optional
-		AutoScaler *SpotOceanVirtualNodeGroupAutoScaler `json:"autoScaler,omitempty"`
-		// +optional
-		Scheduling *SpotOceanClusterScheduling `json:"scheduling,omitempty"`
-		// +optional
-		RestrictScaleDown *bool `json:"restrictScaleDown,omitempty"`
-	}
-
-	// SpotOceanClusterStrategy holds the strategy configuration used by Spot Ocean.
-	SpotOceanClusterStrategy struct {
-		// +optional
-		SpotPercentage *int `json:"spotPercentage,omitempty"`
-		// +optional
-		FallbackToOnDemand *bool `json:"fallbackToOnDemand,omitempty"`
-		// +optional
-		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
-		// +optional
-		UtilizeCommitments *bool `json:"utilizeCommitments,omitempty"`
-		// control the approach that Ocean takes while launching nodes by configuring this value.
-		// +optional
-		ClusterOrientation *SpotOceanClusterOrientation `json:"clusterOrientation,omitempty"`
-	}
-
-	// SpotOceanClusterOrientation
-	SpotOceanClusterOrientation struct {
-		// Default: "balanced"
-		// Enum: "costOriented" "balanced" "cheapest"
-		// +optional
-		AvailabilityVsCost *string `json:"availabilityVsCost,omitempty"`
-	}
-
-	// SpotOceanVirtualNodeGroupStrategy holds the strategy configuration used by Spot Ocean.
-	SpotOceanVirtualNodeGroupStrategy struct {
-		// +optional
-		SpotPercentage *int `json:"spotPercentage,omitempty"`
-	}
-
-	// SpotOceanClusterCompute holds the compute configuration used by Spot Ocean.
-	SpotOceanClusterCompute struct {
-		InstanceTypes *SpotOceanClusterInstanceTypes `json:"instanceTypes,omitempty"`
-		// +optional
-		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
-		// +optional
-		ResourceTagSpecification *ResourceTagSpecification `json:"resourceTagSpecification,omitempty"`
-	}
-
-	// SpotOceanVirtualNodeGroupCompute holds the compute configuration used by Spot Ocean.
-	SpotOceanVirtualNodeGroupCompute struct {
-		InstanceTypes []string `json:"instanceTypes,omitempty"`
-		// +optional
-		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
-		// +optional
-		Images []*Images `json:"images,omitempty"`
-	}
-
-	// InstanceMetadataOptions holds the instance metadata options used by Spot Ocean.
-	InstanceMetadataOptions struct {
-		HttpPutResponseHopLimit *int    `json:"httpPutResponseHopLimit,omitempty"`
-		HttpTokens              *string `json:"httpTokens,omitempty"`
-	}
-
-	// ResourceTagSpecification holds the Resource Tag Volumes ability  used by Spot Ocean.
-	ResourceTagSpecification struct {
-		// +optional
-		Volumes *Volumes `json:"volumes,omitempty"`
-	}
-
-	Volumes struct {
-		// +optional
-		ShouldTag *bool `json:"shouldTag,omitempty"`
-	}
-
-	// Images holds the images for  Dual Architecture  options used by Spot Ocean.
-	Images struct {
-		// +optional
-		ImageId *string `json:"id,omitempty"`
-	}
-
-	// SpotOceanClusterInstanceTypes holds the instance types configuration used by Spot Ocean.
-	SpotOceanClusterInstanceTypes struct {
-		// +optional
-		Whitelist []string `json:"whitelist,omitempty"`
-		// +optional
-		Blacklist []string `json:"blacklist,omitempty"`
-	}
-
-	// SpotOceanClusterScheduling holds the scheduling configuration used by Spot Ocean.
-	SpotOceanClusterScheduling struct {
-		// +optional
-		ShutdownHours *SpotOceanShutdownHours `json:"shutdownHours,omitempty"`
-		// +optional
-		Tasks []*SpotOceanTask `json:"tasks,omitempty"`
-	}
-
-	// SpotOceanShutdownHours holds the shutdown hours configuration used by Spot Ocean.
-	SpotOceanShutdownHours struct {
-		// +optional
-		IsEnabled *bool `json:"isEnabled,omitempty"`
-		// +optional
-		TimeWindows []string `json:"timeWindows,omitempty"`
-	}
-
-	// SpotOceanTask holds the task configuration used by Spot Ocean.
-	SpotOceanTask struct {
-		// +optional
-		IsEnabled *bool `json:"isEnabled,omitempty"`
-		// +optional
-		Type *string `json:"taskType,omitempty"`
-		// +optional
-		CronExpression *string `json:"cronExpression,omitempty"`
-		// +optional
-		Config *SpotOceanTaskConfig `json:"config,omitempty"`
-	}
-
-	// SpotOceanTaskConfig holds the task config configuration used by Spot Ocean.
-	SpotOceanTaskConfig struct {
-		// +optional
-		Headrooms []*SpotOceanHeadroom `json:"headrooms,omitempty"`
-	}
-
-	// SpotOceanClusterAutoScaler holds the auto scaler configuration used by Spot Ocean.
-	SpotOceanClusterAutoScaler struct {
-		// +optional
-		Enabled *bool `json:"enabled,omitempty"`
-		// +optional
-		AutoConfig *bool `json:"autoConfig,omitempty"`
-		// +optional
-		Cooldown *int `json:"cooldown,omitempty"`
-		// +optional
-		Headroom *SpotOceanHeadroom `json:"headrooms,omitempty"`
-		// +optional
-		ResourceLimits *SpotOceanClusterResourceLimits `json:"resourceLimits,omitempty"`
-	}
-
-	// SpotOceanVirtualNodeGroupAutoScaler holds the auto scaler configuration used by Spot Ocean.
-	SpotOceanVirtualNodeGroupAutoScaler struct {
-		// +optional
-		Headrooms []*SpotOceanHeadroom `json:"headrooms,omitempty"`
-		// +optional
-		ResourceLimits *SpotOceanVirtualNodeGroupResourceLimits `json:"resourceLimits,omitempty"`
-	}
-
-	// SpotOceanHeadroom holds the headroom configuration used by Spot Ocean.
-	SpotOceanHeadroom struct {
-		// +optional
-		CPUPerUnit *int `json:"cpuPerUnit,omitempty"`
-		// +optional
-		GPUPerUnit *int `json:"gpuPerUnit,omitempty"`
-		// +optional
-		MemoryPerUnit *int `json:"memoryPerUnit,omitempty"`
-		// +optional
-		NumOfUnits *int `json:"numOfUnits,omitempty"`
-	}
-
-	// SpotOceanClusterResourceLimits holds the resource limits configuration used by Spot Ocean.
-	SpotOceanClusterResourceLimits struct {
-		// +optional
-		MaxVCPU *int `json:"maxvCPU,omitempty"`
-		// +optional
-		MaxMemoryGiB *int `json:"maxMemoryGib,omitempty"`
-	}
-
-	// SpotOceanVirtualNodeGroupResourceLimits holds the resource limits configuration used by Spot Ocean.
-	SpotOceanVirtualNodeGroupResourceLimits struct {
-		// +optional
-		MinInstanceCount *int `json:"minInstanceCount,omitempty"`
-		// +optional
-		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
 	}
 )
 
