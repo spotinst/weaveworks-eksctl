@@ -537,6 +537,22 @@ func SupportedRegions() []string {
 	}
 }
 
+// Partition gives the partition a region belongs to
+func Partition(region string) string {
+	switch region {
+	case RegionUSGovWest1, RegionUSGovEast1:
+		return PartitionUSGov
+	case RegionCNNorth1, RegionCNNorthwest1:
+		return PartitionChina
+	case RegionUSISOEast1:
+		return PartitionISOEast
+	case RegionUSISOBEast1:
+		return PartitionISOBEast
+	default:
+		return PartitionAWS
+	}
+}
+
 // DeprecatedVersions are the versions of Kubernetes that EKS used to support
 // but no longer does. See also:
 // https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html
