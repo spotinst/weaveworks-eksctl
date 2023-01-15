@@ -466,7 +466,6 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 	}
 }
 
-// TODO baruch -  fix newNodeGroupAutoScaling => nodeGroupResource
 func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
 	vpcZoneIdentifier interface{}, tags []map[string]string) *awsCloudFormationResource {
 
@@ -608,7 +607,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 				launchTemplate, vpcZoneIdentifier, tags)
 		} else {
 			logger.Debug("ocean: building nodegroup %q as virtual node group", n.spec.Name)
-			n.populateNodeGroupSpotOceanVirtualNodeGroupResourceWithNodeGroupSpotOceanClusterInformation()
+			n.populateNodeGroupSpotOceanVirtualNodeGroupResourcesWithClusterConfig()
 			res, err = n.newNodeGroupSpotOceanVirtualNodeGroupResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		}
@@ -1134,7 +1133,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 	}, nil
 }
 
-func (n *NodeGroupResourceSet) populateNodeGroupSpotOceanVirtualNodeGroupResourceWithNodeGroupSpotOceanClusterInformation() {
+func (n *NodeGroupResourceSet) populateNodeGroupSpotOceanVirtualNodeGroupResourcesWithClusterConfig() {
 	clusterSpec := n.clusterSpec.SpotOcean
 	launchSpec := n.spec.SpotOcean
 
