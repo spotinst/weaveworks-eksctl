@@ -608,6 +608,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 				launchTemplate, vpcZoneIdentifier, tags)
 		} else {
 			logger.Debug("ocean: building nodegroup %q as virtual node group", n.spec.Name)
+			n.populateNodeGroupSpotOceanVirtualNodeGroupResourceWithNodeGroupSpotOceanClusterInformation()
 			res, err = n.newNodeGroupSpotOceanVirtualNodeGroupResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		}
@@ -805,14 +806,20 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 						cluster.Scheduling = new(spot.Scheduling)
 					}
 
-					cluster.Scheduling.Tasks = make([]*spot.Task, len(tasks))
-					for i, task := range tasks {
-						cluster.Scheduling.Tasks[i] = &spot.Task{
-							IsEnabled:      task.IsEnabled,
-							Type:           task.Type,
-							CronExpression: task.CronExpression,
+					cluster.Scheduling.Tasks = make([]*spot.Task, 0)
+					for _, task := range tasks {
+						if *task.Type != api.SpotOceanTaskTypeManualHeadroomUpdate {
+							clusterTask := &spot.Task{
+								IsEnabled:      task.IsEnabled,
+								Type:           task.Type,
+								CronExpression: task.CronExpression,
+							}
+							cluster.Scheduling.Tasks = append(cluster.Scheduling.Tasks, clusterTask)
 						}
 					}
+				}
+				if cluster.Scheduling != nil && cluster.Scheduling.Tasks != nil && len(cluster.Scheduling.Tasks) == 0 {
+					cluster.Scheduling.Tasks = nil
 				}
 			}
 		}
@@ -972,6 +979,62 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		}
 	}
 
+	// Instance Metadata Options.
+	{
+		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceMetadataOptions != nil {
+			spec.InstanceMetadataOptions = &spot.InstanceMetadataOptions{
+				HttpPutResponseHopLimit: compute.InstanceMetadataOptions.HttpPutResponseHopLimit,
+				HttpTokens:              compute.InstanceMetadataOptions.HttpTokens,
+			}
+		}
+	}
+
+	// Scheduling.
+	{
+		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
+			if hours := scheduling.ShutdownHours; hours != nil {
+				spec.Scheduling = &spot.Scheduling{
+					ShutdownHours: &spot.ShutdownHours{
+						IsEnabled:   hours.IsEnabled,
+						TimeWindows: hours.TimeWindows,
+					},
+				}
+			}
+			if tasks := scheduling.Tasks; len(tasks) > 0 {
+				if spec.Scheduling == nil {
+					spec.Scheduling = new(spot.Scheduling)
+				}
+
+				spec.Scheduling.Tasks = make([]*spot.Task, len(tasks))
+				for i, task := range tasks {
+					var headrooms []*spot.Headroom
+
+					if config := task.Config; config != nil && config.Headrooms != nil {
+						headrooms = make([]*spot.Headroom, len(config.Headrooms))
+
+						for j, SpotOceanHeadroom := range config.Headrooms {
+							headrooms[j] = &spot.Headroom{
+								CPUPerUnit:    SpotOceanHeadroom.CPUPerUnit,
+								GPUPerUnit:    SpotOceanHeadroom.GPUPerUnit,
+								MemoryPerUnit: SpotOceanHeadroom.MemoryPerUnit,
+								NumOfUnits:    SpotOceanHeadroom.NumOfUnits,
+							}
+						}
+					}
+
+					spec.Scheduling.Tasks[i] = &spot.Task{
+						IsEnabled:      task.IsEnabled,
+						Type:           task.Type,
+						CronExpression: task.CronExpression,
+						Config: &spot.TaskConfig{
+							Headrooms: headrooms,
+						},
+					}
+				}
+			}
+		}
+	}
+
 	// Labels.
 	{
 		if len(n.spec.Labels) > 0 {
@@ -1069,4 +1132,63 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 			},
 		},
 	}, nil
+}
+
+func (n *NodeGroupResourceSet) populateNodeGroupSpotOceanVirtualNodeGroupResourceWithNodeGroupSpotOceanClusterInformation() {
+	clusterSpec := n.clusterSpec.SpotOcean
+	launchSpec := n.spec.SpotOcean
+
+	// Instance Metadata Options.
+	{
+		if compute := clusterSpec.Compute; compute != nil && compute.InstanceMetadataOptions != nil &&
+			(launchSpec.Compute == nil || launchSpec.Compute.InstanceMetadataOptions == nil) {
+			if launchSpec.Compute == nil {
+				launchSpec.Compute = new(api.SpotOceanVirtualNodeGroupCompute)
+			}
+
+			if compute.InstanceMetadataOptions != nil {
+				launchSpec.Compute.InstanceMetadataOptions = &api.InstanceMetadataOptions{
+					HttpPutResponseHopLimit: compute.InstanceMetadataOptions.HttpPutResponseHopLimit,
+					HttpTokens:              compute.InstanceMetadataOptions.HttpTokens,
+				}
+			}
+		}
+	}
+
+	// Scheduling.
+	{
+		if scheduling := clusterSpec.Scheduling; scheduling != nil && launchSpec.Scheduling == nil {
+			launchSpec.Scheduling = new(api.SpotOceanClusterScheduling)
+
+			if tasks := scheduling.Tasks; len(tasks) > 0 {
+				launchSpec.Scheduling.Tasks = make([]*api.SpotOceanTask, len(tasks))
+				for i, task := range tasks {
+					var headrooms []*api.SpotOceanHeadroom
+
+					launchSpec.Scheduling.Tasks[i] = &api.SpotOceanTask{
+						IsEnabled:      task.IsEnabled,
+						Type:           task.Type,
+						CronExpression: task.CronExpression,
+					}
+
+					if config := task.Config; config != nil && config.Headrooms != nil {
+						headrooms = make([]*api.SpotOceanHeadroom, len(config.Headrooms))
+
+						for j, SpotOceanHeadroom := range config.Headrooms {
+							headrooms[j] = &api.SpotOceanHeadroom{
+								CPUPerUnit:    SpotOceanHeadroom.CPUPerUnit,
+								GPUPerUnit:    SpotOceanHeadroom.GPUPerUnit,
+								MemoryPerUnit: SpotOceanHeadroom.MemoryPerUnit,
+								NumOfUnits:    SpotOceanHeadroom.NumOfUnits,
+							}
+						}
+
+						launchSpec.Scheduling.Tasks[i].Config = &api.SpotOceanTaskConfig{
+							Headrooms: headrooms,
+						}
+					}
+				}
+			}
+		}
+	}
 }

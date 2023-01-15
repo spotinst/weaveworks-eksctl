@@ -409,6 +409,11 @@ const (
 	SpotOceanResourceTypeVirtualNodeGroup SpotOceanResourceType = "virtualnodegroup"
 )
 
+// types of Spot Ocean Task that are only supported in VNGs
+const (
+	SpotOceanTaskTypeManualHeadroomUpdate = "manualHeadroomUpdate"
+)
+
 var (
 	// DefaultWaitTimeout defines the default wait timeout
 	DefaultWaitTimeout = 25 * time.Minute
@@ -903,8 +908,6 @@ func (o *Outpost) GetInstanceType() string {
 func (o *Outpost) SetInstanceType(instanceType string) {
 	o.ControlPlaneInstanceType = instanceType
 }
-
-
 
 // OutpostInfo describes the Outpost info.
 type OutpostInfo interface {
@@ -1437,6 +1440,8 @@ type (
 		Compute *SpotOceanVirtualNodeGroupCompute `json:"compute,omitempty"`
 		// +optional
 		AutoScaler *SpotOceanVirtualNodeGroupAutoScaler `json:"autoScaler,omitempty"`
+		// +optional
+		Scheduling *SpotOceanClusterScheduling `json:"scheduling,omitempty"`
 	}
 
 	// SpotOceanClusterStrategy holds the strategy configuration used by Spot Ocean.
@@ -1460,11 +1465,21 @@ type (
 	// SpotOceanClusterCompute holds the compute configuration used by Spot Ocean.
 	SpotOceanClusterCompute struct {
 		InstanceTypes *SpotOceanClusterInstanceTypes `json:"instanceTypes,omitempty"`
+		// +optional
+		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupCompute holds the compute configuration used by Spot Ocean.
 	SpotOceanVirtualNodeGroupCompute struct {
 		InstanceTypes []string `json:"instanceTypes,omitempty"`
+		// +optional
+		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
+	}
+
+	// InstanceMetadataOptions holds the instance metadata options used by Spot Ocean.
+	InstanceMetadataOptions struct {
+		HttpPutResponseHopLimit *int    `json:"httpPutResponseHopLimit,omitempty"`
+		HttpTokens              *string `json:"httpTokens,omitempty"`
 	}
 
 	// SpotOceanClusterInstanceTypes holds the instance types configuration used by Spot Ocean.
@@ -1499,6 +1514,14 @@ type (
 		Type *string `json:"taskType,omitempty"`
 		// +optional
 		CronExpression *string `json:"cronExpression,omitempty"`
+		// +optional
+		Config *SpotOceanTaskConfig `json:"config,omitempty"`
+	}
+
+	// SpotOceanTaskConfig holds the task config configuration used by Spot Ocean.
+	SpotOceanTaskConfig struct {
+		// +optional
+		Headrooms []*SpotOceanHeadroom `json:"headrooms,omitempty"`
 	}
 
 	// SpotOceanClusterAutoScaler holds the auto scaler configuration used by Spot Ocean.
