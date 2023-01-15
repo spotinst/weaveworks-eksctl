@@ -25,7 +25,7 @@ const (
 // NewTasksToCreateClusterWithNodeGroups defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
 func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Context, nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, postClusterCreationTasks ...tasks.Task) *tasks.TaskTree {
+	managedNodeGroups []*api.ManagedNodeGroup, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
 
 	taskTree := tasks.TaskTree{Parallel: false}
 
@@ -46,7 +46,7 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Cont
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
 		nodeGroupTaskTree, err := c.NewNodeGroupTask(ctx, nodeGroups, managedNodeGroups, false, vpcImporter)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 
 		if nodeGroupTaskTree.Len() > 0 {
@@ -67,7 +67,7 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Cont
 		}
 	}
 
-	return &taskTree
+	return &taskTree, nil
 }
 
 // NewNodeGroupTask defines tasks required to create all of the nodegroups
