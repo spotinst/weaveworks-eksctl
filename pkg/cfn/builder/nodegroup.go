@@ -1145,11 +1145,9 @@ func (n *NodeGroupResourceSet) populateNodeGroupSpotOceanVirtualNodeGroupResourc
 				launchSpec.Compute = new(api.SpotOceanVirtualNodeGroupCompute)
 			}
 
-			if compute.InstanceMetadataOptions != nil {
-				launchSpec.Compute.InstanceMetadataOptions = &api.InstanceMetadataOptions{
-					HttpPutResponseHopLimit: compute.InstanceMetadataOptions.HttpPutResponseHopLimit,
-					HttpTokens:              compute.InstanceMetadataOptions.HttpTokens,
-				}
+			launchSpec.Compute.InstanceMetadataOptions = &api.InstanceMetadataOptions{
+				HttpPutResponseHopLimit: compute.InstanceMetadataOptions.HttpPutResponseHopLimit,
+				HttpTokens:              compute.InstanceMetadataOptions.HttpTokens,
 			}
 		}
 	}
