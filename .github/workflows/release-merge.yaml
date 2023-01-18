@@ -1,11 +1,11 @@
-name: Merge release changes to main
+name: Merge release changes to feat-spot-ocean
 on:
   push:
     branches:
       - "release-[0-9]+.[0-9]+"
 env:
   VERSION_FILE: pkg/version/release.go
-  DEFAULT_BRANCH: main
+  DEFAULT_BRANCH: feat-spot-ocean
 jobs:
   merge_release:
     name: Merge release
@@ -33,7 +33,7 @@ jobs:
         with:
           github-token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
           script: |
-            const { data: pr } = await github.pulls.create({
+            const { data: pr } = await github.rest.pulls.create({
               ...context.repo,
               title: `Merge ${context.ref} to ${{ env.DEFAULT_BRANCH }}`,
               head: `merge-${context.sha}`,

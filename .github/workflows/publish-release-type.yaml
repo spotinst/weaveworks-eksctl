@@ -56,25 +56,25 @@ jobs:
         uses: actions-ecosystem/action-slack-notifier@fc778468d09c43a6f4d1b8cccaca59766656996a
         with:
           slack_token: ${{ secrets.slackToken }}
-          message: ":cool-doge: ${{ inputs.name }} successful for tag <https://github.com/weaveworks/eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}>"
+          message: ":cool-doge: ${{ inputs.name }} successful for tag <https://github.com/spotinst/weaveworks-eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}>"
           channel: team-pitch-black
           color: green
           verbose: false
-      - name: slack on failure - team-pitch-black
-        if: ${{ failure() }}
-        uses: actions-ecosystem/action-slack-notifier@fc778468d09c43a6f4d1b8cccaca59766656996a
-        with:
-          slack_token: ${{ secrets.slackToken }}
-          message: ":ahhhhhhhhh: ${{ inputs.name }} has failed for tag <https://github.com/weaveworks/eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}>"
-          channel: team-pitch-black
-          color: red
-          verbose: true
+      # - name: slack on failure - team-pitch-black
+      #   if: ${{ failure() }}
+      #   uses: actions-ecosystem/action-slack-notifier@fc778468d09c43a6f4d1b8cccaca59766656996a
+      #   with:
+      #     slack_token: ${{ secrets.slackToken }}
+      #     message: ":ahhhhhhhhh: ${{ inputs.name }} has failed for tag <https://github.com/spotinst/weaveworks-eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}>"
+      #     channel: team-pitch-black
+      #     color: red
+      #     verbose: true
       - name: slack on success - aws-dev
         if: ${{ success() }}
         uses: actions-ecosystem/action-slack-notifier@fc778468d09c43a6f4d1b8cccaca59766656996a
         with:
           slack_token: ${{ secrets.slackToken }}
-          message: ":tada: <https://github.com/weaveworks/eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}> released!"
+          message: ":tada: <https://github.com/spotinst/weaveworks-eksctl/releases/tag/${{ steps.get_version.outputs.version }}|${{ steps.get_version.outputs.version }}> released!"
           channel: aws-dev
           color: green
           verbose: false

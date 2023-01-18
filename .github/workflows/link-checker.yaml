@@ -3,14 +3,14 @@ name: Link checker
 on:
   pull_request:
     paths:
-      - 'userdocs/**'
-      - '**.md'
+      - "userdocs/**"
+      - "**.md"
   push:
     branches:
-      - main
+      - feat-spot-ocean
     paths:
-      - 'userdocs/**'
-      - '**.md'
+      - "userdocs/**"
+      - "**.md"
 
 jobs:
   link-checker:
