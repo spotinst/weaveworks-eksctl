@@ -5,7 +5,7 @@ on:
     - cron: "0 5 * * Thu"
 
 env:
-  DEFAULT_BRANCH: main
+  DEFAULT_BRANCH: feat-spot-ocean
 
 jobs:
   update_aws_node:

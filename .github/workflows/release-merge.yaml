@@ -5,7 +5,7 @@ on:
       - "release-[0-9]+.[0-9]+"
 env:
   VERSION_FILE: pkg/version/release.go
-  DEFAULT_BRANCH: main
+  DEFAULT_BRANCH: feat-spot-ocean
 jobs:
   merge_release:
     name: Merge release
