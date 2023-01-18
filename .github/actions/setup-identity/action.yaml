@@ -7,11 +7,11 @@ inputs:
   name:
     description: "Git config name"
     required: false
-    default: "weaveworksbot"
+    default: "spotinst-ci"
   email:
     description: "Git config email"
     required: false
-    default: "weaveworksbot@users.noreply.github.com"
+    default: "spotinst-ci@users.noreply.github.com"
 outputs: {}
 runs:
   using: "composite"
