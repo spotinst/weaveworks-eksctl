@@ -1,4 +1,4 @@
-name: Merge release changes to main
+name: Merge release changes to feat-spot-ocean
 on:
   push:
     branches:
