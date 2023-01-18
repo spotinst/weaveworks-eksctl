@@ -33,7 +33,7 @@ jobs:
         with:
           github-token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
           script: |
-            const { data: pr } = await github.pulls.create({
+            const { data: pr } = await github.rest.pulls.create({
               ...context.repo,
               title: `Merge ${context.ref} to ${{ env.DEFAULT_BRANCH }}`,
               head: `merge-${context.sha}`,
