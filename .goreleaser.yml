@@ -18,7 +18,6 @@ builds:
     goos:
       - windows
       - darwin
-      - ios
       - linux
     goarch:
       - amd64
