@@ -204,7 +204,10 @@ func serviceEndpointTypeExpected(serviceName string, endpointType ec2types.Servi
 	return endpointType == ec2types.ServiceTypeInterface
 }
 
-func makeServiceName(endpointService api.EndpointService, region string) string {
-	serviceDomainPrefix := api.Partitions.GetEndpointServiceDomainPrefix(endpointService, region)
-	return fmt.Sprintf("%s.%s.%s", serviceDomainPrefix, region, endpointService.Name)
+func makeServiceName(domain, region string, endpointService api.EndpointService) string {
+	serviceName := fmt.Sprintf("%s.%s", domain, endpointService.Name)
+	if endpointService.RequiresChinaPrefix && api.Partitions.ForRegion(region) == api.PartitionChina {
+		serviceName = "cn." + serviceName
+	}
+	return serviceName
 }

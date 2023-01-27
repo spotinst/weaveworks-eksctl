@@ -204,23 +204,6 @@ const (
 	DefaultRegion = RegionUSWest2
 )
 
-// Partitions
-const (
-	PartitionAWS      = "aws"
-	PartitionChina    = "aws-cn"
-	PartitionUSGov    = "aws-us-gov"
-	PartitionISOEast  = "aws-iso"
-	PartitionISOBEast = "aws-iso-b"
-)
-func defaultVolumeTypeForRegion(region string) string {
-	switch region {
-	case RegionUSISOEast1, RegionUSISOBEast1:
-		return NodeVolumeTypeIO1
-	default:
-		return DefaultNodeVolumeType
-	}
-}
-
 // Values for `NodeAMIFamily`
 // All valid values of supported families should go in this block
 const (
@@ -381,7 +364,7 @@ const (
 	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-iso-east-1
 	eksResourceAccountUSISOEast1 = "725322719131"
 
-	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
+	// eksResourceAccountUSISOBEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
 	eksResourceAccountUSISOBEast1 = "187977181151"
 )
 
@@ -542,22 +525,6 @@ func SupportedRegions() []string {
 		RegionUSGovEast1,
 		RegionUSISOEast1,
 		RegionUSISOBEast1,
-	}
-}
-
-// Partition gives the partition a region belongs to
-func Partition(region string) string {
-	switch region {
-	case RegionUSGovWest1, RegionUSGovEast1:
-		return PartitionUSGov
-	case RegionCNNorth1, RegionCNNorthwest1:
-		return PartitionChina
-	case RegionUSISOEast1:
-		return PartitionISOEast
-	case RegionUSISOBEast1:
-		return PartitionISOBEast
-	default:
-		return PartitionAWS
 	}
 }
 
