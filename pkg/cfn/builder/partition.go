@@ -4,15 +4,7 @@ import (
 	"fmt"
 
 	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
-
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
-
-var standardMappings = map[string]string{
-	"EC2":            "ec2.amazonaws.com",
-	"EKS":            "eks.amazonaws.com",
-	"EKSFargatePods": "eks-fargate-pods.amazonaws.com",
-}
 
 const servicePrincipalPartitionMapName = "ServicePrincipalPartitionMap"
 

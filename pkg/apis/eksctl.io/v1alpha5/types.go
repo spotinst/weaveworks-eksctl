@@ -204,15 +204,6 @@ const (
 	DefaultRegion = RegionUSWest2
 )
 
-func defaultVolumeTypeForRegion(region string) string {
-	switch region {
-	case RegionUSISOEast1, RegionUSISOBEast1:
-		return NodeVolumeTypeIO1
-	default:
-		return DefaultNodeVolumeType
-	}
-}
-
 // Values for `NodeAMIFamily`
 // All valid values of supported families should go in this block
 const (
@@ -534,22 +525,6 @@ func SupportedRegions() []string {
 		RegionUSGovEast1,
 		RegionUSISOEast1,
 		RegionUSISOBEast1,
-	}
-}
-
-// Partition gives the partition a region belongs to
-func Partition(region string) string {
-	switch region {
-	case RegionUSGovWest1, RegionUSGovEast1:
-		return PartitionUSGov
-	case RegionCNNorth1, RegionCNNorthwest1:
-		return PartitionChina
-	case RegionUSISOEast1:
-		return PartitionISOEast
-	case RegionUSISOBEast1:
-		return PartitionISOBEast
-	default:
-		return PartitionAWS
 	}
 }
 
