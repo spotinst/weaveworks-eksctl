@@ -50,7 +50,7 @@ require (
 	github.com/kubicorn/kubicorn v0.0.0-20180829191017-06f6bce92acc
 	github.com/lithammer/dedent v1.1.0
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.6.1
-	github.com/onsi/ginkgo/v2 v2.9.1
+	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.4
 	github.com/orcaman/concurrent-map v1.0.0
 	github.com/otiai10/copy v1.9.0
@@ -60,6 +60,7 @@ require (
 	github.com/spf13/afero v1.9.5
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
+	github.com/spotinst/spotinst-sdk-go v1.149.0
 	github.com/stretchr/testify v1.8.2
 	github.com/tidwall/gjson v1.14.4
 	github.com/tidwall/sjson v1.2.5
@@ -229,7 +230,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
+	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
 	github.com/go-toolsmith/astcast v1.0.0 // indirect
 	github.com/go-toolsmith/astcopy v1.0.2 // indirect
@@ -431,7 +432,6 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/viper v1.13.0 // indirect
-	github.com/spotinst/spotinst-sdk-go v1.149.0 // indirect
 	github.com/ssgreg/nlreturn/v2 v2.2.1 // indirect
 	github.com/stbenjam/no-sprintf-host-port v0.1.1 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
