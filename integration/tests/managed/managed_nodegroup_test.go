@@ -81,6 +81,7 @@ var _ = BeforeSuite(func() {
 var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 
 	const (
+		bottlerocketGPU       = "bottlerocket-gpu"
 		bottlerocketNodegroup = "bottlerocket-1"
 		ubuntuNodegroup       = "ubuntu-1"
 		newPublicNodeGroup    = "ng-public-1"
@@ -143,6 +144,8 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 
 	Context("cluster with 1 al2 managed nodegroup", func() {
 		Context("and add two managed nodegroups (one public and one private)", func() {
+			params.LogStacksEventsOnFailure()
+
 			It("should not return an error for public node group", func() {
 				cmd := params.EksctlCreateCmd.WithArgs(
 					"nodegroup",
@@ -256,6 +259,8 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 		})
 
 		Context("and creating a nodegroup with taints", func() {
+			params.LogStacksEventsOnFailure()
+
 			It("should create nodegroups with taints applied", func() {
 				taints := []api.NodeGroupTaint{
 					{
@@ -325,77 +330,118 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 			})
 		})
 
-		It("supports adding bottlerocket and ubuntu nodegroups with additional volumes", func() {
-			clusterConfig := makeClusterConfig()
-			clusterConfig.ManagedNodeGroups = []*api.ManagedNodeGroup{
-				{
-					NodeGroupBase: &api.NodeGroupBase{
-						Name:         bottlerocketNodegroup,
-						VolumeSize:   aws.Int(35),
-						AMIFamily:    "Bottlerocket",
-						InstanceType: "t3a.xlarge",
-						Bottlerocket: &api.NodeGroupBottlerocket{
-							EnableAdminContainer: api.Enabled(),
-							Settings: &api.InlineDocument{
-								"motd": "Bottlerocket is the future",
-								"network": map[string]string{
-									"hostname": "custom-bottlerocket-host",
+		Context("and creating bottlerocket and ubuntu nodegroups", func() {
+			params.LogStacksEventsOnFailure()
+
+			It("supports adding bottlerocket nodegroups with gpu nodes", func() {
+				clusterConfig := makeClusterConfig()
+				clusterConfig.ManagedNodeGroups = []*api.ManagedNodeGroup{
+					{
+						NodeGroupBase: &api.NodeGroupBase{
+							Name:         bottlerocketGPU,
+							VolumeSize:   aws.Int(35),
+							AMIFamily:    "Bottlerocket",
+							InstanceType: "g4dn.xlarge",
+							Bottlerocket: &api.NodeGroupBottlerocket{
+								EnableAdminContainer: api.Enabled(),
+								Settings: &api.InlineDocument{
+									"motd": "Bottlerocket is the future",
+									"network": map[string]string{
+										"hostname": "custom-bottlerocket-host",
+									},
 								},
 							},
 						},
-						AdditionalVolumes: []*api.VolumeMapping{
+					},
+				}
+
+				cmd := params.EksctlCreateCmd.
+					WithArgs(
+						"nodegroup",
+						"--config-file", "-",
+						"--skip-outdated-addons-check",
+						"--verbose", "4",
+					).
+					WithoutArg("--region", params.Region).
+					WithStdin(clusterutils.Reader(clusterConfig))
+
+				Expect(cmd).To(RunSuccessfully())
+			})
+
+			It("supports adding bottlerocket and ubuntu nodegroups with additional volumes", func() {
+				clusterConfig := makeClusterConfig()
+				clusterConfig.ManagedNodeGroups = []*api.ManagedNodeGroup{
+					{
+						NodeGroupBase: &api.NodeGroupBase{
+							Name:         bottlerocketNodegroup,
+							VolumeSize:   aws.Int(35),
+							AMIFamily:    "Bottlerocket",
+							InstanceType: "t3a.xlarge",
+							Bottlerocket: &api.NodeGroupBottlerocket{
+								EnableAdminContainer: api.Enabled(),
+								Settings: &api.InlineDocument{
+									"motd": "Bottlerocket is the future",
+									"network": map[string]string{
+										"hostname": "custom-bottlerocket-host",
+									},
+								},
+							},
+							AdditionalVolumes: []*api.VolumeMapping{
+								{
+									VolumeName: aws.String("/dev/sdb"),
+								},
+							},
+						},
+						Taints: []api.NodeGroupTaint{
 							{
-								VolumeName: aws.String("/dev/sdb"),
+								Key:    "key2",
+								Value:  "value2",
+								Effect: "PreferNoSchedule",
 							},
 						},
 					},
-					Taints: []api.NodeGroupTaint{
-						{
-							Key:    "key2",
-							Value:  "value2",
-							Effect: "PreferNoSchedule",
+					{
+						NodeGroupBase: &api.NodeGroupBase{
+							Name:         ubuntuNodegroup,
+							VolumeSize:   aws.Int(25),
+							AMIFamily:    "Ubuntu2004",
+							InstanceType: "t3a.xlarge",
 						},
 					},
-				},
-				{
-					NodeGroupBase: &api.NodeGroupBase{
-						Name:         ubuntuNodegroup,
-						VolumeSize:   aws.Int(25),
-						AMIFamily:    "Ubuntu2004",
-						InstanceType: "t3a.xlarge",
-					},
-				},
-			}
+				}
 
-			cmd := params.EksctlCreateCmd.
-				WithArgs(
-					"nodegroup",
-					"--config-file", "-",
-					"--verbose", "4",
-				).
-				WithoutArg("--region", params.Region).
-				WithStdin(clusterutils.Reader(clusterConfig))
+				cmd := params.EksctlCreateCmd.
+					WithArgs(
+						"nodegroup",
+						"--config-file", "-",
+						"--verbose", "4",
+					).
+					WithoutArg("--region", params.Region).
+					WithStdin(clusterutils.Reader(clusterConfig))
 
-			Expect(cmd).To(RunSuccessfully())
+				Expect(cmd).To(RunSuccessfully())
 
-			tests.AssertNodeVolumes(params.KubeconfigPath, params.Region, bottlerocketNodegroup, "/dev/sdb")
+				tests.AssertNodeVolumes(params.KubeconfigPath, params.Region, bottlerocketNodegroup, "/dev/sdb")
 
-			By("correctly configuring the bottlerocket nodegroup")
-			kubeTest, err := kube.NewTest(params.KubeconfigPath)
-			Expect(err).NotTo(HaveOccurred())
+				By("correctly configuring the bottlerocket nodegroup")
+				kubeTest, err := kube.NewTest(params.KubeconfigPath)
+				Expect(err).NotTo(HaveOccurred())
 
-			nodeList := kubeTest.ListNodes(metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("%s=%s", "eks.amazonaws.com/nodegroup", bottlerocketNodegroup),
+				nodeList := kubeTest.ListNodes(metav1.ListOptions{
+					LabelSelector: fmt.Sprintf("%s=%s", "eks.amazonaws.com/nodegroup", bottlerocketNodegroup),
+				})
+				Expect(nodeList.Items).NotTo(BeEmpty())
+				for _, node := range nodeList.Items {
+					Expect(node.Status.NodeInfo.OSImage).To(ContainSubstring("Bottlerocket"))
+					// On k8s 1.26, --hostname-override flag is passed to kubelet to allow nodes to join the cluster.
+					// For further reference please see: https://github.com/bottlerocket-os/bottlerocket/pull/3033.
+					Expect(node.Labels["kubernetes.io/hostname"]).To(ContainSubstring(fmt.Sprintf("%s.compute.internal", params.Region)))
+				}
+				kubeTest.Close()
 			})
-			Expect(nodeList.Items).NotTo(BeEmpty())
-			for _, node := range nodeList.Items {
-				Expect(node.Status.NodeInfo.OSImage).To(ContainSubstring("Bottlerocket"))
-				Expect(node.Labels["kubernetes.io/hostname"]).To(Equal("custom-bottlerocket-host"))
-			}
-			kubeTest.Close()
 		})
 
-		It("should have created an EKS cluster and 4 CloudFormation stacks", func() {
+		It("should have created an EKS cluster and 5 CloudFormation stacks", func() {
 			awsSession := NewConfig(params.Region)
 
 			Expect(awsSession).To(HaveExistingCluster(params.ClusterName, string(ekstypes.ClusterStatusActive), params.Version))
@@ -403,6 +449,7 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 			Expect(awsSession).To(HaveExistingStack(fmt.Sprintf("eksctl-%s-cluster", params.ClusterName)))
 			Expect(awsSession).To(HaveExistingStack(fmt.Sprintf("eksctl-%s-nodegroup-%s", params.ClusterName, initialAl2Nodegroup)))
 			Expect(awsSession).To(HaveExistingStack(fmt.Sprintf("eksctl-%s-nodegroup-%s", params.ClusterName, bottlerocketNodegroup)))
+			Expect(awsSession).To(HaveExistingStack(fmt.Sprintf("eksctl-%s-nodegroup-%s", params.ClusterName, bottlerocketGPU)))
 			Expect(awsSession).To(HaveExistingStack(fmt.Sprintf("eksctl-%s-nodegroup-%s", params.ClusterName, ubuntuNodegroup)))
 		})
 
@@ -457,6 +504,8 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 		})
 
 		Context("and creating a nodegroup with an update config", func() {
+			params.LogStacksEventsOnFailure()
+
 			It("defining the UpdateConfig field in the cluster config", func() {
 				By("creating it")
 				updateConfig := &api.NodeGroupUpdateConfig{
@@ -532,6 +581,8 @@ var _ = Describe("(Integration) Create Managed Nodegroups", func() {
 		})
 
 		Context("and upgrading a nodegroup", func() {
+			params.LogStacksEventsOnFailure()
+
 			It("should upgrade to the next Kubernetes version", func() {
 				By("updating the control plane version")
 				cmd := params.EksctlUpgradeCmd.

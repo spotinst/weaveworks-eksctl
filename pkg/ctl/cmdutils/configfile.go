@@ -252,6 +252,10 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 			*clusterConfig.VPC.NAT.Gateway = api.ClusterSingleNAT
 		}
 
+		if err := validateUnsetNodeGroups(l.ClusterConfig); err != nil {
+			return err
+		}
+
 		hasEndpointAccess := func() bool {
 			clusterEndpoints := clusterConfig.VPC.ClusterEndpoints
 			return clusterEndpoints != nil && (clusterEndpoints.PublicAccess != nil || clusterEndpoints.PrivateAccess != nil)
@@ -387,7 +391,11 @@ func validateZonesAndNodeZones(cmd *cobra.Command) error {
 
 func validateDryRunOptions(cmd *cobra.Command, incompatibleFlags []string) error {
 	if flagName, found := findChangedFlag(cmd, incompatibleFlags); found {
-		return errors.Errorf("cannot use --%s with --dry-run as this option cannot be represented in ClusterConfig", flagName)
+		msg := fmt.Sprintf("cannot use --%s with --dry-run as this option cannot be represented in ClusterConfig", flagName)
+		if flagName == "profile" {
+			msg = fmt.Sprintf("%s: set the AWS_PROFILE environment variable instead", msg)
+		}
+		return errors.New(msg)
 	}
 	return nil
 }
@@ -411,6 +419,9 @@ func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.Node
 	}
 
 	l.validateWithConfigFile = func() error {
+		if err := validateUnsetNodeGroups(l.ClusterConfig); err != nil {
+			return err
+		}
 		if err := ngFilter.AppendGlobs(l.Include, l.Exclude, l.ClusterConfig.GetAllNodeGroupNames()); err != nil {
 			return err
 		}
@@ -463,6 +474,20 @@ func NewCreateNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.Node
 	}
 
 	return l
+}
+
+func validateUnsetNodeGroups(clusterConfig *api.ClusterConfig) error {
+	for i, ng := range clusterConfig.NodeGroups {
+		if ng == nil {
+			return fmt.Errorf("invalid ClusterConfig: nodeGroups[%d] is not set", i)
+		}
+	}
+	for i, ng := range clusterConfig.ManagedNodeGroups {
+		if ng == nil {
+			return fmt.Errorf("invalid ClusterConfig: managedNodeGroups[%d] is not set", i)
+		}
+	}
+	return nil
 }
 
 func makeManagedNodegroup(nodeGroup *api.NodeGroup, options CreateManagedNGOptions) *api.ManagedNodeGroup {
@@ -552,6 +577,9 @@ func NewDeleteAndDrainNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *fil
 	l := newCommonClusterConfigLoader(cmd)
 
 	l.validateWithConfigFile = func() error {
+		if err := validateUnsetNodeGroups(l.ClusterConfig); err != nil {
+			return err
+		}
 		return ngFilter.AppendGlobs(l.Include, l.Exclude, l.ClusterConfig.GetAllNodeGroupNames())
 	}
 

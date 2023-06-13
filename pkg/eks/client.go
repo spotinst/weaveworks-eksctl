@@ -84,7 +84,7 @@ func (c *Client) NewClientSet() (*kubernetes.Clientset, error) {
 }
 
 // NewStdClientSet creates a new API client.
-func (c *KubernetesProvider) NewStdClientSet(clusterInfo kubeconfig.ClusterInfo) (*kubernetes.Clientset, error) {
+func (c *KubernetesProvider) NewStdClientSet(clusterInfo kubeconfig.ClusterInfo) (kubernetes.Interface, error) {
 	_, clientSet, err := c.newClientSet(clusterInfo)
 	if err != nil {
 		return nil, err
@@ -191,7 +191,7 @@ func WaitForNodes(ctx context.Context, clientSet kubernetes.Interface, ng KubeNo
 	}
 	defer watcher.Stop()
 
-	counter, err := getNodes(clientSet, ng)
+	counter, err := GetNodes(clientSet, ng)
 	if err != nil {
 		return errors.Wrap(err, "listing nodes")
 	}
@@ -235,7 +235,7 @@ func WaitForNodes(ctx context.Context, clientSet kubernetes.Interface, ng KubeNo
 		}
 	}
 
-	if _, err = getNodes(clientSet, ng); err != nil {
+	if _, err = GetNodes(clientSet, ng); err != nil {
 		return errors.Wrap(err, "re-listing nodes")
 	}
 

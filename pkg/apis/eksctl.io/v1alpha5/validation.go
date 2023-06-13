@@ -11,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/hashicorp/go-version"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
@@ -208,19 +209,7 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 
 // ValidateClusterVersion validates the cluster version.
 func ValidateClusterVersion(clusterConfig *ClusterConfig) error {
-	clusterVersion := clusterConfig.Metadata.Version
-	if clusterConfig.IsControlPlaneOnOutposts() {
-		switch clusterVersion {
-		case "":
-			return fmt.Errorf("cluster version must be explicitly set to %[1]s for Outposts clusters as only version %[1]s is currently supported", Version1_21)
-		case Version1_21:
-			return nil
-		default:
-			return fmt.Errorf("only version %s is supported on Outposts", Version1_21)
-		}
-	}
-
-	if clusterVersion != "" && clusterVersion != DefaultVersion && !IsSupportedVersion(clusterVersion) {
+	if clusterVersion := clusterConfig.Metadata.Version; clusterVersion != "" && clusterVersion != DefaultVersion && !IsSupportedVersion(clusterVersion) {
 		if IsDeprecatedVersion(clusterVersion) {
 			return fmt.Errorf("invalid version, %s is no longer supported, supported values: %s\nsee also: https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html", clusterVersion, strings.Join(SupportedVersions(), ", "))
 		}
@@ -350,7 +339,24 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 
 	// manageSharedNodeSecurityGroupRules cannot be disabled if using eksctl managed security groups
 	if c.VPC.SharedNodeSecurityGroup == "" && IsDisabled(c.VPC.ManageSharedNodeSecurityGroupRules) {
-		return errors.New("vpc.manageSharedNodeSecurityGroupRules must be enabled when using ekstcl-managed security groups")
+		return errors.New("vpc.manageSharedNodeSecurityGroupRules must be enabled when using eksctl-managed security groups")
+	}
+
+	if c.VPC.HostnameType != "" {
+		if c.HasAnySubnets() {
+			return errors.New("vpc.hostnameType is not supported with a pre-existing VPC")
+		}
+		var hostnameType ec2types.HostnameType
+		found := false
+		for _, h := range hostnameType.Values() {
+			if h == ec2types.HostnameType(c.VPC.HostnameType) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("invalid value %q for vpc.hostnameType; supported values are %v", c.VPC.HostnameType, hostnameType.Values())
+		}
 	}
 
 	if len(c.LocalZones) > 0 {
@@ -774,6 +780,15 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		}
 	}
 
+	if ng.AMI != "" && ng.AMIFamily == "" {
+		return errors.Errorf("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
+	}
+
+	if ng.Bottlerocket != nil && ng.AMIFamily != NodeImageFamilyBottlerocket {
+		return fmt.Errorf(`bottlerocket config can only be used with amiFamily "Bottlerocket" but found "%s" (path=%s.bottlerocket)`,
+			ng.AMIFamily, path)
+	}
+
 	if ng.AMI != "" && ng.OverrideBootstrapCommand == nil && ng.AMIFamily != NodeImageFamilyBottlerocket && !IsWindowsImage(ng.AMIFamily) {
 		return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI (%[1]s.ami)", path)
 	}
@@ -790,11 +805,6 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		if err := validateNodeGroupSSH(ng.SSH); err != nil {
 			return err
 		}
-	}
-
-	if ng.Bottlerocket != nil && ng.AMIFamily != NodeImageFamilyBottlerocket {
-		return fmt.Errorf(`bottlerocket config can only be used with amiFamily "Bottlerocket" but found %s (path=%s.bottlerocket)`,
-			ng.AMIFamily, path)
 	}
 
 	if IsWindowsImage(ng.AMIFamily) || ng.AMIFamily == NodeImageFamilyBottlerocket {
@@ -1185,7 +1195,7 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 		if ng.InstanceType != "" || ng.AMI != "" || IsEnabled(ng.SSH.Allow) || IsEnabled(ng.SSH.EnableSSM) || len(ng.SSH.SourceSecurityGroupIDs) > 0 ||
 			ng.VolumeSize != nil || len(ng.PreBootstrapCommands) > 0 || ng.OverrideBootstrapCommand != nil ||
 			len(ng.SecurityGroups.AttachIDs) > 0 || ng.InstanceName != "" || ng.InstancePrefix != "" || ng.MaxPodsPerNode != 0 ||
-			IsEnabled(ng.DisableIMDSv1) || IsEnabled(ng.DisablePodIMDS) || ng.Placement != nil {
+			IsDisabled(ng.DisableIMDSv1) || IsEnabled(ng.DisablePodIMDS) || ng.Placement != nil {
 
 			incompatibleFields := []string{
 				"instanceType", "ami", "ssh.allow", "ssh.enableSSM", "ssh.sourceSecurityGroupIds", "securityGroups",
@@ -1199,8 +1209,11 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 		if !IsAMI(ng.AMI) {
 			return errors.Errorf("invalid AMI %q (%s.%s)", ng.AMI, path, "ami")
 		}
+		if ng.AMIFamily == "" {
+			return errors.Errorf("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
+		}
 		if ng.AMIFamily != NodeImageFamilyAmazonLinux2 {
-			return errors.Errorf("cannot set amiFamily to %s when using a custom AMI", ng.AMIFamily)
+			return errors.Errorf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s is supported", ng.AMIFamily, NodeImageFamilyAmazonLinux2)
 		}
 		if ng.OverrideBootstrapCommand == nil {
 			return errors.Errorf("%s.overrideBootstrapCommand is required when using a custom AMI (%s.ami)", path, path)

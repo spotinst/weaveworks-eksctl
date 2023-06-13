@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 
@@ -20,6 +21,7 @@ import (
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/awsapi"
+	"github.com/weaveworks/eksctl/pkg/az"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap"
 	"github.com/weaveworks/eksctl/pkg/spot"
@@ -257,7 +259,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		n.newResource("NodeGroupLaunchTemplate", launchTemplate)
 	}
 
-	vpcZoneIdentifier, err := AssignSubnets(ctx, n.spec, n.vpcImporter, n.clusterSpec, n.ec2API)
+	vpcZoneIdentifier, err := AssignSubnets(ctx, n.spec, n.clusterSpec, n.ec2API)
 	if err != nil {
 		return err
 	}
@@ -304,7 +306,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		}
 	}
 
-	g := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags)
+	g, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags)
 
 	if g == nil {
 		return fmt.Errorf("failed to build nodegroup resource: %v", err)
@@ -351,23 +353,47 @@ func generateNodeName(ng *api.NodeGroupBase, meta *api.ClusterMeta) string {
 }
 
 // AssignSubnets assigns subnets based on the availability zones, local zones and subnet IDs in the specified nodegroup.
-func AssignSubnets(ctx context.Context, np api.NodePool, vpcImporter vpc.Importer, clusterConfig *api.ClusterConfig, ec2API awsapi.EC2) (*gfnt.Value, error) {
-	// Currently, goformation type system doesn't allow specifying `VPCZoneIdentifier: { "Fn::ImportValue": ... }`,
-	// and tags don't have `PropagateAtLaunch` field, so we have a custom method here until this gets resolved
-
+func AssignSubnets(ctx context.Context, np api.NodePool, clusterConfig *api.ClusterConfig, ec2API awsapi.EC2) (*gfnt.Value, error) {
 	ng := np.BaseNodeGroup()
-	if nodeGroup, ok := np.(*api.NodeGroup); (!ok || len(nodeGroup.LocalZones) == 0) && len(ng.AvailabilityZones) == 0 && len(ng.Subnets) == 0 && (ng.OutpostARN == "" || clusterConfig.IsControlPlaneOnOutposts()) {
-		if ng.PrivateNetworking {
-			return vpcImporter.SubnetsPrivate(), nil
+	if !shouldImportSubnetsFromVPC(np, clusterConfig) {
+		subnetIDs, err := vpc.SelectNodeGroupSubnets(ctx, np, clusterConfig, ec2API)
+		if err != nil {
+			return nil, err
 		}
-		return vpcImporter.SubnetsPublic(), nil
+		return gfnt.NewStringSlice(subnetIDs...), nil
 	}
 
-	subnetIDs, err := vpc.SelectNodeGroupSubnets(ctx, np, clusterConfig, ec2API)
+	supportedZones, err := az.FilterBasedOnAvailability(ctx, clusterConfig.AvailabilityZones, []api.NodePool{np}, ec2API)
 	if err != nil {
 		return nil, err
 	}
+
+	subnetMapping := clusterConfig.VPC.Subnets.Public
+	if ng.PrivateNetworking {
+		subnetMapping = clusterConfig.VPC.Subnets.Private
+	}
+
+	subnetIDs := []string{}
+	// only assign a subnet if the AZ to which it belongs supports all required instance types
+	for key, subnetSpec := range subnetMapping {
+		az := subnetSpec.AZ
+		if az == "" {
+			az = key
+		}
+		if !slices.Contains(supportedZones, az) {
+			continue
+		}
+		subnetIDs = append(subnetIDs, subnetSpec.ID)
+	}
 	return gfnt.NewStringSlice(subnetIDs...), nil
+}
+
+func shouldImportSubnetsFromVPC(np api.NodePool, cfg *api.ClusterConfig) bool {
+	ng := np.BaseNodeGroup()
+	if nodeGroup, ok := np.(*api.NodeGroup); (!ok || len(nodeGroup.LocalZones) == 0) && len(ng.AvailabilityZones) == 0 && len(ng.Subnets) == 0 && (ng.OutpostARN == "" || cfg.IsControlPlaneOnOutposts()) {
+		return true
+	}
+	return false
 }
 
 // GetAllOutputs collects all outputs of the nodegroup
@@ -467,13 +493,13 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 }
 
 func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
-	vpcZoneIdentifier interface{}, tags []map[string]string) *awsCloudFormationResource {
+	vpcZoneIdentifier interface{}, tags []map[string]string) (*awsCloudFormationResource, error) {
 
 	if n.spec.SpotOcean != nil {
 		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
 	}
 
-	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, n.spec)
+	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, n.spec), nil
 }
 
 func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interface{}, tags []map[string]string, ng *api.NodeGroup) *awsCloudFormationResource {
@@ -593,7 +619,7 @@ func metricsCollectionResource(asgMetricsCollection []api.MetricsCollection) []m
 
 // newNodeGroupSpotOceanResource returns a Spot Ocean resource.
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfnec2.LaunchTemplate,
-	vpcZoneIdentifier interface{}, tags []map[string]string) *awsCloudFormationResource {
+	vpcZoneIdentifier interface{}, tags []map[string]string) (*awsCloudFormationResource, error) {
 
 	var res *spot.ResourceNodeGroup
 	var out awsCloudFormationResource
@@ -612,7 +638,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 				launchTemplate, vpcZoneIdentifier, tags)
 		}
 		if err != nil {
-			return nil
+			return nil, err
 		}
 	}
 
@@ -625,7 +651,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 	{
 		token, account, err := spot.LoadCredentials()
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		if token != "" {
 			res.Token = n.rs.newParameter(spot.CredentialsTokenParameterKey, gfn.Parameter{
@@ -655,14 +681,14 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 	{
 		b, err := json.Marshal(res)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		if err := json.Unmarshal(b, &out); err != nil {
-			return nil
+			return nil, err
 		}
 	}
 
-	return &out
+	return &out, err
 }
 
 // newNodeGroupSpotOceanClusterResource returns a Spot Ocean Cluster resource.
@@ -770,12 +796,19 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		// Strategy.
 		{
 			if strategy := spotOcean.Strategy; strategy != nil {
+
 				cluster.Strategy = &spot.Strategy{
 					SpotPercentage:           strategy.SpotPercentage,
 					UtilizeReservedInstances: strategy.UtilizeReservedInstances,
 					UtilizeCommitments:       strategy.UtilizeCommitments,
 					FallbackToOnDemand:       strategy.FallbackToOnDemand,
 				}
+				if strategy.ClusterOrientation != nil {
+					cluster.Strategy.ClusterOrientation = &spot.ClusterOrientation{
+						AvailabilityVsCost: strategy.ClusterOrientation.AvailabilityVsCost,
+					}
+				}
+
 			}
 		}
 

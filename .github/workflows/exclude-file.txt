@@ -1,4 +1,8 @@
 twitter.com
+linkedin.com
+facebook.com
+youtube.com
+slack.weave.works
 .svg
 fonts.gstatic.com
 127.0.0.1:8000
@@ -12,3 +16,5 @@ eks.amazonaws.com
 raw.githubusercontent.com
 creating-and-managing-clusters
 schema.js
+weave-community.slack.com
+netlify.com

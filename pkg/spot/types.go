@@ -70,11 +70,16 @@ type (
 	}
 
 	Strategy struct {
-		SpotPercentage           *int  `json:"spotPercentage,omitempty"`
-		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
-		UtilizeCommitments       *bool `json:"utilizeCommitments,omitempty"`
-		FallbackToOnDemand       *bool `json:"fallbackToOd,omitempty"`
-		DrainingTimeout          *int  `json:"drainingTimeout,omitempty"`
+		SpotPercentage           *int                `json:"spotPercentage,omitempty"`
+		UtilizeReservedInstances *bool               `json:"utilizeReservedInstances,omitempty"`
+		UtilizeCommitments       *bool               `json:"utilizeCommitments,omitempty"`
+		FallbackToOnDemand       *bool               `json:"fallbackToOd,omitempty"`
+		DrainingTimeout          *int                `json:"drainingTimeout,omitempty"`
+		ClusterOrientation       *ClusterOrientation `json:"clusterOrientation,omitempty"`
+	}
+
+	ClusterOrientation struct {
+		AvailabilityVsCost *string `json:"availabilityVsCost,omitempty"`
 	}
 
 	Compute struct {

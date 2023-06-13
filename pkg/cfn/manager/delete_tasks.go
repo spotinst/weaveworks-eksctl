@@ -21,6 +21,7 @@ import (
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	"github.com/weaveworks/eksctl/pkg/spot"
+	"github.com/weaveworks/eksctl/pkg/utils/apierrors"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 )
 
@@ -229,7 +230,7 @@ func (c *StackCollection) NewTasksToDeleteOIDCProviderWithIAMServiceAccounts(ctx
 
 	providerExists, err := oidc.CheckProviderExists(ctx)
 	if err != nil {
-		if iamoidc.IsAccessDeniedError(err) {
+		if apierrors.IsAccessDeniedError(err) {
 			clusterHasOIDC, foundTag := clusterHasOIDCProvider(cluster)
 			errMsg := "IAM permissions are required to delete OIDC provider"
 			switch {

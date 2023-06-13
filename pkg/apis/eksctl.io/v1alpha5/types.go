@@ -31,18 +31,22 @@ import (
 // Values for `KubernetesVersion`
 // All valid values should go in this block
 const (
-	Version1_21 = "1.21"
-
 	Version1_22 = "1.22"
 
 	Version1_23 = "1.23"
 
 	Version1_24 = "1.24"
 
-	// DefaultVersion (default)
-	DefaultVersion = Version1_24
+	Version1_25 = "1.25"
 
-	LatestVersion = Version1_24
+	Version1_26 = "1.26"
+
+	Version1_27 = "1.27"
+
+	// DefaultVersion (default)
+	DefaultVersion = Version1_25
+
+	LatestVersion = Version1_27
 
 	DockershimDeprecationVersion = Version1_24
 )
@@ -81,12 +85,15 @@ const (
 
 	// Version1_20 represents Kubernetes version 1.20.x
 	Version1_20 = "1.20"
+
+	// Version1_21 represents Kubernetes version 1.21.x
+	Version1_21 = "1.21"
 )
 
 // Not yet supported versions
 const (
-	// Version1_25 represents Kubernetes version 1.25.x
-	Version1_25 = "1.25"
+	// Version1_28 represents Kubernetes version 1.28.x
+	Version1_28 = "1.28"
 )
 
 const (
@@ -126,8 +133,14 @@ const (
 	// RegionEUCentral1 represents the EU Central Region Frankfurt
 	RegionEUCentral1 = "eu-central-1"
 
-	// RegionEUSouth1 represents te Eu South Region Milan
+	// RegionEUCentral2 represents the EU Central Region Zurich.
+	RegionEUCentral2 = "eu-central-2"
+
+	// RegionEUSouth1 represents the Eu South Region Milan
 	RegionEUSouth1 = "eu-south-1"
+
+	// RegionEUSouth2 represents the Eu South Region Spain
+	RegionEUSouth2 = "eu-south-2"
 
 	// RegionAPNorthEast1 represents the Asia-Pacific North East Region Tokyo
 	RegionAPNorthEast1 = "ap-northeast-1"
@@ -147,8 +160,14 @@ const (
 	// RegionAPSouthEast3 represents the Asia-Pacific South East Region Jakarta
 	RegionAPSouthEast3 = "ap-southeast-3"
 
+	// RegionAPSouthEast4 represents the Asia-Pacific South East Region Melbourne
+	RegionAPSouthEast4 = "ap-southeast-4"
+
 	// RegionAPSouth1 represents the Asia-Pacific South Region Mumbai
 	RegionAPSouth1 = "ap-south-1"
+
+	// RegionAPSouth2 represents the Asia-Pacific South Region Hyderabad
+	RegionAPSouth2 = "ap-south-2"
 
 	// RegionAPEast1 represents the Asia Pacific Region Hong Kong
 	RegionAPEast1 = "ap-east-1"
@@ -325,14 +344,26 @@ const (
 	// eksResourceAccountEUSouth1 defines the AWS EKS account ID that provides node resources in eu-south-1
 	eksResourceAccountEUSouth1 = "590381155156"
 
+	// eksResourceAccountEUSouth2 defines the AWS EKS account ID that provides node resources in eu-south-2
+	eksResourceAccountEUSouth2 = "455263428931"
+
+	// eksResourceAccountEUCentral2 defines the AWS EKS account ID that provides node resources in eu-central-2.
+	eksResourceAccountEUCentral2 = "900612956339"
+
 	// eksResourceAccountUSGovWest1 defines the AWS EKS account ID that provides node resources in us-gov-west-1
 	eksResourceAccountUSGovWest1 = "013241004608"
 
 	// eksResourceAccountUSGovEast1 defines the AWS EKS account ID that provides node resources in us-gov-east-1
 	eksResourceAccountUSGovEast1 = "151742754352"
 
+	// eksResourceAccountAPSouth2 defines the AWS EKS account ID that provides node resources in ap-south-2
+	eksResourceAccountAPSouth2 = "900889452093"
+
 	// eksResourceAccountAPSouthEast3 defines the AWS EKS account ID that provides node resources in ap-southeast-3
 	eksResourceAccountAPSouthEast3 = "296578399912"
+
+	// eksResourceAccountAPSouthEast4 defines the AWS EKS account ID that provides node resources in ap-southeast-4
+	eksResourceAccountAPSouthEast4 = "491585149902"
 )
 
 // Values for `VolumeType`
@@ -386,7 +417,7 @@ const (
 
 // supported version of Karpenter
 const (
-	supportedKarpenterVersion = "v0.17.0"
+	supportedKarpenterVersion = "v0.20.0"
 )
 
 // Values for Capacity Reservation Preference
@@ -469,14 +500,18 @@ func SupportedRegions() []string {
 		RegionEUWest3,
 		RegionEUNorth1,
 		RegionEUCentral1,
+		RegionEUCentral2,
 		RegionEUSouth1,
+		RegionEUSouth2,
 		RegionAPNorthEast1,
 		RegionAPNorthEast2,
 		RegionAPNorthEast3,
 		RegionAPSouthEast1,
 		RegionAPSouthEast2,
 		RegionAPSouthEast3,
+		RegionAPSouthEast4,
 		RegionAPSouth1,
+		RegionAPSouth2,
 		RegionAPEast1,
 		RegionMECentral1,
 		RegionMESouth1,
@@ -517,6 +552,7 @@ func DeprecatedVersions() []string {
 		Version1_18,
 		Version1_19,
 		Version1_20,
+		Version1_21,
 	}
 }
 
@@ -533,10 +569,12 @@ func IsDeprecatedVersion(version string) bool {
 // SupportedVersions are the versions of Kubernetes that EKS supports
 func SupportedVersions() []string {
 	return []string{
-		Version1_21,
 		Version1_22,
 		Version1_23,
 		Version1_24,
+		Version1_25,
+		Version1_26,
+		Version1_27,
 	}
 }
 
@@ -608,8 +646,16 @@ func EKSResourceAccountID(region string) string {
 		return eksResourceAccountAFSouth1
 	case RegionEUSouth1:
 		return eksResourceAccountEUSouth1
+	case RegionEUSouth2:
+		return eksResourceAccountEUSouth2
+	case RegionEUCentral2:
+		return eksResourceAccountEUCentral2
+	case RegionAPSouth2:
+		return eksResourceAccountAPSouth2
 	case RegionAPSouthEast3:
 		return eksResourceAccountAPSouthEast3
+	case RegionAPSouthEast4:
+		return eksResourceAccountAPSouthEast4
 	default:
 		return eksResourceAccountStandard
 	}
@@ -632,6 +678,9 @@ type ClusterMeta struct {
 	// Annotations are arbitrary metadata ignored by `eksctl`.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+	// Internal fields
+	// AccountID the ID of the account hosting this cluster
+	AccountID string `json:"-"`
 }
 
 // KubernetesNetworkConfig contains cluster networking options
@@ -937,6 +986,9 @@ type Karpenter struct {
 	// DefaultInstanceProfile override the default IAM instance profile
 	// +optional
 	DefaultInstanceProfile *string `json:"defaultInstanceProfile,omitempty"`
+	// WithSpotInterruptionQueue if true, adds all required policies and rules
+	// for supporting Spot Interruption Queue on Karpenter deployments
+	WithSpotInterruptionQueue *bool `json:"withSpotInterruptionQueue,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1092,7 +1144,7 @@ func NewNodeGroup() *NodeGroup {
 				WithLocal:  Enabled(),
 				WithShared: Enabled(),
 			},
-			DisableIMDSv1:    Disabled(),
+			DisableIMDSv1:    Enabled(),
 			DisablePodIMDS:   Disabled(),
 			InstanceSelector: &InstanceSelector{},
 		},
@@ -1286,6 +1338,7 @@ type (
 		AttachIDs []string `json:"attachIDs,omitempty"`
 		// WithShared attach the security group
 		// shared among all nodegroups in the cluster
+		// Not supported for managed nodegroups
 		// Defaults to `true`
 		// +optional
 		WithShared *bool `json:"withShared"`
@@ -1304,6 +1357,7 @@ type (
 		// list of ARNs of the IAM policies to attach
 		// +optional
 		AttachPolicyARNs []string `json:"attachPolicyARNs,omitempty"`
+		// InstanceProfileARN holds the ARN of instance profile, not supported for Managed NodeGroups
 		// +optional
 		InstanceProfileARN string `json:"instanceProfileARN,omitempty"`
 		// +optional
@@ -1462,6 +1516,17 @@ type (
 		UtilizeReservedInstances *bool `json:"utilizeReservedInstances,omitempty"`
 		// +optional
 		UtilizeCommitments *bool `json:"utilizeCommitments,omitempty"`
+		// control the approach that Ocean takes while launching nodes by configuring this value.
+		// +optional
+		ClusterOrientation *SpotOceanClusterOrientation `json:"clusterOrientation,omitempty"`
+	}
+
+	// SpotOceanClusterOrientation
+	SpotOceanClusterOrientation struct {
+		// Default: "balanced"
+		// Enum: "costOriented" "balanced" "cheapest"
+		// +optional
+		AvailabilityVsCost *string `json:"availabilityVsCost,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupStrategy holds the strategy configuration used by Spot Ocean.
@@ -1739,7 +1804,7 @@ type NodeGroupBase struct {
 	PropagateASGTags *bool `json:"propagateASGTags,omitempty"`
 
 	// DisableIMDSv1 requires requests to the metadata service to use IMDSv2 tokens
-	// Defaults to `false`
+	// Defaults to `true`
 	// +optional
 	DisableIMDSv1 *bool `json:"disableIMDSv1,omitempty"`
 

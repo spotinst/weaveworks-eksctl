@@ -348,8 +348,8 @@
         "secretsEncryption",
         "gitops",
         "karpenter",
-        "spotOcean",
-        "outpost"
+        "outpost",
+        "spotOcean"
       ],
       "additionalProperties": false,
       "description": "a simple config, to be replaced with Cluster API",
@@ -584,14 +584,16 @@
         },
         "version": {
           "type": "string",
-          "description": "Valid variants are: `\"1.21\"`, `\"1.22\"`, `\"1.23\"`, `\"1.24\"` (default).",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;1.21&quot;</code>, <code>&quot;1.22&quot;</code>, <code>&quot;1.23&quot;</code>, <code>&quot;1.24&quot;</code> (default).",
-          "default": "1.24",
+          "description": "Valid variants are: `\"1.22\"`, `\"1.23\"`, `\"1.24\"`, `\"1.25\"` (default), `\"1.26\"`, `\"1.27\"`.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;1.22&quot;</code>, <code>&quot;1.23&quot;</code>, <code>&quot;1.24&quot;</code>, <code>&quot;1.25&quot;</code> (default), <code>&quot;1.26&quot;</code>, <code>&quot;1.27&quot;</code>.",
+          "default": "1.25",
           "enum": [
-            "1.21",
             "1.22",
             "1.23",
-            "1.24"
+            "1.24",
+            "1.25",
+            "1.26",
+            "1.27"
           ]
         }
       },
@@ -675,6 +677,11 @@
           "description": "for additional IPv6 CIDR associations, e.g. a CIDR for private subnets or any ad-hoc subnets",
           "x-intellij-html-description": "for additional IPv6 CIDR associations, e.g. a CIDR for private subnets or any ad-hoc subnets"
         },
+        "hostnameType": {
+          "type": "string",
+          "description": "type of hostname to use for EC2 instances.",
+          "x-intellij-html-description": "type of hostname to use for EC2 instances."
+        },
         "id": {
           "type": "string"
         },
@@ -724,6 +731,7 @@
         "ipv6Pool",
         "securityGroup",
         "subnets",
+        "hostnameType",
         "extraCIDRs",
         "extraIPv6CIDRs",
         "sharedNodeSecurityGroup",
@@ -941,6 +949,23 @@
       "x-intellij-html-description": "holds any arbitrary JSON/YAML documents, such as extra config parameters or IAM policies",
       "default": "{}"
     },
+    "InstanceMetadataOptions": {
+      "properties": {
+        "httpPutResponseHopLimit": {
+          "type": "integer"
+        },
+        "httpTokens": {
+          "type": "string"
+        }
+      },
+      "preferredOrder": [
+        "httpPutResponseHopLimit",
+        "httpTokens"
+      ],
+      "additionalProperties": false,
+      "description": "holds the instance metadata options used by Spot Ocean.",
+      "x-intellij-html-description": "holds the instance metadata options used by Spot Ocean."
+    },
     "InstanceSelector": {
       "properties": {
         "cpuArchitecture": {
@@ -998,12 +1023,18 @@
           "type": "string",
           "description": "defines the Karpenter version to install",
           "x-intellij-html-description": "defines the Karpenter version to install"
+        },
+        "withSpotInterruptionQueue": {
+          "type": "boolean",
+          "description": "if true, adds all required policies and rules for supporting Spot Interruption Queue on Karpenter deployments",
+          "x-intellij-html-description": "if true, adds all required policies and rules for supporting Spot Interruption Queue on Karpenter deployments"
         }
       },
       "preferredOrder": [
         "version",
         "createServiceAccount",
-        "defaultInstanceProfile"
+        "defaultInstanceProfile",
+        "withSpotInterruptionQueue"
       ],
       "additionalProperties": false,
       "description": "provides configuration options",
@@ -1123,7 +1154,7 @@
           "type": "boolean",
           "description": "requires requests to the metadata service to use IMDSv2 tokens",
           "x-intellij-html-description": "requires requests to the metadata service to use IMDSv2 tokens",
-          "default": false
+          "default": true
         },
         "disablePodIMDS": {
           "type": "boolean",
@@ -1484,7 +1515,7 @@
           "type": "boolean",
           "description": "requires requests to the metadata service to use IMDSv2 tokens",
           "x-intellij-html-description": "requires requests to the metadata service to use IMDSv2 tokens",
-          "default": false
+          "default": true
         },
         "disablePodIMDS": {
           "type": "boolean",
@@ -1775,7 +1806,9 @@
           "x-intellij-html-description": "list of ARNs of the IAM policies to attach"
         },
         "instanceProfileARN": {
-          "type": "string"
+          "type": "string",
+          "description": "holds the ARN of instance profile, not supported for Managed NodeGroups",
+          "x-intellij-html-description": "holds the ARN of instance profile, not supported for Managed NodeGroups"
         },
         "instanceRoleARN": {
           "type": "string"
@@ -1950,8 +1983,8 @@
         },
         "withShared": {
           "type": "boolean",
-          "description": "attach the security group shared among all nodegroups in the cluster",
-          "x-intellij-html-description": "attach the security group shared among all nodegroups in the cluster",
+          "description": "attach the security group shared among all nodegroups in the cluster Not supported for managed nodegroups",
+          "x-intellij-html-description": "attach the security group shared among all nodegroups in the cluster Not supported for managed nodegroups",
           "default": true
         }
       },
@@ -2254,12 +2287,16 @@
     },
     "SpotOceanClusterCompute": {
       "properties": {
+        "instanceMetadataOptions": {
+          "$ref": "#/definitions/InstanceMetadataOptions"
+        },
         "instanceTypes": {
           "$ref": "#/definitions/SpotOceanClusterInstanceTypes"
         }
       },
       "preferredOrder": [
-        "instanceTypes"
+        "instanceTypes",
+        "instanceMetadataOptions"
       ],
       "additionalProperties": false,
       "description": "holds the compute configuration used by Spot Ocean.",
@@ -2287,6 +2324,21 @@
       "additionalProperties": false,
       "description": "holds the instance types configuration used by Spot Ocean.",
       "x-intellij-html-description": "holds the instance types configuration used by Spot Ocean."
+    },
+    "SpotOceanClusterOrientation": {
+      "properties": {
+        "availabilityVsCost": {
+          "type": "string",
+          "description": "Default: \"balanced\" Enum: \"costOriented\" \"balanced\" \"cheapest\"",
+          "x-intellij-html-description": "Default: &quot;balanced&quot; Enum: &quot;costOriented&quot; &quot;balanced&quot; &quot;cheapest&quot;"
+        }
+      },
+      "preferredOrder": [
+        "availabilityVsCost"
+      ],
+      "additionalProperties": false,
+      "description": "SpotOceanClusterOrientation",
+      "x-intellij-html-description": "SpotOceanClusterOrientation"
     },
     "SpotOceanClusterResourceLimits": {
       "properties": {
@@ -2327,6 +2379,11 @@
     },
     "SpotOceanClusterStrategy": {
       "properties": {
+        "clusterOrientation": {
+          "$ref": "#/definitions/SpotOceanClusterOrientation",
+          "description": "control the approach that Ocean takes while launching nodes by configuring this value.",
+          "x-intellij-html-description": "control the approach that Ocean takes while launching nodes by configuring this value."
+        },
         "fallbackToOnDemand": {
           "type": "boolean"
         },
@@ -2344,7 +2401,8 @@
         "spotPercentage",
         "fallbackToOnDemand",
         "utilizeReservedInstances",
-        "utilizeCommitments"
+        "utilizeCommitments",
+        "clusterOrientation"
       ],
       "additionalProperties": false,
       "description": "holds the strategy configuration used by Spot Ocean.",
@@ -2397,6 +2455,9 @@
     },
     "SpotOceanTask": {
       "properties": {
+        "config": {
+          "$ref": "#/definitions/SpotOceanTaskConfig"
+        },
         "cronExpression": {
           "type": "string"
         },
@@ -2410,11 +2471,28 @@
       "preferredOrder": [
         "isEnabled",
         "taskType",
-        "cronExpression"
+        "cronExpression",
+        "config"
       ],
       "additionalProperties": false,
       "description": "holds the task configuration used by Spot Ocean.",
       "x-intellij-html-description": "holds the task configuration used by Spot Ocean."
+    },
+    "SpotOceanTaskConfig": {
+      "properties": {
+        "headrooms": {
+          "items": {
+            "$ref": "#/definitions/SpotOceanHeadroom"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "headrooms"
+      ],
+      "additionalProperties": false,
+      "description": "holds the task config configuration used by Spot Ocean.",
+      "x-intellij-html-description": "holds the task config configuration used by Spot Ocean."
     },
     "SpotOceanVirtualNodeGroup": {
       "properties": {
@@ -2424,6 +2502,9 @@
         "compute": {
           "$ref": "#/definitions/SpotOceanVirtualNodeGroupCompute"
         },
+        "scheduling": {
+          "$ref": "#/definitions/SpotOceanClusterScheduling"
+        },
         "strategy": {
           "$ref": "#/definitions/SpotOceanVirtualNodeGroupStrategy"
         }
@@ -2431,7 +2512,8 @@
       "preferredOrder": [
         "strategy",
         "compute",
-        "autoScaler"
+        "autoScaler",
+        "scheduling"
       ],
       "additionalProperties": false,
       "description": "holds the configuration used by Spot Ocean Virtual Node Group.",
@@ -2459,6 +2541,9 @@
     },
     "SpotOceanVirtualNodeGroupCompute": {
       "properties": {
+        "instanceMetadataOptions": {
+          "$ref": "#/definitions/InstanceMetadataOptions"
+        },
         "instanceTypes": {
           "items": {
             "type": "string"
@@ -2467,7 +2552,8 @@
         }
       },
       "preferredOrder": [
-        "instanceTypes"
+        "instanceTypes",
+        "instanceMetadataOptions"
       ],
       "additionalProperties": false,
       "description": "holds the compute configuration used by Spot Ocean.",

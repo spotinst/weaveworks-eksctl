@@ -156,7 +156,7 @@ spec:
           - weight: 100
             preference:
               matchExpressions:
-              - key: node-role.kubernetes.io/master
+              - key: node-role.kubernetes.io/control-plane
                 operator: Exists
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -172,7 +172,7 @@ spec:
       containers:
       - name: spotinst-kubernetes-cluster-controller
         imagePullPolicy: Always
-        image: gcr.io/spotinst-artifacts/kubernetes-cluster-controller:1.0.87
+        image: gcr.io/spotinst-artifacts/kubernetes-cluster-controller:latest
         livenessProbe:
           httpGet:
             path: /healthcheck
@@ -274,6 +274,6 @@ spec:
         effect: NoExecute
         operator: Exists
         tolerationSeconds: 150
-      - key: node-role.kubernetes.io/master
+      - key: node-role.kubernetes.io/control-plane
         operator: Exists
 ---

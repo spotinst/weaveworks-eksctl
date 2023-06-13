@@ -140,11 +140,19 @@ var _ = Describe("ClusterConfig validation", func() {
 	})
 
 	Describe("nodeGroups[*].ami validation", func() {
+		It("should require ami family if ami is set", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")))
+		})
 		It("should require overrideBootstrapCommand if ami is set", func() {
 			cfg := api.NewClusterConfig()
 			ng0 := cfg.NewNodeGroup()
 			ng0.Name = "node-group"
 			ng0.AMI = "ami-1234"
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2
 			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring("overrideBootstrapCommand is required when using a custom AMI ")))
 		})
 		It("should not require overrideBootstrapCommand if ami is set and type is Bottlerocket", func() {
@@ -177,6 +185,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			ng0 := cfg.NewNodeGroup()
 			ng0.Name = "node-group"
 			ng0.AMI = "ami-1234"
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2
 			ng0.OverrideBootstrapCommand = aws.String("echo 'yo'")
 			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(Succeed())
 		})
@@ -656,6 +665,56 @@ var _ = Describe("ClusterConfig validation", func() {
 				LogRetentionInDays: 545,
 			},
 			expectedErr: "cannot set cloudWatch.clusterLogging.logRetentionInDays without enabling log types",
+		}),
+	)
+
+	type vpcHostnameTypeEntry struct {
+		vpc         *api.ClusterVPC
+		expectedErr string
+	}
+
+	DescribeTable("vpc.hostnameType", func(v vpcHostnameTypeEntry) {
+		clusterConfig := api.NewClusterConfig()
+		clusterConfig.VPC = v.vpc
+		err := api.ValidateClusterConfig(clusterConfig)
+		if v.expectedErr != "" {
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring(v.expectedErr)))
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
+	},
+		Entry("invalid value", vpcHostnameTypeEntry{
+			vpc: &api.ClusterVPC{
+				HostnameType: "invalid",
+			},
+			expectedErr: `invalid value "invalid" for vpc.hostnameType; supported values are`,
+		}),
+
+		Entry("valid value", vpcHostnameTypeEntry{
+			vpc: &api.ClusterVPC{
+				HostnameType: "ip-name",
+			},
+		}),
+
+		Entry("valid value", vpcHostnameTypeEntry{
+			vpc: &api.ClusterVPC{
+				HostnameType: "resource-name",
+			},
+		}),
+
+		Entry("hostnameType with a pre-existing VPC", vpcHostnameTypeEntry{
+			vpc: &api.ClusterVPC{
+				HostnameType: "resource-name",
+				Subnets: &api.ClusterSubnets{
+					Private: map[string]api.AZSubnetSpec{
+						"us-west-2a": {
+							ID: "subnet-1234",
+						},
+					},
+				},
+			},
+			expectedErr: "vpc.hostnameType is not supported with a pre-existing VPC",
 		}),
 	)
 
@@ -1733,6 +1792,16 @@ var _ = Describe("ClusterConfig validation", func() {
 	})
 
 	Describe("Bottlerocket node groups", func() {
+		It("returns an error if bottlerocket settings are used with incorrect amiFamily", func() {
+			ng := &api.NodeGroup{
+				NodeGroupBase: &api.NodeGroupBase{
+					Bottlerocket: &api.NodeGroupBottlerocket{},
+				},
+			}
+			err := api.ValidateNodeGroup(0, ng, api.NewClusterConfig())
+			Expect(err).To(MatchError(ContainSubstring(`bottlerocket config can only be used with amiFamily "Bottlerocket"`)))
+		})
+
 		It("returns an error with unsupported fields", func() {
 			cmd := "/usr/bin/some-command"
 			doc := api.InlineDocument{
@@ -1910,7 +1979,7 @@ var _ = Describe("ClusterConfig validation", func() {
 		It("returns an error when OIDC is not set", func() {
 			cfg := api.NewClusterConfig()
 			cfg.Karpenter = &api.Karpenter{
-				Version: "0.17.0",
+				Version: "0.20.0",
 			}
 			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate Karpenter config: iam.withOIDC must be enabled with Karpenter")))
 		})
@@ -1934,9 +2003,9 @@ var _ = Describe("ClusterConfig validation", func() {
 			cfg := api.NewClusterConfig()
 			cfg.IAM.WithOIDC = aws.Bool(true)
 			cfg.Karpenter = &api.Karpenter{
-				Version: "v0.14.1",
+				Version: "v0.17.0",
 			}
-			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate Karpenter config: minimum supported version is v0.17.0")))
+			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate Karpenter config: minimum supported version is v0.20.0")))
 		})
 	})
 

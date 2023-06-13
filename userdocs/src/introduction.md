@@ -1,18 +1,5 @@
 ## Getting started
 
-_Need help? Join [Weave Community Slack][slackjoin]._
-[slackjoin]: https://slack.weave.works/
-
-### Listing clusters
-
-To list the details about a cluster or all of the clusters, use:
-
-```
-
-eksctl get cluster [--name=<name>][--region=<region>]
-
-```
-
 ### Basic cluster creation
 
 To create a basic cluster, but with a different name, run:
@@ -23,12 +10,22 @@ eksctl create cluster --name=cluster-1 --nodes=4
 
 ```
 
-EKS supports versions `1.21`, `1.22`, `1.23` and `1.24` (default).
+EKS supports versions `1.22`, `1.23`, `1.24`, `1.25` (default), `1.26` and `1.27`.
 With `eksctl` you can deploy any of the supported versions by passing `--version`.
 
 ```
 
 eksctl create cluster --version=1.24
+
+```
+
+### Listing clusters
+
+To list the details about a cluster or all of the clusters, use:
+
+```
+
+eksctl get cluster [--name=<name>][--region=<region>]
 
 ```
 
@@ -114,7 +111,7 @@ eksctl create cluster --name=cluster-5 --nodes-min=3 --nodes-max=5
 
 ```
 
-!!! note
+???+ note
     You will still need to install and configure Auto Scaling. See the "Enable Auto Scaling" section. Also
     note that depending on your workloads you might need to use a separate nodegroup for each AZ. See [Zone-aware
     Auto Scaling](/usage/autoscaling/) for more info.
@@ -146,7 +143,7 @@ eksctl create cluster --enable-ssm
 
 ```
 
-!!! note
+???+ note
     If you are creating managed nodes with a custom launch template, the `--enable-ssm` flag is disallowed.
 
 ### Tagging
@@ -161,7 +158,7 @@ eksctl create cluster --tags environment=staging --region=us-east-1
 
 ### Volume size
 
-!!! note
+???+ note
     The default volume size is 80G.
 
 To configure node root volume, use the `--node-volume-size` (and optionally `--node-volume-type`), e.g.:
@@ -182,59 +179,127 @@ eksctl delete cluster --name=<name> [--region=<region>]
 
 ```
 
-!!! note
+???+ note
     Cluster info will be cleaned up in kubernetes config file. Please run `kubectl config get-contexts` to select right context.
 
 ## Contributions
 
 Code contributions are very welcome. If you are interested in helping make `eksctl` great then see our [contributing guide](https://github.com/weaveworks/eksctl/blob/master/CONTRIBUTING.md).
 
+_Need help? Join [Weave Community Slack][slackjoin]._
+[slackjoin]: https://slack.weave.works/
+
 
 ## Installation
 
+`eksctl` is available to install from official releases as described below. We recommend that you install `eksctl` from only the official GitHub releases. You may opt to use a third-party installer, but please be advised that AWS does not maintain nor support these methods of installation. Use them at your own discretion.
+
+### Prerequisite
+
+You will need to have AWS API credentials configured. What works for AWS CLI or any other tools (kops, Terraform, etc.) should be sufficient. You can use [`~/.aws/credentials` file][awsconfig]
+or [environment variables][awsenv]. For more information read [AWS documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html).
+
+[awsenv]: https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html
+[awsconfig]: https://docs.aws.amazon.com/cli/latest/userguide/cli-config-files.html
+
+You will also need [AWS IAM Authenticator for Kubernetes](https://github.com/kubernetes-sigs/aws-iam-authenticator) command (either `aws-iam-authenticator` or `aws eks get-token` (available in version 1.16.156 or greater of AWS CLI) in your `PATH`. 
+
+The IAM account used for EKS cluster creation should have these minimal access levels. 
+
+| AWS Service      | Access Level                                           |
+|------------------|--------------------------------------------------------|
+| CloudFormation   | Full Access                                            |
+| EC2              | **Full:** Tagging **Limited:** List, Read, Write       |
+| EC2 Auto Scaling | **Limited:** List, Write                               |
+| EKS              | Full Access                                            |
+| IAM              | **Limited:** List, Read, Write, Permissions Management |
+| Systems Manager  | **Limited:** List, Read                                |
+
+### For Unix
 To download the latest release, run:
 
-```
-curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+```sh
+# for ARM systems, set ARCH to: `arm64`, `armv6` or `armv7`
+ARCH=amd64
+PLATFORM=$(uname -s)_$ARCH
+
+curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
+
+# (Optional) Verify checksum
+curl -sL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_checksums.txt" | grep $PLATFORM | sha256sum --check
+
+tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
+
 sudo mv /tmp/eksctl /usr/local/bin
 ```
 
-Alternatively, macOS users can use [Homebrew](https://brew.sh):
+### For Windows
+
+#### Direct download (latest release): [AMD64/x86_64](https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_windows_amd64.zip) - [ARMv6](https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_windows_armv6.zip) - [ARMv7](https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_windows_armv7.zip) - [ARM64](https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_windows_arm64.zip)
+Make sure to unzip the archive to a folder in the `PATH` variable. 
+
+Optionally, verify the checksum: 
+
+1. Download the checksum file: [latest](https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_checksums.txt)
+2. Use Command Prompt to manually compare `CertUtil`'s output to the checksum file downloaded. 
+  ```cmd
+  REM Replace amd64 with armv6, armv7 or arm64
+  CertUtil -hashfile eksctl_Windows_amd64.zip SHA256
+  ```
+3. Using PowerShell to automate the verification using the `-eq` operator to get a `True` or `False` result:
+```pwsh
+# Replace amd64 with armv6, armv7 or arm64
+ (Get-FileHash -Algorithm SHA256 .\eksctl_Windows_amd64.zip).Hash -eq ((Get-Content .\eksctl_checksums.txt) -match 'eksctl_Windows_amd64.zip' -split ' ')[0]
+ ```
+
+#### Using Git Bash: 
+```sh
+# for ARM systems, set ARCH to: `arm64`, `armv6` or `armv7`
+ARCH=amd64
+PLATFORM=windows_$ARCH
+
+curl -sLO "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$PLATFORM.zip"
+
+# (Optional) Verify checksum
+curl -sL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_checksums.txt" | grep $PLATFORM | sha256sum --check
+
+unzip eksctl_$PLATFORM.zip -d $HOME/bin
+
+rm eksctl_$PLATFORM.zip
+```
+
+The `eksctl` executable is placed in `$HOME/bin`, which is in `$PATH` from Git Bash.
+
+### Docker
+
+For every release and RC, a docker image is pushed to [weaveworks/eksctl - Docker Image | Docker Hub](https://hub.docker.com/r/weaveworks/eksctl). 
+
+### Third-Party Installers (Not Recommended)
+#### For MacOS
+[Homebrew](https://brew.sh)
 
 ```
 brew tap weaveworks/tap
 brew install weaveworks/tap/eksctl
 ```
 
-or [MacPorts](https://www.macports.org):
+[MacPorts](https://www.macports.org)
 
 ```
 port install eksctl
 ```
-
-and Windows users can use [chocolatey](https://chocolatey.org):
+#### For Windows
+[Chocolatey](https://chocolatey.org)
 
 ```
 chocolatey install eksctl
 ```
 
-or [scoop](https://scoop.sh):
+[Scoop](https://scoop.sh)
 
 ```
 scoop install eksctl
 ```
-
-You will need to have AWS API credentials configured. What works for AWS CLI or any other tools (kops, Terraform etc), should be sufficient. You can use [`~/.aws/credentials` file][awsconfig]
-or [environment variables][awsenv]. For more information read [AWS documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html).
-
-[awsenv]: https://docs.aws.amazon.com/cli/latest/userguide/cli-environment.html
-[awsconfig]: https://docs.aws.amazon.com/cli/latest/userguide/cli-config-files.html
-
-You will also need [AWS IAM Authenticator for Kubernetes](https://github.com/kubernetes-sigs/aws-iam-authenticator) command (either `aws-iam-authenticator` or `aws eks get-token` (available in version 1.16.156 or greater of AWS CLI) in your `PATH`.
-
-### Docker
-
-For every release and RC a docker image is pushed to [weaveworks/eksctl](https://hub.docker.com/r/weaveworks/eksctl).
 
 ### Shell Completion
 
@@ -259,14 +324,12 @@ and put the following in `~/.zshrc`:
 fpath=($fpath ~/.zsh/completion)
 ```
 
-Note if you're not running a distribution like oh-my-zsh you may first have to enable autocompletion:
+Note if you're not running a distribution like oh-my-zsh you may first have to enable autocompletion (and put in `~/.zshrc` to make it persistent):
 
 ```
 autoload -U compinit
 compinit
 ```
-
-To make the above persistent, run the first two lines, and put the above in `~/.zshrc`.
 
 #### Fish
 The below commands can be used for fish auto completion:

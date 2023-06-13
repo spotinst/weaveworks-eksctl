@@ -120,7 +120,10 @@ func SetNodeGroupDefaults(ng *NodeGroup, meta *ClusterMeta, controlPlaneOnOutpos
 // SetManagedNodeGroupDefaults sets default values for a ManagedNodeGroup
 func SetManagedNodeGroupDefaults(ng *ManagedNodeGroup, meta *ClusterMeta, controlPlaneOnOutposts bool) {
 	setNodeGroupBaseDefaults(ng.NodeGroupBase, meta)
-	if ng.AMIFamily == "" {
+
+	// When using custom AMIs, we want the user to explicitly specify AMI family.
+	// Thus, we only setup default AMI family when no custom AMI is being used.
+	if ng.AMIFamily == "" && ng.AMI == "" {
 		ng.AMIFamily = NodeImageFamilyAmazonLinux2
 	}
 
@@ -160,7 +163,7 @@ func setNodeGroupBaseDefaults(ng *NodeGroupBase, meta *ClusterMeta) {
 	setDefaultNodeLabels(ng.Labels, meta.Name, ng.Name)
 
 	if ng.DisableIMDSv1 == nil {
-		ng.DisableIMDSv1 = Disabled()
+		ng.DisableIMDSv1 = Enabled()
 	}
 	if ng.DisablePodIMDS == nil {
 		ng.DisablePodIMDS = Disabled()
