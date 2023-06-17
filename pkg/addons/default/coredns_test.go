@@ -25,8 +25,8 @@ var _ = Describe("default addons - coredns", func() {
 		rawClient = testutils.NewFakeRawClient()
 		rawClient.UseUnionTracker = true
 		region = "eu-west-2"
-		controlPlaneVersion = "1.23.x"
-		kubernetesVersion = "1.22"
+		controlPlaneVersion = "1.24.x"
+		kubernetesVersion = "1.23"
 
 		input = da.AddonInput{
 			RawClient:           rawClient,
@@ -66,6 +66,34 @@ var _ = Describe("default addons - coredns", func() {
 			Expect(coreDNSImage(rawClient)).To(
 				Equal("602401143452.dkr.ecr." + region + ".amazonaws.com/eks/coredns:" + expectedImageTag),
 			)
+		})
+	})
+
+	Context("IsCoreDNSUpToDate", func() {
+		BeforeEach(func() {
+			createCoreDNSFromTestSample(rawClient, kubernetesVersion)
+			_, err := da.UpdateCoreDNS(context.Background(), input, false)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		Context("when CoreDNS is NOT up to date", func() {
+			BeforeEach(func() {
+				input.ControlPlaneVersion = "1.23.x"
+			})
+
+			It("reports 'false'", func() {
+				isUpToDate, err := da.IsCoreDNSUpToDate(context.Background(), input)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isUpToDate).To(Equal(false))
+			})
+		})
+
+		Context("when CoreDNS is up to date", func() {
+			It("reports 'true'", func() {
+				isUpToDate, err := da.IsCoreDNSUpToDate(context.Background(), input)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(isUpToDate).To(Equal(true))
+			})
 		})
 	})
 })
