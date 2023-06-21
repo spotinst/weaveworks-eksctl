@@ -11,7 +11,7 @@ jobs:
   update_aws_node:
     name: Update aws-node and open PR
     runs-on: ubuntu-latest
-    container: weaveworks/eksctl-build:65360e688586a01e7cb4d254eb57d05f0b2c199f
+    container: weaveworks/eksctl-build:dd26c9e3baf8c275667bc15b1ce08aff6424a709
     env:
       UPDATE_BRANCH: update-aws-node
       GOPRIVATE: ""
@@ -20,10 +20,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Setup identity as eksctl-bot
-        uses: ./.github/actions/setup-identity
-        with:
-          token: "${{ secrets.EKSCTLBOT_TOKEN }}"
       - name: Cache go-build and mod
         uses: actions/cache@v3
         with:
@@ -40,6 +36,8 @@ jobs:
         run: |
           git checkout $DEFAULT_BRANCH
           git checkout -B $UPDATE_BRANCH
+          git config user.name "weaveworksbot"
+          git config user.email "weaveworksbot@users.noreply.github.com"
           git add -u
           if ! EDITOR=true git commit -m "Update aws-node"; then
             echo "changes=false" >> $GITHUB_OUTPUT
@@ -52,15 +50,15 @@ jobs:
         name: Open PR to ${{env.DEFAULT_BRANCH}}
         if: ${{ steps.commit.outputs.changes }} == 'true'
         with:
-          github-token: ${{ secrets.EKSCTLBOT_TOKEN }}
+          github-token: ${{ secrets.WEAVEWORKSBOT_TOKEN }}
           script: |
-            const { data: pr } = await github.rest.pulls.create({
+            const { data: pr } = await github.pulls.create({
               ...context.repo,
               title: "Update aws-node",
               head: "${{ env.UPDATE_BRANCH }}",
               base: "${{ env.DEFAULT_BRANCH }}",
             });
-            await github.rest.issues.addLabels({
+            await github.issues.addLabels({
               ...context.repo,
               issue_number: pr.number,
               labels: ["kind/improvement"],
