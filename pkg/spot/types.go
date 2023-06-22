@@ -67,6 +67,7 @@ type (
 		Strategy                 *Strategy                `json:"strategy,omitempty"`
 		Scheduling               *Scheduling              `json:"scheduling,omitempty"`
 		ResourceLimits           *ResourceLimits          `json:"resourceLimits,omitempty"`
+		RestrictScaleDown        *bool                    `json:"restrictScaleDown,omitempty"`
 	}
 
 	Strategy struct {
