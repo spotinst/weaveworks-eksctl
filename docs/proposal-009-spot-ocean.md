@@ -50,7 +50,7 @@ The overall motivation of this proposal is to solve 2 problems:
 
 ### Linked Docs
 
-[Original PR](https://github.com/weaveworks/eksctl/pull/6693).
+[Original PR](https://github.com/weaveworks/eksctl/pull/6731).
 [Spot Ocean docs](../userdocs/src/usage/spot).
 [Expansion issue](https://github.com/weaveworks/eksctl/issues/6694).
 
