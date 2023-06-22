@@ -23,7 +23,7 @@ In process.
 
 ## Summary
 
-We implemented Spot Ocean structures that are based on the eksctl Cluster and NodeGroup structures from release `0.144.0`. This implementation
+We implemented Spot Ocean structures that are based on the eksctl Cluster and NodeGroup structures from release `0.145.0`. This implementation
 allows spot-ocean users to utilize eksctl in various ways on their clusters and node groups.
 We note that no dependencies exist between the spot-ocean and eksctl structures that could create problematic issues in the future.
 
@@ -50,7 +50,7 @@ The overall motivation of this proposal is to solve 2 problems:
 
 ### Linked Docs
 
-[Original PR](https://github.com/weaveworks/eksctl/pull/6693).
+[Original PR](https://github.com/weaveworks/eksctl/pull/6731).
 [Spot Ocean docs](../userdocs/src/usage/spot).
 [Expansion issue](https://github.com/weaveworks/eksctl/issues/6694).
 

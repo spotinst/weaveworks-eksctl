@@ -1522,6 +1522,8 @@ type (
 		AutoScaler *SpotOceanVirtualNodeGroupAutoScaler `json:"autoScaler,omitempty"`
 		// +optional
 		Scheduling *SpotOceanClusterScheduling `json:"scheduling,omitempty"`
+		// +optional
+		RestrictScaleDown *bool `json:"restrictScaleDown,omitempty"`
 	}
 
 	// SpotOceanClusterStrategy holds the strategy configuration used by Spot Ocean.
