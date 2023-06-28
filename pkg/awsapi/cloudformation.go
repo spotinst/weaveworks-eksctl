@@ -516,3 +516,4 @@ type CloudFormation interface {
 	// both these checks fail, CloudFormation returns a template validation error.
 	ValidateTemplate(ctx context.Context, params *ValidateTemplateInput, optFns ...func(*Options)) (*ValidateTemplateOutput, error)
 }
+
