@@ -245,7 +245,13 @@ func (m *Manager) nodeCreationTasks(ctx context.Context, isOwnedCluster bool) er
 				continue
 			}
 			logger.Debug("ocean: normalizing cluster nodegroup")
-			svc := eks.NewNodeGroupService(m.ctl.AWSProvider, selector.New(m.ctl.AWSProvider.Session()), nil)
+
+			instanceSelector, err := selector.New(ctx, m.ctl.AWSProvider.AWSConfig())
+			if err != nil {
+				return fmt.Errorf("ocean: failed to create instance selector: %v", err)
+			}
+
+			svc := eks.NewNodeGroupService(m.ctl.AWSProvider, instanceSelector, nil)
 			if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
 				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
 			}

@@ -366,7 +366,13 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				continue
 			}
 			logger.Debug("ocean: normalizing cluster nodegroup")
-			svc := eks.NewNodeGroupService(ctl.AWSProvider, selector.New(ctl.AWSProvider.Session()), nil)
+
+			instanceSelector, err := selector.New(ctx, ctl.AWSProvider.AWSConfig())
+			if err != nil {
+				return fmt.Errorf("ocean: failed to create instance selector: %v", err)
+			}
+
+			svc := eks.NewNodeGroupService(ctl.AWSProvider, instanceSelector, nil)
 			if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
 				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
 			}
