@@ -13,11 +13,11 @@ categories:
     labels:
       - 'kind/bug'
   - title: '🧰 Maintenance'
-    labels: 
+    labels:
       - 'area/tech-debt'
       - 'area/ci'
   - title: '📝 Documentation'
-    labels: 
+    labels:
       - 'area/docs'
       - 'kind/docs'
 change-template: '- $TITLE (#$NUMBER)'
