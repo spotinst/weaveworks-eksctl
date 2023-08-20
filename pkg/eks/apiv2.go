@@ -48,6 +48,7 @@ func newV2Config(pc *api.ProviderConfig, credentialsCacheFilePath string, config
 	if pc.Region != "" {
 		options = append(options, config.WithRegion(pc.Region))
 	}
+	options = append(options, config.WithRegion(pc.Region))
 	clientLogMode := aws.ClientLogMode(1)
 
 	if logger.Level >= api.AWSDebugLevel {
