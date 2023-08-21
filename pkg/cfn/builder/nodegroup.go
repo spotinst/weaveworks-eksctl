@@ -1198,6 +1198,16 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		spec.RestrictScaleDown = restrictScaleDown
 	}
 
+	// Restrict Scale Down.
+	if restrictScaleDown := n.spec.SpotOcean.RestrictScaleDown; restrictScaleDown != nil {
+		spec.RestrictScaleDown = restrictScaleDown
+	}
+
+	// Restrict Scale Down.
+	if restrictScaleDown := n.spec.SpotOcean.RestrictScaleDown; restrictScaleDown != nil {
+		spec.RestrictScaleDown = restrictScaleDown
+	}
+
 	return &spot.ResourceNodeGroup{
 		VirtualNodeGroup: spec,
 		Resource: spot.Resource{
