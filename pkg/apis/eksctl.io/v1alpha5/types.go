@@ -1547,6 +1547,8 @@ type (
 		InstanceTypes *SpotOceanClusterInstanceTypes `json:"instanceTypes,omitempty"`
 		// +optional
 		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
+		// +optional
+		ResourceTagSpecification *ResourceTagSpecification `json:"resourceTagSpecification,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupCompute holds the compute configuration used by Spot Ocean.
@@ -1554,12 +1556,31 @@ type (
 		InstanceTypes []string `json:"instanceTypes,omitempty"`
 		// +optional
 		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
+		// +optional
+		Images []*Images `json:"images,omitempty"`
 	}
 
 	// InstanceMetadataOptions holds the instance metadata options used by Spot Ocean.
 	InstanceMetadataOptions struct {
 		HttpPutResponseHopLimit *int    `json:"httpPutResponseHopLimit,omitempty"`
 		HttpTokens              *string `json:"httpTokens,omitempty"`
+	}
+
+	// ResourceTagSpecification holds the Resource Tag Volumes ability  used by Spot Ocean.
+	ResourceTagSpecification struct {
+		// +optional
+		Volumes *Volumes `json:"volumes,omitempty"`
+	}
+
+	Volumes struct {
+		// +optional
+		ShouldTag *bool `json:"shouldTag,omitempty"`
+	}
+
+	// Images holds the images for  Dual Architecture  options used by Spot Ocean.
+	Images struct {
+		// +optional
+		ImageId *string `json:"id,omitempty"`
 	}
 
 	// SpotOceanClusterInstanceTypes holds the instance types configuration used by Spot Ocean.

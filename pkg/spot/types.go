@@ -44,30 +44,32 @@ type (
 	}
 
 	VirtualNodeGroup struct {
-		Name                     *string                  `json:"name,omitempty"`
-		OceanID                  *gfnt.Value              `json:"oceanId,omitempty"`
-		ImageID                  *gfnt.Value              `json:"imageId,omitempty"`
-		UserData                 *gfnt.Value              `json:"userData,omitempty"`
-		KeyPair                  *gfnt.Value              `json:"keyPair,omitempty"`
-		AssociatePublicIPAddress *gfnt.Value              `json:"associatePublicIpAddress,omitempty"`
-		VolumeSize               *int                     `json:"rootVolumeSize,omitempty"`
-		UseAsTemplateOnly        *bool                    `json:"useAsTemplateOnly,omitempty"`
-		EBSOptimized             *gfnt.Value              `json:"ebsOptimized,omitempty"`
-		SubnetIDs                interface{}              `json:"subnetIds,omitempty"`
-		InstanceTypes            []string                 `json:"instanceTypes,omitempty"`
-		InstanceMetadataOptions  *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
-		IAMInstanceProfile       map[string]*gfnt.Value   `json:"iamInstanceProfile,omitempty"`
-		SecurityGroupIDs         *gfnt.Value              `json:"securityGroupIds,omitempty"`
-		BlockDeviceMappings      []*BlockDevice           `json:"blockDeviceMappings,omitempty"`
-		Tags                     []*Tag                   `json:"tags,omitempty"`
-		LoadBalancers            []*LoadBalancer          `json:"loadBalancers,omitempty"`
-		Labels                   []*Label                 `json:"labels,omitempty"`
-		Taints                   []*Taint                 `json:"taints,omitempty"`
-		AutoScaler               *AutoScaler              `json:"autoScale,omitempty"`
-		Strategy                 *Strategy                `json:"strategy,omitempty"`
-		Scheduling               *Scheduling              `json:"scheduling,omitempty"`
-		ResourceLimits           *ResourceLimits          `json:"resourceLimits,omitempty"`
-		RestrictScaleDown        *bool                    `json:"restrictScaleDown,omitempty"`
+		Name                     *string                   `json:"name,omitempty"`
+		OceanID                  *gfnt.Value               `json:"oceanId,omitempty"`
+		ImageID                  *gfnt.Value               `json:"imageId,omitempty"`
+		UserData                 *gfnt.Value               `json:"userData,omitempty"`
+		KeyPair                  *gfnt.Value               `json:"keyPair,omitempty"`
+		AssociatePublicIPAddress *gfnt.Value               `json:"associatePublicIpAddress,omitempty"`
+		VolumeSize               *int                      `json:"rootVolumeSize,omitempty"`
+		UseAsTemplateOnly        *bool                     `json:"useAsTemplateOnly,omitempty"`
+		EBSOptimized             *gfnt.Value               `json:"ebsOptimized,omitempty"`
+		SubnetIDs                interface{}               `json:"subnetIds,omitempty"`
+		InstanceTypes            []string                  `json:"instanceTypes,omitempty"`
+		InstanceMetadataOptions  *InstanceMetadataOptions  `json:"instanceMetadataOptions,omitempty"`
+		IAMInstanceProfile       map[string]*gfnt.Value    `json:"iamInstanceProfile,omitempty"`
+		SecurityGroupIDs         *gfnt.Value               `json:"securityGroupIds,omitempty"`
+		BlockDeviceMappings      []*BlockDevice            `json:"blockDeviceMappings,omitempty"`
+		Tags                     []*Tag                    `json:"tags,omitempty"`
+		LoadBalancers            []*LoadBalancer           `json:"loadBalancers,omitempty"`
+		Labels                   []*Label                  `json:"labels,omitempty"`
+		Taints                   []*Taint                  `json:"taints,omitempty"`
+		AutoScaler               *AutoScaler               `json:"autoScale,omitempty"`
+		Strategy                 *Strategy                 `json:"strategy,omitempty"`
+		Scheduling               *Scheduling               `json:"scheduling,omitempty"`
+		ResourceLimits           *ResourceLimits           `json:"resourceLimits,omitempty"`
+		RestrictScaleDown        *bool                     `json:"restrictScaleDown,omitempty"`
+		ResourceTagSpecification *ResourceTagSpecification `json:"resourceTagSpecification,omitempty"`
+		Images                   []*Images                 `json:"images,omitempty"`
 	}
 
 	Strategy struct {
@@ -178,6 +180,18 @@ type (
 		Key    *string `json:"key,omitempty"`
 		Value  *string `json:"value,omitempty"`
 		Effect *string `json:"effect,omitempty"`
+	}
+
+	ResourceTagSpecification struct {
+		Volumes *Volumes `json:"volumes,omitempty"`
+	}
+
+	Volumes struct {
+		ShouldTag *bool `json:"shouldTag,omitempty"`
+	}
+
+	Images struct {
+		ImageId *string `json:"id,omitempty"`
 	}
 )
 
