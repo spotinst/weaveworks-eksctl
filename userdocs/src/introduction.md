@@ -292,7 +292,7 @@ port install eksctl
 [Chocolatey](https://chocolatey.org)
 
 ```
-chocolatey install eksctl
+choco install eksctl
 ```
 
 [Scoop](https://scoop.sh)
