@@ -1031,7 +1031,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 	// Images
 	{
 		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.Images != nil &&
-			len(compute.Images) > 0 && template.ImageId != nil {
+			len(compute.Images) > 0 && template.ImageId != nil { //TODO Yehiel - according to the documentation, a customer can't configure both an imageId and the images list. Add a verification that this isn't the case and if it is don't handle it the way you are, rather finish the process and log the customer an error
 			imagesSlice := make([]*spot.Images, len(compute.Images)+1)
 			imagesSlice[0] = &spot.Images{ImageId: spotinst.String(template.ImageId.String())}
 			for i, imageId := range compute.Images {
