@@ -73,8 +73,13 @@ func doGetNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *getCmdParams) 
 		return err
 	}
 
+	instanceSelector, err := selector.New(ctx, ctl.AWSProvider.AWSConfig())
+	if err != nil {
+		return err
+	}
+
 	var summaries []*nodegroup.Summary
-	manager := nodegroup.New(cfg, ctl, clientSet, selector.New(ctl.AWSProvider.Session()))
+	manager := nodegroup.New(cfg, ctl, clientSet, instanceSelector)
 	if ng.Name == "" {
 		summaries, err = manager.GetAll(ctx)
 		if err != nil {
@@ -106,7 +111,7 @@ func doGetNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *getCmdParams) 
 		addSummaryTableColumns(printer.(*printers.TablePrinter))
 	}
 
-	return printer.PrintObjWithKind("nodegroups", summaries, os.Stdout)
+	return printer.PrintObjWithKind("nodegroups", summaries, cmd.CobraCommand.OutOrStdout())
 }
 
 func addSummaryTableColumns(printer *printers.TablePrinter) {

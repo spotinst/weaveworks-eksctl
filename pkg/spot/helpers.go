@@ -36,7 +36,6 @@ func NewOceanClusterNodeGroup(clusterSpec *api.ClusterConfig) *api.NodeGroup {
 	ng := NewOceanVirtualNodeGroup()
 	ng.Name = api.SpotOceanClusterNodeGroupName
 	ng.PrivateNetworking = shouldUsePrivateNetworking(clusterSpec)
-	// TODO(liran): Support is not available at the Ocean Virtual Nodegroup level.
 	ng.EBSOptimized = shouldUseEBSOptimization(clusterSpec)
 	api.SetNodeGroupDefaults(ng, clusterSpec.Metadata, false)
 	return ng

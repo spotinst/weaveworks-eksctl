@@ -4,6 +4,8 @@ sponsored by [![Weaveworks](img/empty.svg#wwinline)](https://www.weave.works/) a
 
 !!! tip "New for 2023"
     `eksctl` now supports creating fully private clusters on [AWS Outposts](/usage/outposts).
+    
+    `eksctl` now supports new ISO regions `us-iso-east-1` and `us-isob-east-1`.
 
     `eksctl` now supports new regions - Zurich (`eu-central-2`), Spain (`eu-south-2`), Hyderabad (`ap-south-2`) and  Melbourne (`ap-southeast-4`).
 
@@ -15,7 +17,7 @@ contributions from the community.
     ```
     eksctl create cluster
     ```
-    ![eksctl create cluster](img/eksctl-gopher.png){ align=right }
+    ![eksctl create cluster](img/eksctl-gopher.png){ align=right width=25% }
 
     A cluster will be created with default parameters:
 
@@ -94,5 +96,5 @@ To learn more about how to create clusters and other features continue reading t
 
 [ekskubectl]: https://docs.aws.amazon.com/eks/latest/userguide/configure-kubectl.html
 
-_Need help? Join [Weave Community Slack][slackjoin]._
-[slackjoin]: https://slack.weave.works/
+_Need help? Join [Eksctl Slack][slackjoin]._
+[slackjoin]: https://slack.k8s.io/

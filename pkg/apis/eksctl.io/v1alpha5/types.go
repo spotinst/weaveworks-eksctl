@@ -17,8 +17,6 @@ import (
 
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/aws-sdk-go/aws/client"
-	"github.com/aws/aws-sdk-go/aws/session"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -196,16 +194,24 @@ const (
 	// RegionUSGovEast1 represents the region GovCloud (US-East)
 	RegionUSGovEast1 = "us-gov-east-1"
 
+	// RegionUSISOEast1 represents the region US ISO East.
+	RegionUSISOEast1 = "us-iso-east-1"
+
+	// RegionUSISOBEast1 represents the region US ISOB East (Ohio).
+	RegionUSISOBEast1 = "us-isob-east-1"
+
 	// DefaultRegion defines the default region, where to deploy the EKS cluster
 	DefaultRegion = RegionUSWest2
 )
 
-// Partitions
-const (
-	PartitionAWS   = "aws"
-	PartitionChina = "aws-cn"
-	PartitionUSGov = "aws-us-gov"
-)
+func defaultVolumeTypeForRegion(region string) string {
+	switch region {
+	case RegionUSISOEast1, RegionUSISOBEast1:
+		return NodeVolumeTypeIO1
+	default:
+		return DefaultNodeVolumeType
+	}
+}
 
 // Values for `NodeAMIFamily`
 // All valid values of supported families should go in this block
@@ -364,6 +370,11 @@ const (
 
 	// eksResourceAccountAPSouthEast4 defines the AWS EKS account ID that provides node resources in ap-southeast-4
 	eksResourceAccountAPSouthEast4 = "491585149902"
+	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-iso-east-1
+	eksResourceAccountUSISOEast1 = "725322719131"
+
+	// eksResourceAccountUSISOBEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
+	eksResourceAccountUSISOBEast1 = "187977181151"
 )
 
 // Values for `VolumeType`
@@ -521,18 +532,8 @@ func SupportedRegions() []string {
 		RegionCNNorth1,
 		RegionUSGovWest1,
 		RegionUSGovEast1,
-	}
-}
-
-// Partition gives the partition a region belongs to
-func Partition(region string) string {
-	switch region {
-	case RegionUSGovWest1, RegionUSGovEast1:
-		return PartitionUSGov
-	case RegionCNNorth1, RegionCNNorthwest1:
-		return PartitionChina
-	default:
-		return PartitionAWS
+		RegionUSISOEast1,
+		RegionUSISOBEast1,
 	}
 }
 
@@ -656,6 +657,10 @@ func EKSResourceAccountID(region string) string {
 		return eksResourceAccountAPSouthEast3
 	case RegionAPSouthEast4:
 		return eksResourceAccountAPSouthEast4
+	case RegionUSISOEast1:
+		return eksResourceAccountUSISOEast1
+	case RegionUSISOBEast1:
+		return eksResourceAccountUSISOBEast1
 	default:
 		return eksResourceAccountStandard
 	}
@@ -825,8 +830,8 @@ type ClusterProvider interface {
 	Region() string
 	Profile() Profile
 	WaitTimeout() time.Duration
-	ConfigProvider() client.ConfigProvider
-	Session() *session.Session
+	CredentialsProvider() aws.CredentialsProvider
+	AWSConfig() aws.Config
 
 	ELB() awsapi.ELB
 	ELBV2() awsapi.ELBV2
@@ -1504,6 +1509,8 @@ type (
 		AutoScaler *SpotOceanVirtualNodeGroupAutoScaler `json:"autoScaler,omitempty"`
 		// +optional
 		Scheduling *SpotOceanClusterScheduling `json:"scheduling,omitempty"`
+		// +optional
+		RestrictScaleDown *bool `json:"restrictScaleDown,omitempty"`
 	}
 
 	// SpotOceanClusterStrategy holds the strategy configuration used by Spot Ocean.

@@ -32,8 +32,9 @@ type IAM interface {
 	AddUserToGroup(ctx context.Context, params *AddUserToGroupInput, optFns ...func(*Options)) (*AddUserToGroupOutput, error)
 	// Attaches the specified managed policy to the specified IAM group. You use this
 	// operation to attach a managed policy to a group. To embed an inline policy in a
-	// group, use PutGroupPolicy . As a best practice, you can validate your IAM
-	// policies. To learn more, see Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+	// group, use PutGroupPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutGroupPolicy.html)
+	// . As a best practice, you can validate your IAM policies. To learn more, see
+	// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
 	// in the IAM User Guide. For more information about policies, see Managed
 	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide.
@@ -42,18 +43,20 @@ type IAM interface {
 	// attach a managed policy to a role, the managed policy becomes part of the role's
 	// permission (access) policy. You cannot use a managed policy as the role's trust
 	// policy. The role's trust policy is created at the same time as the role, using
-	// CreateRole . You can update a role's trust policy using UpdateAssumeRolePolicy .
-	// Use this operation to attach a managed policy to a role. To embed an inline
-	// policy in a role, use PutRolePolicy . For more information about policies, see
-	// Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
+	// CreateRole (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html)
+	// . You can update a role's trust policy using UpdateAssumerolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html)
+	// . Use this operation to attach a managed policy to a role. To embed an inline
+	// policy in a role, use PutRolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutRolePolicy.html)
+	// . For more information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide. As a best practice, you can validate your IAM policies.
 	// To learn more, see Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
 	// in the IAM User Guide.
 	AttachRolePolicy(ctx context.Context, params *AttachRolePolicyInput, optFns ...func(*Options)) (*AttachRolePolicyOutput, error)
 	// Attaches the specified managed policy to the specified user. You use this
 	// operation to attach a managed policy to a user. To embed an inline policy in a
-	// user, use PutUserPolicy . As a best practice, you can validate your IAM
-	// policies. To learn more, see Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+	// user, use PutUserPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutUserPolicy.html)
+	// . As a best practice, you can validate your IAM policies. To learn more, see
+	// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
 	// in the IAM User Guide. For more information about policies, see Managed
 	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide.
@@ -83,9 +86,9 @@ type IAM interface {
 	// associated user and then create new keys.
 	CreateAccessKey(ctx context.Context, params *CreateAccessKeyInput, optFns ...func(*Options)) (*CreateAccessKeyOutput, error)
 	// Creates an alias for your Amazon Web Services account. For information about
-	// using an Amazon Web Services account alias, see Using an alias for your Amazon
-	// Web Services account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
-	// in the IAM User Guide.
+	// using an Amazon Web Services account alias, see Creating, deleting, and listing
+	// an Amazon Web Services account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
+	// in the Amazon Web Services Sign-In User Guide.
 	CreateAccountAlias(ctx context.Context, params *CreateAccountAliasInput, optFns ...func(*Options)) (*CreateAccountAliasOutput, error)
 	// Creates a new group. For information about the number of groups you can create,
 	// see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
@@ -231,9 +234,9 @@ type IAM interface {
 	// if the Amazon Web Services account has no associated users.
 	DeleteAccessKey(ctx context.Context, params *DeleteAccessKeyInput, optFns ...func(*Options)) (*DeleteAccessKeyOutput, error)
 	// Deletes the specified Amazon Web Services account alias. For information about
-	// using an Amazon Web Services account alias, see Using an alias for your Amazon
-	// Web Services account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
-	// in the IAM User Guide.
+	// using an Amazon Web Services account alias, see Creating, deleting, and listing
+	// an Amazon Web Services account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
+	// in the Amazon Web Services Sign-In User Guide.
 	DeleteAccountAlias(ctx context.Context, params *DeleteAccountAliasInput, optFns ...func(*Options)) (*DeleteAccountAliasOutput, error)
 	// Deletes the password policy for the Amazon Web Services account. There are no
 	// parameters.
@@ -659,6 +662,8 @@ type IAM interface {
 	// A user with programmatic access does not have a login profile unless you create
 	// a password for the user to access the Amazon Web Services Management Console.
 	GetLoginProfile(ctx context.Context, params *GetLoginProfileInput, optFns ...func(*Options)) (*GetLoginProfileOutput, error)
+	// Retrieves information about an MFA device for a specified user.
+	GetMFADevice(ctx context.Context, params *GetMFADeviceInput, optFns ...func(*Options)) (*GetMFADeviceOutput, error)
 	// Returns information about the specified OpenID Connect (OIDC) provider resource
 	// object in IAM.
 	GetOpenIDConnectProvider(ctx context.Context, params *GetOpenIDConnectProviderInput, optFns ...func(*Options)) (*GetOpenIDConnectProviderOutput, error)
@@ -840,8 +845,9 @@ type IAM interface {
 	ListAccessKeys(ctx context.Context, params *ListAccessKeysInput, optFns ...func(*Options)) (*ListAccessKeysOutput, error)
 	// Lists the account alias associated with the Amazon Web Services account (Note:
 	// you can have only one). For information about using an Amazon Web Services
-	// account alias, see Using an alias for your Amazon Web Services account ID (https://docs.aws.amazon.com/IAM/latest/UserGuide/AccountAlias.html)
-	// in the IAM User Guide.
+	// account alias, see Creating, deleting, and listing an Amazon Web Services
+	// account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
+	// in the Amazon Web Services Sign-In User Guide.
 	ListAccountAliases(ctx context.Context, params *ListAccountAliasesInput, optFns ...func(*Options)) (*ListAccountAliasesOutput, error)
 	// Lists all managed policies that are attached to the specified IAM group. An IAM
 	// group can also have inline policies embedded with it. To list the inline
@@ -1006,10 +1012,14 @@ type IAM interface {
 	// operation returns an empty list. For more information about roles, see Working
 	// with roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/WorkingWithRoles.html)
 	// . IAM resource-listing operations return a subset of the available attributes
-	// for the resource. For example, this operation does not return tags, even though
-	// they are an attribute of the returned object. To view all of the information for
-	// a role, see GetRole . You can paginate the results using the MaxItems and Marker
-	// parameters.
+	// for the resource. This operation does not return the following attributes, even
+	// though they are an attribute of the returned object:
+	//   - PermissionsBoundary
+	//   - RoleLastUsed
+	//   - Tags
+	//
+	// To view all of the information for a role, see GetRole . You can paginate the
+	// results using the MaxItems and Marker parameters.
 	ListRoles(ctx context.Context, params *ListRolesInput, optFns ...func(*Options)) (*ListRolesOutput, error)
 	// Lists the tags that are attached to the specified Security Assertion Markup
 	// Language (SAML) identity provider. The returned list of tags is sorted by tag
@@ -1088,10 +1098,14 @@ type IAM interface {
 	// Lists the IAM users that have the specified path prefix. If no path prefix is
 	// specified, the operation returns all users in the Amazon Web Services account.
 	// If there are none, the operation returns an empty list. IAM resource-listing
-	// operations return a subset of the available attributes for the resource. For
-	// example, this operation does not return tags, even though they are an attribute
-	// of the returned object. To view all of the information for a user, see GetUser .
-	// You can paginate the results using the MaxItems and Marker parameters.
+	// operations return a subset of the available attributes for the resource. This
+	// operation does not return the following attributes, even though they are an
+	// attribute of the returned object:
+	//   - PermissionsBoundary
+	//   - Tags
+	//
+	// To view all of the information for a user, see GetUser . You can paginate the
+	// results using the MaxItems and Marker parameters.
 	ListUsers(ctx context.Context, params *ListUsersInput, optFns ...func(*Options)) (*ListUsersOutput, error)
 	// Lists the virtual MFA devices defined in the Amazon Web Services account by
 	// assignment status. If you do not specify an assignment status, the operation
@@ -1104,9 +1118,9 @@ type IAM interface {
 	ListVirtualMFADevices(ctx context.Context, params *ListVirtualMFADevicesInput, optFns ...func(*Options)) (*ListVirtualMFADevicesOutput, error)
 	// Adds or updates an inline policy document that is embedded in the specified IAM
 	// group. A user can also have managed policies attached to it. To attach a managed
-	// policy to a group, use AttachGroupPolicy . To create a new managed policy, use
-	// CreatePolicy . For information about policies, see Managed policies and inline
-	// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
+	// policy to a group, use AttachGroupPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachGroupPolicy.html)
+	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
+	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide. For information about the maximum number of inline
 	// policies that you can embed in a group, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 	// in the IAM User Guide. Because policy documents can be large, you should use
@@ -1128,13 +1142,14 @@ type IAM interface {
 	// Adds or updates an inline policy document that is embedded in the specified IAM
 	// role. When you embed an inline policy in a role, the inline policy is used as
 	// part of the role's access (permissions) policy. The role's trust policy is
-	// created at the same time as the role, using CreateRole . You can update a role's
-	// trust policy using UpdateAssumeRolePolicy . For more information about IAM
-	// roles, see Using roles to delegate permissions and federate identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html)
+	// created at the same time as the role, using CreateRole (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html)
+	// . You can update a role's trust policy using UpdateAssumerolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html)
+	// . For more information about IAM roles, see Using roles to delegate permissions
+	// and federate identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html)
 	// . A role can also have a managed policy attached to it. To attach a managed
-	// policy to a role, use AttachRolePolicy . To create a new managed policy, use
-	// CreatePolicy . For information about policies, see Managed policies and inline
-	// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
+	// policy to a role, use AttachRolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachRolePolicy.html)
+	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
+	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide. For information about the maximum number of inline
 	// policies that you can embed with a role, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 	// in the IAM User Guide. Because policy documents can be large, you should use
@@ -1154,9 +1169,9 @@ type IAM interface {
 	PutUserPermissionsBoundary(ctx context.Context, params *PutUserPermissionsBoundaryInput, optFns ...func(*Options)) (*PutUserPermissionsBoundaryOutput, error)
 	// Adds or updates an inline policy document that is embedded in the specified IAM
 	// user. An IAM user can also have a managed policy attached to it. To attach a
-	// managed policy to a user, use AttachUserPolicy . To create a new managed policy,
-	// use CreatePolicy . For information about policies, see Managed policies and
-	// inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
+	// managed policy to a user, use AttachUserPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachUserPolicy.html)
+	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
+	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
 	// in the IAM User Guide. For information about the maximum number of inline
 	// policies that you can embed in a user, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
 	// in the IAM User Guide. Because policy documents can be large, you should use
