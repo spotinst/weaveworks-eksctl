@@ -865,6 +865,13 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			}
 		}
 
+		// ResourceTagSpecification
+		if compute := spotOcean.Compute; compute != nil && compute.ResourceTagSpecification != nil && compute.ResourceTagSpecification.Volumes != nil {
+			cluster.Compute.LaunchSpecification.ResourceTagSpecification = &spot.ResourceTagSpecification{
+				Volumes: &spot.Volumes{ShouldTag: compute.ResourceTagSpecification.Volumes.ShouldTag},
+			}
+		}
+
 		// Scheduling.
 		{
 			if scheduling := spotOcean.Scheduling; scheduling != nil {
@@ -1064,6 +1071,20 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		}
 	}
 
+	// Images
+	{
+		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.Images != nil &&
+			len(compute.Images) > 0 && template.ImageId != nil {
+			imagesSlice := make([]*spot.Images, len(compute.Images)+1)
+			imagesSlice[0] = &spot.Images{ImageId: spotinst.String(template.ImageId.String())}
+			for i, imageId := range compute.Images {
+
+				imagesSlice[i+1] = &spot.Images{ImageId: imageId.ImageId}
+			}
+			spec.Images = imagesSlice
+			spec.ImageID = nil
+		}
+	}
 	// Scheduling.
 	{
 		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
