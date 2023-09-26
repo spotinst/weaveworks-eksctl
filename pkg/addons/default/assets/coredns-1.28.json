@@ -19,6 +19,7 @@
         "namespace": "kube-system"
       },
       "spec": {
+        "internalTrafficPolicy": "Cluster",
         "ipFamilies": [
           "IPv4"
         ],
@@ -108,6 +109,7 @@
             "annotations": {
               "eks.amazonaws.com/compute-type": "ec2"
             },
+            "creationTimestamp": null,
             "labels": {
               "eks.amazonaws.com/component": "coredns",
               "k8s-app": "kube-dns"
