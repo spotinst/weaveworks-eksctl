@@ -1237,6 +1237,10 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 		return err
 	}
 
+	if err := validateLabels(ng.Labels); err != nil {
+		return err
+	}
+
 	switch {
 	case ng.LaunchTemplate != nil:
 		if ng.LaunchTemplate.ID == "" {
