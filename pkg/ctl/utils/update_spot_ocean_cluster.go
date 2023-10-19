@@ -106,8 +106,15 @@ func doUpdateSpotOceanCluster(cmd *cmdutils.Cmd) error {
 	if err != nil {
 		return errors.Wrap(err, "error creating bootstrapper")
 	}
-	newStack := builder.NewNodeGroupResourceSet(ctl.AWSProvider.EC2(), ctl.AWSProvider.IAM(),
-		cfg, ng, bootstrapper, stack.Tags, false, vpcImporter)
+	newStack := builder.NewNodeGroupResourceSet(ctl.AWSProvider.EC2(), ctl.AWSProvider.IAM(), builder.NodeGroupOptions{
+		ClusterConfig:     cfg,
+		NodeGroup:         ng,
+		Bootstrapper:      bootstrapper,
+		ForceAddCNIPolicy: false,
+		VPCImporter:       vpcImporter,
+		SkipEgressRules:   false,
+		SharedTags:        stack.Tags,
+	})
 	if err := newStack.AddAllResources(ctx); err != nil {
 		return err
 	}
