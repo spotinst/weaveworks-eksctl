@@ -248,20 +248,9 @@ func (m *Manager) nodeCreationTasks(ctx context.Context, isOwnedCluster, skipEgr
 		vpcImporter = vpc.NewSpecConfigImporter(*m.ctl.Status.ClusterInfo.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId, cfg.VPC)
 	}
 
-	allNodeGroupTasks := &tasks.TaskTree{
-		Parallel: true,
-	}
-/*	nodeGroupTasks, err := m.stackManager.NewNodeGroupTask(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
+	allNodeGroupTasks, err := m.stackManager.NewNodeGroupTask(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, skipEgressRules, vpcImporter)
 	if err != nil {
 		return fmt.Errorf("failed to create nodegroup tasks: %v", err)
-	} TODO idan - check those changes here please */
-	nodeGroupTasks := m.stackManager.NewUnmanagedNodeGroupTask(ctx, cfg.NodeGroups, !awsNodeUsesIRSA, skipEgressRules, vpcImporter)
-	if nodeGroupTasks.Len() > 0 {
-		allNodeGroupTasks.Append(nodeGroupTasks)
-	}
-	managedTasks := m.stackManager.NewManagedNodeGroupTask(ctx, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
-	if managedTasks.Len() > 0 {
-		allNodeGroupTasks.Append(managedTasks)
 	}
 
 	// Spot Ocean.

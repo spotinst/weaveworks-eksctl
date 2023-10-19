@@ -606,7 +606,6 @@ type FakeStackManager struct {
 	newManagedNodeGroupTaskReturnsOnCall map[int]struct {
 		result1 *tasks.TaskTree
 	}
-	/* TODO Idan - here as well
 	NewNodeGroupTaskStub        func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, bool, vpc.Importer) (*tasks.TaskTree, error)
 	newNodeGroupTaskMutex       sync.RWMutex
 	newNodeGroupTaskArgsForCall []struct {
@@ -623,7 +622,7 @@ type FakeStackManager struct {
 	newNodeGroupTaskReturnsOnCall map[int]struct {
 		result1 *tasks.TaskTree
 		result2 error
-	}*/
+	}
 	NewTaskToDeleteUnownedNodeGroupStub        func(context.Context, string, string, awsapi.EKS, *manager.DeleteWaitCondition) tasks.Task
 	newTaskToDeleteUnownedNodeGroupMutex       sync.RWMutex
 	newTaskToDeleteUnownedNodeGroupArgsForCall []struct {
@@ -3640,7 +3639,7 @@ func (fake *FakeStackManager) NewManagedNodeGroupTaskReturnsOnCall(i int, result
 		result1 *tasks.TaskTree
 	}{result1}
 }
-/* TOOD idan - here as well
+
 func (fake *FakeStackManager) NewNodeGroupTask(arg1 context.Context, arg2 []*v1alpha5.NodeGroup, arg3 []*v1alpha5.ManagedNodeGroup, arg4 bool, arg5 vpc.Importer) (*tasks.TaskTree, error) {
 	var arg2Copy []*v1alpha5.NodeGroup
 	if arg2 != nil {
@@ -3717,7 +3716,7 @@ func (fake *FakeStackManager) NewNodeGroupTaskReturnsOnCall(i int, result1 *task
 		result1 *tasks.TaskTree
 		result2 error
 	}{result1, result2}
-}*/
+}
 
 func (fake *FakeStackManager) NewTaskToDeleteUnownedNodeGroup(arg1 context.Context, arg2 string, arg3 string, arg4 awsapi.EKS, arg5 *manager.DeleteWaitCondition) tasks.Task {
 	fake.newTaskToDeleteUnownedNodeGroupMutex.Lock()
@@ -4698,10 +4697,8 @@ func (fake *FakeStackManager) Invocations() map[string][][]interface{} {
 	defer fake.makeClusterStackNameMutex.RUnlock()
 	fake.newManagedNodeGroupTaskMutex.RLock()
 	defer fake.newManagedNodeGroupTaskMutex.RUnlock()
-/*	fake.newNodeGroupTaskMutex.RLock() TODO idan - check as well
-	defer fake.newNodeGroupTaskMutex.RUnlock()*/
-	fake.newTaskToDeleteAddonIAMMutex.RLock()
-	defer fake.newTaskToDeleteAddonIAMMutex.RUnlock()
+	fake.newNodeGroupTaskMutex.RLock()
+	defer fake.newNodeGroupTaskMutex.RUnlock()
 	fake.newTaskToDeleteUnownedNodeGroupMutex.RLock()
 	defer fake.newTaskToDeleteUnownedNodeGroupMutex.RUnlock()
 	fake.newTasksToCreateClusterWithNodeGroupsMutex.RLock()
