@@ -28,7 +28,21 @@ import (
 	"github.com/weaveworks/eksctl/pkg/version"
 )
 
-func newV2Config(pc *api.ProviderConfig, credentialsCacheFilePath string) (aws.Config, error) {
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//counterfeiter:generate -o fakes/fake_configuration_loader.go . AWSConfigurationLoader
+type AWSConfigurationLoader interface {
+	LoadDefaultConfig(ctx context.Context, optFns ...func(*config.LoadOptions) error) (cfg aws.Config, err error)
+}
+
+type ConfigurationLoader struct {
+	AWSConfigurationLoader
+}
+
+func (cl ConfigurationLoader) LoadDefaultConfig(ctx context.Context, optFns ...func(*config.LoadOptions) error) (aws.Config, error) {
+	return config.LoadDefaultConfig(ctx, optFns...)
+}
+
+func newV2Config(pc *api.ProviderConfig, credentialsCacheFilePath string, configurationLoader AWSConfigurationLoader) (aws.Config, error) {
 	var options []func(options *config.LoadOptions) error
 
 	if pc.Region != "" {
@@ -49,7 +63,7 @@ func newV2Config(pc *api.ProviderConfig, credentialsCacheFilePath string) (aws.C
 		options = append(options, config.WithSharedConfigProfile(pc.Profile.Name))
 	}
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(), append(options,
+	cfg, err := configurationLoader.LoadDefaultConfig(context.TODO(), append(options,
 		config.WithRetryer(func() aws.Retryer {
 			return NewRetryerV2()
 		}),
@@ -59,6 +73,15 @@ func newV2Config(pc *api.ProviderConfig, credentialsCacheFilePath string) (aws.C
 		}),
 		config.WithAPIOptions([]func(stack *middleware.Stack) error{
 			middlewarev2.AddUserAgentKeyValue("eksctl", version.String()),
+		}),
+		// Some CloudFormation operations can take a long time to complete, and we
+		// don't want any temporary credentials to expire before this occurs. So if
+		// it's less than 30 minutes before the current credentials will expire, try
+		// to renew them first.
+		config.WithCredentialsCacheOptions(func(o *aws.CredentialsCacheOptions) {
+			logger.Debug("Setting credentials expiry window to 30 minutes")
+			o.ExpiryWindow = 30 * time.Minute
+			o.ExpiryWindowJitterFrac = 0
 		}),
 	)...)
 

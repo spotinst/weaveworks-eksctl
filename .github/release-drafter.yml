@@ -13,11 +13,11 @@ categories:
     labels:
       - 'kind/bug'
   - title: '🧰 Maintenance'
-    labels: 
+    labels:
       - 'area/tech-debt'
       - 'area/ci'
   - title: '📝 Documentation'
-    labels: 
+    labels:
       - 'area/docs'
       - 'kind/docs'
 change-template: '- $TITLE (#$NUMBER)'
@@ -32,7 +32,7 @@ template: |
   Weaveworks would like to sincerely thank:
   $CONTRIBUTORS
 replacers:
-  - search: '/@(Himangini|TiberiuGC|A-Hilaly|yuxiang-zhang|cPu1|eksctl-bot|dependabot(?:\[bot\])?)(?:,| |$)/gm'
+  - search: '/@(Himangini|TiberiuGC|a-hilaly|yuxiang-zhang|cPu1|eksctl-bot|dependabot(?:\[bot\])?)(?:,| |$)/gm'
     replace: ''
 exclude-labels:
   - 'skip-release-notes'

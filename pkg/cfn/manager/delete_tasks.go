@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
@@ -30,8 +31,21 @@ func deleteAll(_ string) bool { return true }
 
 type NewOIDCManager func() (*iamoidc.OpenIDConnectManager, error)
 
+// NewTasksToDeleteAddonIAM temporary type, to be removed after moving NewTasksToDeleteClusterWithNodeGroups to actions package
+type NewTasksToDeleteAddonIAM func(ctx context.Context, wait bool) (*tasks.TaskTree, error)
+
 // NewTasksToDeleteClusterWithNodeGroups defines tasks required to delete the given cluster along with all of its resources
-func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Context, clusterStack *Stack, nodeGroupStacks []NodeGroupStack, clusterOperable bool, newOIDCManager NewOIDCManager, cluster *ekstypes.Cluster, clientSetGetter kubernetes.ClientSetGetter, wait, force bool, cleanup func(chan error, string) error) (*tasks.TaskTree, error) {
+func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(
+	ctx context.Context,
+	clusterStack *Stack,
+	nodeGroupStacks []NodeGroupStack,
+	clusterOperable bool,
+	newOIDCManager NewOIDCManager,
+	newTasksToDeleteAddonIAM NewTasksToDeleteAddonIAM,
+	cluster *ekstypes.Cluster,
+	clientSetGetter kubernetes.ClientSetGetter,
+	wait, force bool,
+	cleanup func(chan error, string) error) (*tasks.TaskTree, error) {
 	taskTree := &tasks.TaskTree{Parallel: false}
 
 	nodeGroupTasks, err := c.NewTasksToDeleteNodeGroups(nodeGroupStacks, deleteAll, true, cleanup)
@@ -56,7 +70,7 @@ func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Cont
 		}
 	}
 
-	deleteAddonIAMTasks, err := c.NewTaskToDeleteAddonIAM(ctx, wait)
+	deleteAddonIAMTasks, err := newTasksToDeleteAddonIAM(ctx, wait)
 	if err != nil {
 		return nil, err
 	}

@@ -44,35 +44,35 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Cont
 	// Nodegroups.
 	{
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
-		nodeGroupTaskTree, err := c.NewNodeGroupTask(ctx, nodeGroups, managedNodeGroups, false, vpcImporter)
+		nodeGroupTasks, err := c.NewNodeGroupTask(ctx, nodeGroups, managedNodeGroups, false, false, vpcImporter)
 		if err != nil {
 			return nil, err
 		}
 
-		if nodeGroupTaskTree.Len() > 0 {
-			nodeGroupTaskTree.IsSubTask = true
-			taskTree.Append(nodeGroupTaskTree)
+		if nodeGroupTasks.Len() > 0 {
+			nodeGroupTasks.IsSubTask = true
+			taskTree.Append(nodeGroupTasks)
 		}
 	}
 
 	// Post creation tasks.
 	{
 		if len(postClusterCreationTasks) > 0 {
-			postTaskTree := &tasks.TaskTree{
+			postClusterCreationTaskTree := &tasks.TaskTree{
 				Parallel:  false,
 				IsSubTask: true,
 			}
-			postTaskTree.Append(postClusterCreationTasks...)
-			taskTree.Append(postTaskTree)
+			postClusterCreationTaskTree.Append(postClusterCreationTasks...)
+			taskTree.Append(postClusterCreationTaskTree)
 		}
 	}
 
 	return &taskTree, nil
 }
 
-// NewNodeGroupTask defines tasks required to create all of the nodegroups
+// NewNodeGroupTask defines tasks required to create all the nodegroups
 func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, managedNodeGroups []*api.ManagedNodeGroup,
-	forceAddCNIPolicy bool, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
+	forceAddCNIPolicy bool, skipEgressRules bool, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
 	taskTree := &tasks.TaskTree{Parallel: true}
 
 	// Spot Ocean.
@@ -99,7 +99,7 @@ func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*ap
 
 	// Unmanaged.
 	{
-		nodeGroupTaskTree := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, forceAddCNIPolicy, vpcImporter)
+		nodeGroupTaskTree := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, forceAddCNIPolicy, skipEgressRules, vpcImporter)
 		if nodeGroupTaskTree.Len() > 0 {
 			nodeGroupTaskTree.IsSubTask = true
 			taskTree.Append(nodeGroupTaskTree)
@@ -110,7 +110,7 @@ func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*ap
 }
 
 // NewUnmanagedNodeGroupTask defines tasks required to create all of the nodegroups
-func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy bool, vpcImporter vpc.Importer) *tasks.TaskTree {
+func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules bool, vpcImporter vpc.Importer) *tasks.TaskTree {
 	taskTree := &tasks.TaskTree{Parallel: true}
 
 	for _, ng := range nodeGroups {
@@ -121,6 +121,7 @@ func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGro
 			stackCollection:   c,
 			forceAddCNIPolicy: forceAddCNIPolicy,
 			vpcImporter:       vpcImporter,
+			skipEgressRules:   skipEgressRules,
 		})
 		// TODO: move authconfigmap tasks here using kubernetesTask and kubernetes.CallbackClientSet
 	}
