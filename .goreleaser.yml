@@ -37,10 +37,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end -}}
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
     format: tar.gz
     format_overrides:
       - goos: windows
