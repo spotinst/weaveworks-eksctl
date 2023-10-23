@@ -32,7 +32,7 @@ archives:
     builds:
       - default
     name_template: >-
-      eksctl_{{- title .Os }}_
+      eksctl_{{- tolower .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
