@@ -353,7 +353,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	taskTree, err := stackManager.NewTasksToCreateClusterWithNodeGroups(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
+	taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
 
 	if err != nil {
 		return fmt.Errorf("ocean: failed to create cluster nodegroup: %v", err)
@@ -454,6 +454,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 					}
 				}
 			}
+
 			for _, ng := range cfg.ManagedNodeGroups {
 				if err := eks.WaitForNodes(ngCtx, clientSet, ng); err != nil {
 					return err

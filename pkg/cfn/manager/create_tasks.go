@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/weaveworks/eksctl/pkg/actions/accessentry"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
@@ -22,27 +23,29 @@ const (
 	managedByKubernetesLabelValue = "eksctl"
 )
 
-// NewTasksToCreateClusterWithNodeGroups defines all tasks required to create a cluster along
+// NewTasksToCreateCluster defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
-func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Context, nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
+func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroups []*api.NodeGroup,
+	managedNodeGroups []*api.ManagedNodeGroup, accessEntries []api.AccessEntry, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
 
 	taskTree := tasks.TaskTree{Parallel: false}
 
-	// Control plane.
-	{
-		taskTree.Append(
-			&createClusterTask{
-				info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
-				stackCollection:      c,
-				supportsManagedNodes: true,
-				ctx:                  ctx,
-			},
-		)
+	taskTree.Append(&createClusterTask{
+		info:                 fmt.Sprintf("create cluster control plane %q", c.spec.Metadata.Name),
+		stackCollection:      c,
+		supportsManagedNodes: true,
+		ctx:                  ctx,
+	})
+
+	if len(accessEntries) > 0 {
+		accessEntryCreator := &accessentry.Creator{
+			ClusterName:  c.spec.Metadata.Name,
+			StackCreator: c,
+		}
+		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessEntries))
 	}
 
-	// Nodegroups.
-	{
+	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
 		nodeGroupTasks, err := c.NewNodeGroupTask(ctx, nodeGroups, managedNodeGroups, false, false, vpcImporter)
 		if err != nil {
@@ -55,46 +58,16 @@ func (c *StackCollection) NewTasksToCreateClusterWithNodeGroups(ctx context.Cont
 		}
 	}
 
-	// Post creation tasks.
-	{
-		if len(postClusterCreationTasks) > 0 {
-			postClusterCreationTaskTree := &tasks.TaskTree{
-				Parallel:  false,
-				IsSubTask: true,
-			}
-			postClusterCreationTaskTree.Append(postClusterCreationTasks...)
-			taskTree.Append(postClusterCreationTaskTree)
+	if len(postClusterCreationTasks) > 0 {
+		postClusterCreationTaskTree := &tasks.TaskTree{
+			Parallel:  false,
+			IsSubTask: true,
 		}
-	}
-
-	return &taskTree, nil
-}
-
-// NewNodeGroupTask defines tasks required to create all the nodegroups
-func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, managedNodeGroups []*api.ManagedNodeGroup,
-	forceAddCNIPolicy bool, skipEgressRules bool, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
-	taskTree := &tasks.TaskTree{Parallel: true}
-
-	// Spot Ocean.
-	{
-		oceanTaskTree, err := c.NewSpotOceanNodeGroupTask(ctx, vpcImporter)
-		if err != nil {
-			return nil, err
-		}
-		if oceanTaskTree.Len() > 0 {
-			oceanTaskTree.IsSubTask = true
-			taskTree.Parallel = false
-			taskTree.Append(oceanTaskTree)
-		}
-	}
-
-	// Managed.
-	{
-		managedNodeGroupTaskTree := c.NewManagedNodeGroupTask(ctx, managedNodeGroups, forceAddCNIPolicy, vpcImporter)
-		if managedNodeGroupTaskTree.Len() > 0 {
-			managedNodeGroupTaskTree.IsSubTask = true
-			taskTree.Append(managedNodeGroupTaskTree)
-		}
+		postClusterCreationTaskTree.Append(postClusterCreationTasks...)
+		appendNodeGroupTasksTo(postClusterCreationTaskTree)
+		taskTree.Append(postClusterCreationTaskTree)
+	} else {
+		appendNodeGroupTasksTo(&taskTree)
 	}
 
 	// Unmanaged.
@@ -106,7 +79,7 @@ func (c *StackCollection) NewNodeGroupTask(ctx context.Context, nodeGroups []*ap
 		}
 	}
 
-	return taskTree, nil
+	return &taskTree, nil
 }
 
 // NewUnmanagedNodeGroupTask defines tasks required to create all of the nodegroups
