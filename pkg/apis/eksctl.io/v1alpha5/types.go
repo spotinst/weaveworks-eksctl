@@ -915,6 +915,10 @@ type ClusterConfig struct {
 	// +optional
 	IdentityProviders []IdentityProvider `json:"identityProviders,omitempty"`
 
+	// AccessConfig specifies the access config for a cluster.
+	// +optional
+	AccessConfig *AccessConfig
+
 	// +optional
 	VPC *ClusterVPC `json:"vpc,omitempty"`
 
@@ -2172,6 +2176,11 @@ func (t *taintsWrapper) UnmarshalJSON(data []byte) error {
 	}
 	*t = ngTaints
 	return nil
+}
+
+// AccessConfig specifies the access config for a cluster.
+type AccessConfig struct {
+	BootstrapClusterCreatorAdminPermissions *bool
 }
 
 // UnsupportedFeatureError is an error that represents an unsupported feature
