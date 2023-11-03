@@ -25,9 +25,10 @@ import (
 
 // NodeGroupStack represents a nodegroup and its type
 type NodeGroupStack struct {
-	NodeGroupName string
-	Type          api.NodeGroupType
-	Stack         *Stack
+	NodeGroupName   string
+	Type            api.NodeGroupType
+	UsesAccessEntry bool
+	Stack           *Stack
 }
 
 // makeNodeGroupStackName generates the name of the nodegroup stack identified by its name, isolated by the cluster this StackCollection operates on
@@ -36,7 +37,7 @@ func (c *StackCollection) makeNodeGroupStackName(name string) string {
 }
 
 // createNodeGroupTask creates the nodegroup
-func (c *StackCollection) createNodeGroupTask(ctx context.Context, errs chan error, ng *api.NodeGroup, forceAddCNIPolicy, skipEgressRules bool, vpcImporter vpc.Importer) error {
+func (c *StackCollection) createNodeGroupTask(ctx context.Context, errs chan error, ng *api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer) error {
 	name := c.makeNodeGroupStackName(ng.Name)
 
 	if ng.Tags == nil {
@@ -63,12 +64,13 @@ func (c *StackCollection) createNodeGroupTask(ctx context.Context, errs chan err
 		return errors.Wrap(err, "error creating bootstrapper")
 	}
 	stack := builder.NewNodeGroupResourceSet(c.ec2API, c.iamAPI, builder.NodeGroupOptions{
-		ClusterConfig:     c.spec,
-		NodeGroup:         ng,
-		Bootstrapper:      bootstrapper,
-		ForceAddCNIPolicy: forceAddCNIPolicy,
-		VPCImporter:       vpcImporter,
-		SkipEgressRules:   skipEgressRules,
+		ClusterConfig:              c.spec,
+		NodeGroup:                  ng,
+		Bootstrapper:               bootstrapper,
+		ForceAddCNIPolicy:          forceAddCNIPolicy,
+		VPCImporter:                vpcImporter,
+		SkipEgressRules:            skipEgressRules,
+		DisableAccessEntryCreation: disableAccessEntryCreation,
 		SharedTags:        c.sharedTags,
 	})
 	if err := stack.AddAllResources(ctx); err != nil {
@@ -178,9 +180,10 @@ func (c *StackCollection) ListNodeGroupStacksWithStatuses(ctx context.Context) (
 			return nil, err
 		}
 		nodeGroupStacks = append(nodeGroupStacks, NodeGroupStack{
-			NodeGroupName: c.GetNodeGroupName(stack),
-			Type:          nodeGroupType,
-			Stack:         stack,
+			NodeGroupName:   c.GetNodeGroupName(stack),
+			Type:            nodeGroupType,
+			UsesAccessEntry: nodeGroupType == api.NodeGroupTypeUnmanaged && usesAccessEntry(stack),
+			Stack:           stack,
 		})
 	}
 	return nodeGroupStacks, nil

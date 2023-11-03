@@ -1972,7 +1972,6 @@ type NodeGroupTaint struct {
 }
 
 // ManagedNodeGroup represents an EKS-managed nodegroup
-// TODO Validate for unmapped fields and throw an error
 type ManagedNodeGroup struct {
 	*NodeGroupBase
 

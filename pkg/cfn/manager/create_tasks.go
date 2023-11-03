@@ -82,19 +82,20 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 	return &taskTree, nil
 }
 
-// NewUnmanagedNodeGroupTask defines tasks required to create all of the nodegroups
-func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules bool, vpcImporter vpc.Importer) *tasks.TaskTree {
+// NewUnmanagedNodeGroupTask defines tasks required to create all nodegroups.
+func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer) *tasks.TaskTree {
 	taskTree := &tasks.TaskTree{Parallel: true}
 
 	for _, ng := range nodeGroups {
 		taskTree.Append(&nodeGroupTask{
-			info:              fmt.Sprintf("create nodegroup %q", ng.NameString()),
-			ctx:               ctx,
-			nodeGroup:         ng,
-			stackCollection:   c,
-			forceAddCNIPolicy: forceAddCNIPolicy,
-			vpcImporter:       vpcImporter,
-			skipEgressRules:   skipEgressRules,
+			info:                       fmt.Sprintf("create nodegroup %q", ng.NameString()),
+			ctx:                        ctx,
+			nodeGroup:                  ng,
+			stackCollection:            c,
+			forceAddCNIPolicy:          forceAddCNIPolicy,
+			vpcImporter:                vpcImporter,
+			skipEgressRules:            skipEgressRules,
+			disableAccessEntryCreation: disableAccessEntryCreation,
 		})
 		// TODO: move authconfigmap tasks here using kubernetesTask and kubernetes.CallbackClientSet
 	}

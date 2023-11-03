@@ -23,7 +23,6 @@ import (
 	"github.com/weaveworks/eksctl/pkg/actions/karpenter"
 	"github.com/weaveworks/eksctl/pkg/actions/podidentityassociation"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
@@ -440,11 +439,6 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				// skip ocean cluster
 				if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {
 					continue
-				}
-
-				// authorise nodes to join
-				if err = authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
-					return err
 				}
 
 				// wait for nodes to join
