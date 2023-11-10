@@ -59,7 +59,7 @@ func (m *Manager) Create(ctx context.Context, options CreateOpts, nodegroupFilte
 		}
 		return errors.New(msg)
 	}
-	if ctl.IsAWSAuthDisabled() && options.UpdateAuthConfigMap != nil {
+	if m.accessEntry.IsAWSAuthDisabled() && options.UpdateAuthConfigMap != nil {
 		return errors.New("--update-auth-configmap is not supported when authenticationMode is set to API")
 	}
 
@@ -255,26 +255,24 @@ func (m *Manager) nodeCreationTasks(ctx context.Context, isOwnedCluster, skipEgr
 	if err != nil {
 		return fmt.Errorf("failed to create nodegroup tasks: %v", err)
 	}
-
 	// Spot Ocean.
-	{
-		for _, ng := range cfg.NodeGroups {
-			if ng.Name != api.SpotOceanClusterNodeGroupName {
-				continue
-			}
-			logger.Debug("ocean: normalizing cluster nodegroup")
-
-			instanceSelector, err := selector.New(ctx, m.ctl.AWSProvider.AWSConfig())
-			if err != nil {
-				return fmt.Errorf("ocean: failed to create instance selector: %v", err)
-			}
-
-			svc := eks.NewNodeGroupService(m.ctl.AWSProvider, instanceSelector, nil)
-			if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
-				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
-			}
+	for _, ng := range cfg.NodeGroups {
+		if ng.Name != api.SpotOceanClusterNodeGroupName {
+			continue
 		}
-	disableAccessEntryCreation := !m.ctl.IsAccessEntryEnabled() || updateAuthConfigMap != nil
+		logger.Debug("ocean: normalizing cluster nodegroup")
+
+		instanceSelector, err := selector.New(ctx, m.ctl.AWSProvider.AWSConfig())
+		if err != nil {
+			return fmt.Errorf("ocean: failed to create instance selector: %v", err)
+		}
+
+		svc := eks.NewNodeGroupService(m.ctl.AWSProvider, instanceSelector, nil)
+		if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
+			return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
+		}
+	}
+	disableAccessEntryCreation := !m.accessEntry.IsEnabled() || updateAuthConfigMap != nil
 	nodeGroupTasks := m.stackManager.NewUnmanagedNodeGroupTask(ctx, cfg.NodeGroups, !awsNodeUsesIRSA, skipEgressRules, disableAccessEntryCreation, vpcImporter)
 	if nodeGroupTasks.Len() > 0 {
 		allNodeGroupTasks.Append(nodeGroupTasks)
@@ -306,7 +304,7 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 	timeoutCtx, cancel := context.WithTimeout(ctx, m.ctl.AWSProvider.WaitTimeout())
 	defer cancel()
 
-	if !m.ctl.IsAccessEntryEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap) {
+	if !m.accessEntry.IsEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap) {
 		if err := eks.UpdateAuthConfigMap(m.cfg.NodeGroups, clientSet); err != nil {
 			return err
 		}
