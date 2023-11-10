@@ -19,6 +19,7 @@ import (
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/weaveworks/eksctl/pkg/accessentry"
+	accessentryactions "github.com/weaveworks/eksctl/pkg/actions/accessentry"
 	"github.com/weaveworks/eksctl/pkg/actions/addon"
 	"github.com/weaveworks/eksctl/pkg/actions/flux"
 	"github.com/weaveworks/eksctl/pkg/actions/karpenter"
@@ -58,7 +59,12 @@ func createClusterCmd(cmd *cmdutils.Cmd) {
 		if err != nil {
 			return err
 		}
-		return doCreateCluster(cmd, ngFilter, params, ctl)
+		return doCreateCluster(cmd, ngFilter, params, ctl, func(clusterName string, stackCreator accessentryactions.StackCreator) accessentryactions.CreatorInterface {
+			return &accessentryactions.Creator{
+				ClusterName:  clusterName,
+				StackCreator: stackCreator,
+			}
+		})
 	})
 }
 
@@ -154,7 +160,8 @@ func createClusterCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.C
 	})
 }
 
-func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params *cmdutils.CreateClusterCmdParams, ctl *eks.ClusterProvider) error {
+func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params *cmdutils.CreateClusterCmdParams, ctl *eks.ClusterProvider,
+	makeAccessEntryCreator func(clusterName string, creator accessentryactions.StackCreator) accessentryactions.CreatorInterface) error {
 	var err error
 	cfg := cmd.ClusterConfig
 	meta := cmd.ClusterConfig.Metadata
@@ -357,7 +364,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
+	taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, cfg.AccessConfig.AccessEntries, makeAccessEntryCreator(cfg.Metadata.Name, stackManager), postClusterCreationTasks)
 
 	if err != nil {
 		return fmt.Errorf("ocean: failed to create cluster nodegroup: %v", err)

@@ -26,7 +26,7 @@ const (
 // NewTasksToCreateCluster defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
 func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, accessEntries []api.AccessEntry, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
+	managedNodeGroups []*api.ManagedNodeGroup, accessEntries []api.AccessEntry, accessEntryCreator accessentry.CreatorInterface, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
 
 	taskTree := tasks.TaskTree{Parallel: false}
 
@@ -38,10 +38,6 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 	})
 
 	if len(accessEntries) > 0 {
-		accessEntryCreator := &accessentry.Creator{
-			ClusterName:  c.spec.Metadata.Name,
-			StackCreator: c,
-		}
 		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessEntries))
 	}
 
