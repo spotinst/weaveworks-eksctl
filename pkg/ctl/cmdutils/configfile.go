@@ -37,8 +37,8 @@ type ClusterConfigLoader interface {
 type commonClusterConfigLoader struct {
 	*Cmd
 
-	flagsIncompatibleWithConfigFile    sets.String
-	flagsIncompatibleWithoutConfigFile sets.String
+	flagsIncompatibleWithConfigFile    sets.Set[string]
+	flagsIncompatibleWithoutConfigFile sets.Set[string]
 	validateWithConfigFile             func() error
 	validateWithoutConfigFile          func() error
 }
@@ -105,9 +105,9 @@ func newCommonClusterConfigLoader(cmd *Cmd) *commonClusterConfigLoader {
 		Cmd: cmd,
 
 		validateWithConfigFile:             nilValidatorFunc,
-		flagsIncompatibleWithConfigFile:    sets.NewString(defaultFlagsIncompatibleWithConfigFile...),
+		flagsIncompatibleWithConfigFile:    sets.New[string](defaultFlagsIncompatibleWithConfigFile...),
 		validateWithoutConfigFile:          nilValidatorFunc,
-		flagsIncompatibleWithoutConfigFile: sets.NewString(defaultFlagsIncompatibleWithoutConfigFile...),
+		flagsIncompatibleWithoutConfigFile: sets.New[string](defaultFlagsIncompatibleWithoutConfigFile...),
 	}
 }
 
@@ -118,7 +118,7 @@ func (l *commonClusterConfigLoader) Load() error {
 	}
 
 	if l.ClusterConfigFile == "" {
-		if flagName, found := findChangedFlag(l.CobraCommand, l.flagsIncompatibleWithoutConfigFile.List()); found {
+		if flagName, found := findChangedFlag(l.CobraCommand, sets.List(l.flagsIncompatibleWithoutConfigFile)); found {
 			return errors.Errorf("cannot use --%s unless a config file is specified via --config-file/-f", flagName)
 		}
 		return l.validateWithoutConfigFile()
@@ -138,7 +138,7 @@ func (l *commonClusterConfigLoader) Load() error {
 		return ErrMustBeSet("metadata")
 	}
 
-	if flagName, found := findChangedFlag(l.CobraCommand, l.flagsIncompatibleWithConfigFile.List()); found {
+	if flagName, found := findChangedFlag(l.CobraCommand, sets.List(l.flagsIncompatibleWithConfigFile)); found {
 		return ErrCannotUseWithConfigFile(fmt.Sprintf("--%s", flagName))
 	}
 
