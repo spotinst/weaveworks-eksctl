@@ -304,11 +304,17 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 	timeoutCtx, cancel := context.WithTimeout(ctx, m.ctl.AWSProvider.WaitTimeout())
 	defer cancel()
 
-	if (!m.accessEntry.IsEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap)) || api.IsEnabled(options.UpdateAuthConfigMap) {
+	// authorize self-managed nodes to join the cluster via aws-auth configmap
+	// if EKS access entries are disabled OR
+	if (!m.accessEntry.IsEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap)) ||
+		// if explicitly requested by the user
+		api.IsEnabled(options.UpdateAuthConfigMap) {
 		if err := eks.UpdateAuthConfigMap(m.cfg.NodeGroups, clientSet); err != nil {
 			return err
 		}
 	}
+
+	// only wait for self-managed nodes to join if either authorization method is being used
 	if !api.IsDisabled(options.UpdateAuthConfigMap) {
 		for _, ng := range m.cfg.NodeGroups {
 			if err := eks.WaitForNodes(timeoutCtx, clientSet, ng); err != nil {
@@ -317,6 +323,7 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 		}
 	}
 	logger.Success("created %d nodegroup(s) in cluster %q", len(m.cfg.NodeGroups), m.cfg.Metadata.Name)
+
 	for _, ng := range m.cfg.ManagedNodeGroups {
 		if err := eks.WaitForNodes(timeoutCtx, clientSet, ng); err != nil {
 			if m.cfg.PrivateCluster.Enabled {
@@ -327,8 +334,8 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 			}
 		}
 	}
-
 	logger.Success("created %d managed nodegroup(s) in cluster %q", len(m.cfg.ManagedNodeGroups), m.cfg.Metadata.Name)
+
 	return nil
 }
 
