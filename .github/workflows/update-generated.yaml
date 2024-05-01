@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        resource: ["coredns", "aws-node"]    
+        resource: ["coredns", "aws-node"]
     name: Update ${{ matrix.resource }} and open PR
     runs-on: ubuntu-latest
     container: public.ecr.aws/eksctl/eksctl-build:833f4464e865a6398788bf6cbc5447967b8974b7
