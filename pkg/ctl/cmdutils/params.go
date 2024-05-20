@@ -33,6 +33,7 @@ type NodeGroupOptions struct {
 	UpdateAuthConfigMap     *bool
 	SkipOutdatedAddonsCheck bool
 	SubnetIDs               []string
+	SpotOcean               bool
 }
 
 // CreateManagedNGOptions holds options for creating a managed nodegroup

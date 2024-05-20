@@ -16,7 +16,6 @@ import (
 
 	"github.com/weaveworks/eksctl/pkg/actions/accessentry"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/awsapi"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/cfn/waiter"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"

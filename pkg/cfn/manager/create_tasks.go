@@ -70,7 +70,7 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		return nil
 	}
 
-	appendErr: error
+	var appendErr error
 
 	if len(postClusterCreationTasks) > 0 {
 		postClusterCreationTaskTree := &tasks.TaskTree{

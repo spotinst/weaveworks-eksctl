@@ -3,6 +3,7 @@ package nodegroup
 import (
 	"context"
 	"fmt"
+	"github.com/aws/amazon-ec2-instance-selector/v2/pkg/selector"
 	"io"
 	"strings"
 
@@ -254,32 +255,6 @@ func (m *Manager) nodeCreationTasks(ctx context.Context, isOwnedCluster, skipEgr
 		vpcImporter = vpc.NewSpecConfigImporter(*m.ctl.Status.ClusterInfo.Cluster.ResourcesVpcConfig.ClusterSecurityGroupId, cfg.VPC)
 	}
 
-	/*	TODO idan - think what can you do here against the new code below, there are a lot of changes they made
-		nodeGroupTasks, err := m.stackManager.NewNodeGroupTask(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
-		if err != nil {
-			return fmt.Errorf("failed to create nodegroup tasks: %v", err)
-		}
-
-		// Spot Ocean.
-		{
-			for _, ng := range cfg.NodeGroups {
-				if ng.Name != api.SpotOceanClusterNodeGroupName {
-					continue
-				}
-				logger.Debug("ocean: normalizing cluster nodegroup")
-
-				instanceSelector, err := selector.New(ctx, m.ctl.AWSProvider.AWSConfig())
-				if err != nil {
-					return fmt.Errorf("ocean: failed to create instance selector: %v", err)
-				}
-
-				svc := eks.NewNodeGroupService(m.ctl.AWSProvider, instanceSelector, nil)
-				if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
-					return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
-				}
-			}
-		}*/
-
 	allNodeGroupTasks := &tasks.TaskTree{
 		Parallel: true,
 	}
@@ -291,6 +266,26 @@ func (m *Manager) nodeCreationTasks(ctx context.Context, isOwnedCluster, skipEgr
 	managedTasks := m.stackManager.NewManagedNodeGroupTask(ctx, cfg.ManagedNodeGroups, !awsNodeUsesIRSA, vpcImporter)
 	if managedTasks.Len() > 0 {
 		allNodeGroupTasks.Append(managedTasks)
+	}
+
+	// Spot Ocean.
+	{
+		for _, ng := range cfg.NodeGroups {
+			if ng.Name != api.SpotOceanClusterNodeGroupName {
+				continue
+			}
+			logger.Debug("ocean: normalizing cluster nodegroup")
+
+			instanceSelector, err := selector.New(ctx, m.ctl.AWSProvider.AWSConfig())
+			if err != nil {
+				return fmt.Errorf("ocean: failed to create instance selector: %v", err)
+			}
+
+			svc := eks.NewNodeGroupService(m.ctl.AWSProvider, instanceSelector, nil)
+			if err := svc.Normalize(ctx, []api.NodePool{ng}, cfg); err != nil {
+				return fmt.Errorf("ocean: failed to normalize cluster nodegroup: %v", err)
+			}
+		}
 	}
 
 	taskTree.Append(allNodeGroupTasks)
@@ -320,7 +315,7 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 	if (!m.accessEntry.IsEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap)) ||
 		// if explicitly requested by the user
 		api.IsEnabled(options.UpdateAuthConfigMap) {
-		if err := eks.UpdateAuthConfigMap(m.cfg.NodeGroups, clientSet); err != nil {
+		if err := eks.UpdateAuthConfigMap(timeoutCtx, m.cfg.NodeGroups, clientSet); err != nil {
 			return err
 		}
 	}

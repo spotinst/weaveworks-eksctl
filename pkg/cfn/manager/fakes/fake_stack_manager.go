@@ -5065,8 +5065,6 @@ func (fake *FakeStackManager) Invocations() map[string][][]interface{} {
 	defer fake.newManagedNodeGroupTaskMutex.RUnlock()
 	fake.newNodeGroupTaskMutex.RLock()
 	defer fake.newNodeGroupTaskMutex.RUnlock()
-	fake.newTaskToDeleteAddonIAMMutex.RLock()
-	defer fake.newTaskToDeleteAddonIAMMutex.RUnlock()
 	fake.newTaskToDeleteUnownedNodeGroupMutex.RLock()
 	defer fake.newTaskToDeleteUnownedNodeGroupMutex.RUnlock()
 	fake.newTasksToCreateClusterMutex.RLock()

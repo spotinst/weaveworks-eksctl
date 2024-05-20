@@ -3,6 +3,7 @@ package create
 import (
 	"context"
 	"fmt"
+	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"io"
 	"os/exec"
 	"sync"
@@ -365,9 +366,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	//TODO idan - add changes here after merge: taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, cfg.AccessConfig, makeAccessEntryCreator(cfg.Metadata.Name, stackManager), postClusterCreationTasks)
-	taskTree, err := stackManager.NewTasksToCreateClusterWithNodeGroups(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
-
+	taskTree, err := stackManager.NewTasksToCreateCluster(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, cfg.AccessConfig, makeAccessEntryCreator(cfg.Metadata.Name, stackManager), postClusterCreationTasks)
 	if err != nil {
 		return fmt.Errorf("ocean: failed to create cluster nodegroup: %v", err)
 	}
@@ -460,7 +459,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				// authorize self-managed nodes to join the cluster via aws-auth configmap
 				// only if EKS access entries are disabled
 				if cfg.AccessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap {
-					if err := eks.UpdateAuthConfigMap(cfg.NodeGroups, clientSet); err != nil {
+					if err := eks.UpdateAuthConfigMap(ngCtx, cfg.NodeGroups, clientSet); err != nil {
 						return err
 					}
 				}
