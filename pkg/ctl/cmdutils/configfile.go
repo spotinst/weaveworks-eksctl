@@ -826,7 +826,7 @@ func NewUtilsSpotOceanUpdateCluster(cmd *Cmd) ClusterConfigLoader {
 	return l
 }
 
-// NewCreateIAMServiceAccountLoader will laod config or use flags for 'eksctl create iamserviceaccount'
+// NewCreateIAMServiceAccountLoader will load config or use flags for 'eksctl create iamserviceaccount'
 func NewCreateIAMServiceAccountLoader(cmd *Cmd, saFilter *filter.IAMServiceAccountFilter) ClusterConfigLoader {
 	l := newCommonClusterConfigLoader(cmd)
 

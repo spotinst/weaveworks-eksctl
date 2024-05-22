@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/weaveworks/eksctl/pkg/spot"
 	"github.com/pkg/errors"
+	"github.com/weaveworks/eksctl/pkg/spot"
 
 	"github.com/kris-nova/logger"
 
@@ -85,6 +85,41 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 	}
 
 	return &taskTree, appendErr
+}
+
+// NewSpotOceanNodeGroupTask defines tasks required to create Ocean Cluster.
+func (c *StackCollection) NewSpotOceanNodeGroupTask(ctx context.Context, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	// Check whether the Ocean Cluster should be created.
+	stacks, err := c.ListNodeGroupStacks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ng := spot.ShouldCreateOceanCluster(c.spec, stacks)
+	if ng == nil { // already exists OR --without-nodegroup
+		return taskTree, nil
+	}
+
+	//TODO idan - seems to be problematic since now the unmanagedNodeGroupTask creates all node groups together + still getting "api error ValidationError: Template error: instance of Fn::GetAtt references undefined resource NodeInstanceRole"
+	// Allow post-create actions on this nodegroup.
+	c.spec.NodeGroups = append(c.spec.NodeGroups, ng)
+
+	task := &OceanManagedNodeGroupTask{
+		ClusterConfig: c.spec,
+		NodeGroup:     ng,
+		CreateNodeGroupResourceSet: func(options builder.NodeGroupOptions) NodeGroupResourceSet {
+			return builder.NewNodeGroupResourceSet(c.ec2API, c.iamAPI, options)
+		},
+		NewBootstrapper: func(clusterConfig *api.ClusterConfig, ng *api.NodeGroup) (nodebootstrap.Bootstrapper, error) {
+			return nodebootstrap.NewBootstrapper(clusterConfig, ng)
+		},
+		EKSAPI:       c.eksAPI,
+		StackManager: c,
+	}
+	return task.Create(ctx, CreateNodeGroupOptions{
+		VPCImporter: vpcImporter,
+	}), nil
 }
 
 // NewUnmanagedNodeGroupTask returns tasks for creating self-managed nodegroups.
@@ -185,33 +220,4 @@ func (c *StackCollection) NewTasksToCreateIAMServiceAccounts(serviceAccounts []*
 		taskTree.Append(saTasks)
 	}
 	return taskTree
-}
-
-// NewSpotOceanNodeGroupTask defines tasks required to create Ocean Cluster.
-func (c *StackCollection) NewSpotOceanNodeGroupTask(ctx context.Context, vpcImporter vpc.Importer) (*tasks.TaskTree, error) {
-	taskTree := &tasks.TaskTree{Parallel: true}
-
-	// Check whether the Ocean Cluster should be created.
-	stacks, err := c.ListNodeGroupStacks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ng := spot.ShouldCreateOceanCluster(c.spec, stacks)
-	if ng == nil { // already exists OR --without-nodegroup
-		return taskTree, nil
-	}
-
-	// Allow post-create actions on this nodegroup.
-	c.spec.NodeGroups = append(c.spec.NodeGroups, ng)
-
-	// Add a new task.
-	taskTree.Append(&nodeGroupTask{
-		info:            "create ocean cluster",
-		nodeGroup:       ng,
-		stackCollection: c,
-		vpcImporter:     vpcImporter,
-		ctx:             ctx,
-	})
-
-	return taskTree, nil
 }

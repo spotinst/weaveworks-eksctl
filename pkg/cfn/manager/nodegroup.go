@@ -80,6 +80,16 @@ type UnmanagedNodeGroupTask struct {
 	StackManager               NodeGroupStackManager
 }
 
+// OceanManagedNodeGroupTask creates tasks for creating spot-ocean-managed nodegroups.
+type OceanManagedNodeGroupTask struct {
+	ClusterConfig              *api.ClusterConfig
+	NodeGroup                  *api.NodeGroup
+	CreateNodeGroupResourceSet CreateNodeGroupResourceSetFunc
+	NewBootstrapper            NewBootstrapperFunc
+	EKSAPI                     awsapi.EKS
+	StackManager               NodeGroupStackManager
+}
+
 // Create creates a TaskTree for creating nodegroups.
 func (t *UnmanagedNodeGroupTask) Create(ctx context.Context, options CreateNodeGroupOptions) *tasks.TaskTree {
 	taskTree := &tasks.TaskTree{Parallel: true}
@@ -181,6 +191,107 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 }
 
 func (t *UnmanagedNodeGroupTask) maybeCreateAccessEntry(ctx context.Context, ng *api.NodeGroup) error {
+	roleARN := ng.IAM.InstanceRoleARN
+	_, err := t.EKSAPI.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
+		ClusterName:  aws.String(t.ClusterConfig.Metadata.Name),
+		PrincipalArn: aws.String(roleARN),
+		Type:         aws.String(string(api.GetAccessEntryType(ng))),
+		Tags: map[string]string{
+			api.ClusterNameLabel: t.ClusterConfig.Metadata.Name,
+		},
+	})
+	if err != nil {
+		var resourceInUse *ekstypes.ResourceInUseException
+		if errors.As(err, &resourceInUse) {
+			logger.Info("nodegroup %s: access entry for principal ARN %q already exists", ng.Name, roleARN)
+			return nil
+		}
+		return fmt.Errorf("creating access entry for nodegroup %s: %w", ng.Name, err)
+	}
+	logger.Info("nodegroup %s: created access entry for principal ARN %q", ng.Name, roleARN)
+	return nil
+}
+
+// Create creates a TaskTree for creating nodegroups.
+func (t *OceanManagedNodeGroupTask) Create(ctx context.Context, options CreateNodeGroupOptions) *tasks.TaskTree {
+	taskTree := &tasks.TaskTree{Parallel: true}
+
+	ng := t.NodeGroup
+	createAccessEntryInStack := ng.IAM.InstanceRoleARN == ""
+	createNodeGroupTask := &tasks.GenericTask{
+		Description: fmt.Sprintf("create nodegroup %q", ng.NameString()),
+		Doer: func() error {
+			return t.createNodeGroup(ctx, ng, options, createAccessEntryInStack)
+		},
+	}
+
+	if options.DisableAccessEntryCreation || createAccessEntryInStack {
+		taskTree.Append(createNodeGroupTask)
+	} else {
+		var ngTask tasks.TaskTree
+		ngTask.Append(createNodeGroupTask)
+		ngTask.Append(&tasks.GenericTask{
+			Description: fmt.Sprintf("create access entry for nodegroup %q", ng.NameString()),
+			Doer: func() error {
+				return t.maybeCreateAccessEntry(ctx, ng)
+			},
+		})
+		taskTree.Append(&ngTask)
+	}
+
+	return taskTree
+}
+
+func (t *OceanManagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.NodeGroup, options CreateNodeGroupOptions, createAccessEntryInStack bool) error {
+	name := makeNodeGroupStackName(t.ClusterConfig.Metadata.Name, ng.Name)
+
+	logger.Info("building nodegroup stack %q", name)
+	bootstrapper, err := t.NewBootstrapper(t.ClusterConfig, ng)
+	if err != nil {
+		return errors.Wrap(err, "error creating bootstrapper")
+	}
+
+	resourceSet := t.CreateNodeGroupResourceSet(builder.NodeGroupOptions{
+		ClusterConfig:              t.ClusterConfig,
+		NodeGroup:                  ng,
+		Bootstrapper:               bootstrapper,
+		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
+		VPCImporter:                options.VPCImporter,
+		SkipEgressRules:            options.SkipEgressRules,
+		DisableAccessEntry:         options.DisableAccessEntryCreation,
+		DisableAccessEntryResource: !createAccessEntryInStack,
+		SharedTags:                 options.SharedTags,
+	})
+	if err := resourceSet.AddAllResources(ctx); err != nil {
+		return err
+	}
+
+	if ng.Tags == nil {
+		ng.Tags = make(map[string]string)
+	}
+	ng.Tags[api.NodeGroupNameTag] = ng.Name
+	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
+	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
+
+	// Spot Ocean.
+	{
+		if ng.SpotOcean != nil {
+			if ng.Name == api.SpotOceanClusterNodeGroupName {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
+			} else {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
+			}
+		}
+	}
+
+	errCh := make(chan error)
+	if err := t.StackManager.CreateStack(ctx, name, resourceSet, ng.Tags, nil, errCh); err != nil {
+		return err
+	}
+	return <-errCh
+}
+
+func (t *OceanManagedNodeGroupTask) maybeCreateAccessEntry(ctx context.Context, ng *api.NodeGroup) error {
 	roleARN := ng.IAM.InstanceRoleARN
 	_, err := t.EKSAPI.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
 		ClusterName:  aws.String(t.ClusterConfig.Metadata.Name),

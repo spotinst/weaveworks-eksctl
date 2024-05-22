@@ -159,7 +159,7 @@ func (f *NodeGroupFilter) loadLocalAndRemoteNodegroups(ctx context.Context, eksA
 		}
 	}
 
-	// Log remote-only nodegroups AND add them to the cluster config
+	// Log remote-only nodegroups  AND add them to the cluster config
 	for _, s := range nodeGroupsWithStacks {
 		remoteNodeGroupName := s.NodeGroupName
 		if !f.localNodegroups.Has(remoteNodeGroupName) {

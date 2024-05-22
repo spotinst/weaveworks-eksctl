@@ -47,10 +47,10 @@ type NodeGroupOptions struct {
 	ForceAddCNIPolicy  bool
 	VPCImporter        vpc.Importer
 	SkipEgressRules    bool
+	SharedTags         []types.Tag
 	DisableAccessEntry bool
 	// DisableAccessEntryResource disables creation of an access entry resource but still attaches the UsesAccessEntry tag.
 	DisableAccessEntryResource bool
-	SharedTags                 []types.Tag
 }
 
 // NodeGroupResourceSet stores the resource information of the nodegroup
@@ -360,7 +360,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		}
 	}
 
-	asg, err := n.newNodeGroupResource(launchTemplate, &vpcZoneIdentifier, tags, ng)
+	asg, err := n.newNodeGroupResource(launchTemplate, vpcZoneIdentifier, tags)
 
 	if asg == nil {
 		return fmt.Errorf("failed to build nodegroup resource: %v", err)
@@ -550,12 +550,11 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
 	vpcZoneIdentifier interface{}, tags []map[string]string) (*awsCloudFormationResource, error) {
 
-	//TODO idan - please check what can be done here
-	if n.spec.SpotOcean != nil {
+	if n.options.NodeGroup.SpotOcean != nil {
 		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
 	}
 
-	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, n.spec), nil
+	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, n.options.NodeGroup), nil
 }
 
 func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interface{}, tags []map[string]string, ng *api.NodeGroup) *awsCloudFormationResource {
@@ -683,12 +682,12 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 
 	// Resource.
 	{
-		if n.spec.Name == api.SpotOceanClusterNodeGroupName {
-			logger.Debug("ocean: building nodegroup %q as cluster", n.spec.Name)
+		if n.options.NodeGroup.Name == api.SpotOceanClusterNodeGroupName {
+			logger.Debug("ocean: building nodegroup %q as cluster", n.options.NodeGroup.Name)
 			res, err = n.newNodeGroupSpotOceanClusterResource(
 				launchTemplate, vpcZoneIdentifier, tags)
 		} else {
-			logger.Debug("ocean: building nodegroup %q as virtual node group", n.spec.Name)
+			logger.Debug("ocean: building nodegroup %q as virtual node group", n.options.NodeGroup.Name)
 			n.populateNodeGroupSpotOceanVirtualNodeGroupResourcesWithClusterConfig()
 			res, err = n.newNodeGroupSpotOceanVirtualNodeGroupResource(
 				launchTemplate, vpcZoneIdentifier, tags)
@@ -751,11 +750,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTemplate *gfnec2.LaunchTemplate,
 	vpcZoneIdentifier interface{}, resourceTags []map[string]string) (*spot.ResourceNodeGroup, error) {
 
-	//TODO idan - make sure to get "ng" instead of using the "n" interface
 	template := launchTemplate.LaunchTemplateData
 	cluster := &spot.Cluster{
-		Name:      spotinst.String(n.clusterSpec.Metadata.Name),
-		ClusterID: spotinst.String(n.clusterSpec.Metadata.Name),
+		Name:      spotinst.String(n.options.ClusterConfig.Metadata.Name),
+		ClusterID: spotinst.String(n.options.ClusterConfig.Metadata.Name),
 		Region:    gfnt.MakeRef("AWS::Region"),
 		Compute: &spot.Compute{
 			LaunchSpecification: &spot.VirtualNodeGroup{
@@ -788,8 +786,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		var lbs []*spot.LoadBalancer
 
 		// ELBs.
-		if len(n.spec.ClassicLoadBalancerNames) > 0 {
-			for _, name := range n.spec.ClassicLoadBalancerNames {
+		if len(n.options.NodeGroup.ClassicLoadBalancerNames) > 0 {
+			for _, name := range n.options.NodeGroup.ClassicLoadBalancerNames {
 				lbs = append(lbs, &spot.LoadBalancer{
 					Type: spotinst.String("CLASSIC"),
 					Name: spotinst.String(name),
@@ -798,8 +796,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		}
 
 		// ALBs.
-		if len(n.spec.TargetGroupARNs) > 0 {
-			for _, arn := range n.spec.TargetGroupARNs {
+		if len(n.options.NodeGroup.TargetGroupARNs) > 0 {
+			for _, arn := range n.options.NodeGroup.TargetGroupARNs {
 				lbs = append(lbs, &spot.LoadBalancer{
 					Type: spotinst.String("TARGET_GROUP"),
 					ARN:  spotinst.String(arn),
@@ -817,8 +815,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		tagMap := make(map[string]string)
 
 		// Nodegroup tags.
-		if len(n.spec.Tags) > 0 {
-			for key, value := range n.spec.Tags {
+		if len(n.options.NodeGroup.Tags) > 0 {
+			for key, value := range n.options.NodeGroup.Tags {
 				tagMap[key] = value
 			}
 		}
@@ -831,8 +829,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		}
 
 		// Shared tags (metadata.tags + eksctl's tags).
-		if len(n.sharedTags) > 0 {
-			for _, tag := range n.sharedTags {
+		if len(n.options.SharedTags) > 0 {
+			for _, tag := range n.options.SharedTags {
 				tagMap[spotinst.StringValue(tag.Key)] = spotinst.StringValue(tag.Value)
 			}
 		}
@@ -849,7 +847,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 		}
 	}
 
-	if spotOcean := n.clusterSpec.SpotOcean; spotOcean != nil {
+	if spotOcean := n.options.ClusterConfig.SpotOcean; spotOcean != nil {
 		// Strategy.
 		{
 			if strategy := spotOcean.Strategy; strategy != nil {
@@ -962,14 +960,14 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 	vpcZoneIdentifier interface{}, resourceTags []map[string]string) (*spot.ResourceNodeGroup, error) {
 
 	// Import the Ocean Cluster identifier.
-	oceanClusterStackName := fmt.Sprintf("eksctl-%s-nodegroup-ocean", n.clusterSpec.Metadata.Name)
+	oceanClusterStackName := fmt.Sprintf("eksctl-%s-nodegroup-ocean", n.options.ClusterConfig.Metadata.Name)
 	oceanClusterID := gfnt.MakeFnImportValueString(fmt.Sprintf("%s::%s",
 		oceanClusterStackName,
 		outputs.NodeGroupSpotOceanClusterID))
 
 	template := launchTemplate.LaunchTemplateData
 	spec := &spot.VirtualNodeGroup{
-		Name:      spotinst.String(n.spec.Name),
+		Name:      spotinst.String(n.options.NodeGroup.Name),
 		OceanID:   oceanClusterID,
 		ImageID:   template.ImageId,
 		UserData:  template.UserData,
@@ -978,7 +976,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Strategy.
 	{
-		if strategy := n.spec.SpotOcean.Strategy; strategy != nil {
+		if strategy := n.options.NodeGroup.SpotOcean.Strategy; strategy != nil {
 			spec.Strategy = &spot.Strategy{
 				SpotPercentage: strategy.SpotPercentage,
 			}
@@ -1036,8 +1034,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		tagMap := make(map[string]string)
 
 		// Nodegroup tags.
-		if len(n.spec.Tags) > 0 {
-			for k, v := range n.spec.Tags {
+		if len(n.options.NodeGroup.Tags) > 0 {
+			for k, v := range n.options.NodeGroup.Tags {
 				tagMap[k] = v
 			}
 		}
@@ -1050,8 +1048,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		}
 
 		// Shared tags (metadata.tags + eksctl's tags).
-		if len(n.sharedTags) > 0 {
-			for _, tag := range n.sharedTags {
+		if len(n.options.SharedTags) > 0 {
+			for _, tag := range n.options.SharedTags {
 				tagMap[spotinst.StringValue(tag.Key)] = spotinst.StringValue(tag.Value)
 			}
 		}
@@ -1070,14 +1068,14 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Instance Types.
 	{
-		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
+		if compute := n.options.NodeGroup.SpotOcean.Compute; compute != nil && compute.InstanceTypes != nil {
 			spec.InstanceTypes = compute.InstanceTypes
 		}
 	}
 
 	// Instance Metadata Options.
 	{
-		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.InstanceMetadataOptions != nil {
+		if compute := n.options.NodeGroup.SpotOcean.Compute; compute != nil && compute.InstanceMetadataOptions != nil {
 			spec.InstanceMetadataOptions = &spot.InstanceMetadataOptions{
 				HttpPutResponseHopLimit: compute.InstanceMetadataOptions.HttpPutResponseHopLimit,
 				HttpTokens:              compute.InstanceMetadataOptions.HttpTokens,
@@ -1087,7 +1085,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Images
 	{
-		if compute := n.spec.SpotOcean.Compute; compute != nil && compute.Images != nil &&
+		if compute := n.options.NodeGroup.SpotOcean.Compute; compute != nil && compute.Images != nil &&
 			len(compute.Images) > 0 && template.ImageId != nil {
 			imagesSlice := make([]*spot.Images, len(compute.Images)+1)
 			imagesSlice[0] = &spot.Images{ImageId: spotinst.String(template.ImageId.String())}
@@ -1101,7 +1099,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 	}
 	// Scheduling.
 	{
-		if scheduling := n.spec.SpotOcean.Scheduling; scheduling != nil {
+		if scheduling := n.options.NodeGroup.SpotOcean.Scheduling; scheduling != nil {
 			if hours := scheduling.ShutdownHours; hours != nil {
 				spec.Scheduling = &spot.Scheduling{
 					ShutdownHours: &spot.ShutdownHours{
@@ -1147,10 +1145,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Labels.
 	{
-		if len(n.spec.Labels) > 0 {
-			labels := make([]*spot.Label, 0, len(n.spec.Labels))
+		if len(n.options.NodeGroup.Labels) > 0 {
+			labels := make([]*spot.Label, 0, len(n.options.NodeGroup.Labels))
 
-			for key, value := range n.spec.Labels {
+			for key, value := range n.options.NodeGroup.Labels {
 				labels = append(labels, &spot.Label{
 					Key:   spotinst.String(key),
 					Value: spotinst.String(value),
@@ -1163,10 +1161,10 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Taints.
 	{
-		if len(n.spec.Taints) > 0 {
-			taints := make([]*spot.Taint, len(n.spec.Taints))
+		if len(n.options.NodeGroup.Taints) > 0 {
+			taints := make([]*spot.Taint, len(n.options.NodeGroup.Taints))
 
-			for i, t := range n.spec.Taints {
+			for i, t := range n.options.NodeGroup.Taints {
 				taints[i] = &spot.Taint{
 					Key:    spotinst.String(t.Key),
 					Value:  spotinst.String(t.Value),
@@ -1180,7 +1178,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Auto Scaler.
 	{
-		if autoScaler := n.spec.SpotOcean.AutoScaler; autoScaler != nil {
+		if autoScaler := n.options.NodeGroup.SpotOcean.AutoScaler; autoScaler != nil {
 			if len(autoScaler.Headrooms) > 0 {
 				headrooms := make([]*spot.Headroom, len(autoScaler.Headrooms))
 
@@ -1217,19 +1215,19 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 
 	// Initial nodes.
 	{
-		if len(n.spec.Taints) == 0 {
-			if n.spec.MinSize == nil && n.spec.DesiredCapacity != nil {
-				n.spec.MinSize = n.spec.DesiredCapacity
+		if len(n.options.NodeGroup.Taints) == 0 {
+			if n.options.NodeGroup.MinSize == nil && n.options.NodeGroup.DesiredCapacity != nil {
+				n.options.NodeGroup.MinSize = n.options.NodeGroup.DesiredCapacity
 			}
-			if spotinst.IntValue(n.spec.MinSize) == 0 {
+			if spotinst.IntValue(n.options.NodeGroup.MinSize) == 0 {
 				initialNodes := api.DefaultNodeCount
-				n.spec.MinSize = &initialNodes
+				n.options.NodeGroup.MinSize = &initialNodes
 			}
 		}
 	}
 
 	// Restrict Scale Down.
-	if restrictScaleDown := n.spec.SpotOcean.RestrictScaleDown; restrictScaleDown != nil {
+	if restrictScaleDown := n.options.NodeGroup.SpotOcean.RestrictScaleDown; restrictScaleDown != nil {
 		spec.RestrictScaleDown = restrictScaleDown
 	}
 
@@ -1238,7 +1236,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		Resource: spot.Resource{
 			Parameters: spot.ResourceParameters{
 				OnCreate: map[string]interface{}{
-					"initialNodes": spotinst.IntValue(n.spec.MinSize),
+					"initialNodes": spotinst.IntValue(n.options.NodeGroup.MinSize),
 				},
 				OnDelete: map[string]interface{}{
 					"deleteNodes": true,
@@ -1250,8 +1248,8 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 }
 
 func (n *NodeGroupResourceSet) populateNodeGroupSpotOceanVirtualNodeGroupResourcesWithClusterConfig() {
-	clusterSpec := n.clusterSpec.SpotOcean
-	launchSpec := n.spec.SpotOcean
+	clusterSpec := n.options.ClusterConfig.SpotOcean
+	launchSpec := n.options.NodeGroup.SpotOcean
 
 	if clusterSpec != nil {
 

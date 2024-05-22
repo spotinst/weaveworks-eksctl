@@ -11,10 +11,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	
+
 	// For go:embed
 	_ "embed"
 )
+
+//TODO idan - maybe here we can support installation of the new controller via Helm instead of the previous one with the image? - talk with Tal about this
 
 //go:embed assets/spot-ocean-controller.yaml
 var spotOceanControllerYamlBytes []byte
