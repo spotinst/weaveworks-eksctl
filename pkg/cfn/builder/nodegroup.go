@@ -141,11 +141,11 @@ func (n *NodeGroupResourceSet) AddAllResources(ctx context.Context) error {
 		if err := n.addResourcesForIAM(ctx); err != nil {
 			return err
 		}
+		if !n.options.DisableAccessEntry {
+			n.addAccessEntry()
+		}
 	}
 	n.addResourcesForSecurityGroups()
-	if !n.options.DisableAccessEntry {
-		n.addAccessEntry()
-	}
 
 	return n.addResourcesForNodeGroup(ctx)
 }
