@@ -2364,6 +2364,10 @@
     },
     "PodIdentityAssociation": {
       "properties": {
+        "createServiceAccount": {
+          "type": "boolean",
+          "default": "false"
+        },
         "namespace": {
           "type": "string"
         },
@@ -2403,6 +2407,7 @@
         "namespace",
         "serviceAccountName",
         "roleARN",
+        "createServiceAccount",
         "roleName",
         "permissionsBoundaryARN",
         "permissionPolicyARNs",
