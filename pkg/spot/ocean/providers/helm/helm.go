@@ -58,6 +58,8 @@ func (i *Installer) InstallChart(ctx context.Context, opts providers.InstallChar
 	client.CreateNamespace = opts.CreateNamespace
 	client.Timeout = 10 * time.Minute
 
+	logger.Info("Updating repository %s", opts.RepoName)
+
 	repoFile := i.Settings.RepositoryConfig
 	if _, err := os.Stat(repoFile); os.IsNotExist(err) {
 		f, err := os.Create(repoFile)
@@ -105,7 +107,7 @@ func (i *Installer) InstallChart(ctx context.Context, opts providers.InstallChar
 		return fmt.Errorf("failed to update repository: %w", err)
 	}
 
-	fmt.Printf("Repository %s updated successfully:\n", opts.RepoName)
+	logger.Info("Repository %s updated successfully", opts.RepoName)
 
 	client.ChartPathOptions.RepoURL = opts.RepoURL
 
@@ -124,6 +126,8 @@ func (i *Installer) InstallChart(ctx context.Context, opts providers.InstallChar
 	if err != nil {
 		return fmt.Errorf("failed to install chart: %w", err)
 	}
-	logger.Debug("successfully installed %s helm chart: %s/%s", release.Name, opts.ChartName, release.Version)
+
+	logger.Info("successfully installed %s helm chart: %s/%s", release.Name, opts.ChartName, release.Version)
+
 	return nil
 }

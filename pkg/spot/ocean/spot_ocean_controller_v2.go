@@ -12,10 +12,10 @@ import (
 
 const (
 	// DefaultNamespace default namespace for Spot Ocean Controller
-	DefaultNamespace = "spot_system"
+	DefaultNamespace = "spot-system"
 	spotinstValue    = "spotinst"
 	account          = "account"
-	cluster          = "cluster"
+	cluster          = "clusterIdentifier"
 	token            = "token"
 	repoURL          = "https://charts.spot.io"
 	repoName         = "spot"
@@ -53,7 +53,7 @@ func NewSpotOceanControllerInstaller(opts Options) *Installer {
 // Install adds Spot Ocean Controller to a configured cluster in a separate CloudFormation stack.
 func (o *Installer) Install(ctx context.Context) error {
 	logger.Info("adding Spot Ocean Controller to cluster %s", o.ClusterConfig.Metadata.Name)
-	logger.Debug("cluster endpoint used by Spot Ocean Controller: %s", o.ClusterConfig.Status.Endpoint)
+	logger.Info("cluster endpoint used by Spot Ocean Controller: %s", o.ClusterConfig.Status.Endpoint)
 
 	//TODO idan - test this
 	config := spotinst.DefaultConfig()
@@ -88,7 +88,7 @@ func (o *Installer) Install(ctx context.Context) error {
 		RegistryClient:  registryClient,
 	}
 
-	logger.Debug("the following chartOptions will be applied to the install: %+v", options)
+	logger.Info("the following chartOptions will be applied to the install: %+v", options)
 
 	if err := o.HelmInstaller.InstallChart(ctx, options); err != nil {
 		return fmt.Errorf("failed to install Spot Ocean Controller chart: %w", err)
