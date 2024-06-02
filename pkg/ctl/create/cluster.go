@@ -3,7 +3,6 @@ package create
 import (
 	"context"
 	"fmt"
-	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"io"
 	"os/exec"
 	"sync"

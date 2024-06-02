@@ -125,24 +125,6 @@ func (t *UnmanagedNodeGroupTask) Create(ctx context.Context, options CreateNodeG
 func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.NodeGroup, options CreateNodeGroupOptions, createAccessEntryInStack bool) error {
 	name := makeNodeGroupStackName(t.ClusterConfig.Metadata.Name, ng.Name)
 
-	if ng.Tags == nil {
-		ng.Tags = make(map[string]string)
-	}
-	ng.Tags[api.NodeGroupNameTag] = ng.Name
-	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
-	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
-
-	// Spot Ocean.
-	{
-		if ng.SpotOcean != nil {
-			if ng.Name == api.SpotOceanClusterNodeGroupName {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
-			} else {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
-			}
-		}
-	}
-
 	logger.Info("building nodegroup stack %q", name)
 	bootstrapper, err := t.NewBootstrapper(t.ClusterConfig, ng)
 	if err != nil {
@@ -156,10 +138,8 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
 		VPCImporter:                options.VPCImporter,
 		SkipEgressRules:            options.SkipEgressRules,
-		SharedTags:                 options.SharedTags,
 		DisableAccessEntry:         options.DisableAccessEntryCreation,
 		DisableAccessEntryResource: !createAccessEntryInStack,
-		SharedTags:                 options.SharedTags,
 	})
 	if err := resourceSet.AddAllResources(ctx); err != nil {
 		return err
@@ -171,17 +151,6 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 	ng.Tags[api.NodeGroupNameTag] = ng.Name
 	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
 	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
-
-	// Spot Ocean.
-	{
-		if ng.SpotOcean != nil {
-			if ng.Name == api.SpotOceanClusterNodeGroupName {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
-			} else {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
-			}
-		}
-	}
 
 	errCh := make(chan error)
 	if err := t.StackManager.CreateStack(ctx, name, resourceSet, ng.Tags, nil, errCh); err != nil {
@@ -212,14 +181,14 @@ func (t *UnmanagedNodeGroupTask) maybeCreateAccessEntry(ctx context.Context, ng 
 	return nil
 }
 
-// Create creates a TaskTree for creating nodegroups.
+// Create creates a TaskTree for creating ocean nodegroups.
 func (t *OceanManagedNodeGroupTask) Create(ctx context.Context, options CreateNodeGroupOptions) *tasks.TaskTree {
 	taskTree := &tasks.TaskTree{Parallel: true}
 
 	ng := t.NodeGroup
 	createAccessEntryInStack := ng.IAM.InstanceRoleARN == ""
 	createNodeGroupTask := &tasks.GenericTask{
-		Description: fmt.Sprintf("create nodegroup %q", ng.NameString()),
+		Description: fmt.Sprintf("create ocean nodegroup %q", ng.NameString()),
 		Doer: func() error {
 			return t.createNodeGroup(ctx, ng, options, createAccessEntryInStack)
 		},
@@ -231,7 +200,7 @@ func (t *OceanManagedNodeGroupTask) Create(ctx context.Context, options CreateNo
 		var ngTask tasks.TaskTree
 		ngTask.Append(createNodeGroupTask)
 		ngTask.Append(&tasks.GenericTask{
-			Description: fmt.Sprintf("create access entry for nodegroup %q", ng.NameString()),
+			Description: fmt.Sprintf("create access entry for ocean nodegroup %q", ng.NameString()),
 			Doer: func() error {
 				return t.maybeCreateAccessEntry(ctx, ng)
 			},
@@ -245,7 +214,7 @@ func (t *OceanManagedNodeGroupTask) Create(ctx context.Context, options CreateNo
 func (t *OceanManagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.NodeGroup, options CreateNodeGroupOptions, createAccessEntryInStack bool) error {
 	name := makeNodeGroupStackName(t.ClusterConfig.Metadata.Name, ng.Name)
 
-	logger.Info("building nodegroup stack %q", name)
+	logger.Info("building ocean nodegroup stack %q", name)
 	bootstrapper, err := t.NewBootstrapper(t.ClusterConfig, ng)
 	if err != nil {
 		return errors.Wrap(err, "error creating bootstrapper")
@@ -258,9 +227,9 @@ func (t *OceanManagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api
 		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
 		VPCImporter:                options.VPCImporter,
 		SkipEgressRules:            options.SkipEgressRules,
+		SharedTags:                 options.SharedTags,
 		DisableAccessEntry:         options.DisableAccessEntryCreation,
 		DisableAccessEntryResource: !createAccessEntryInStack,
-		SharedTags:                 options.SharedTags,
 	})
 	if err := resourceSet.AddAllResources(ctx); err != nil {
 		return err
@@ -273,15 +242,10 @@ func (t *OceanManagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api
 	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
 	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
 
-	// Spot Ocean.
-	{
-		if ng.SpotOcean != nil {
-			if ng.Name == api.SpotOceanClusterNodeGroupName {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
-			} else {
-				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
-			}
-		}
+	if ng.Name == api.SpotOceanClusterNodeGroupName {
+		ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
+	} else {
+		ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
 	}
 
 	errCh := make(chan error)
@@ -304,12 +268,12 @@ func (t *OceanManagedNodeGroupTask) maybeCreateAccessEntry(ctx context.Context, 
 	if err != nil {
 		var resourceInUse *ekstypes.ResourceInUseException
 		if errors.As(err, &resourceInUse) {
-			logger.Info("nodegroup %s: access entry for principal ARN %q already exists", ng.Name, roleARN)
+			logger.Info("ocean nodegroup %s: access entry for principal ARN %q already exists", ng.Name, roleARN)
 			return nil
 		}
-		return fmt.Errorf("creating access entry for nodegroup %s: %w", ng.Name, err)
+		return fmt.Errorf("creating access entry for ocean nodegroup %s: %w", ng.Name, err)
 	}
-	logger.Info("nodegroup %s: created access entry for principal ARN %q", ng.Name, roleARN)
+	logger.Info("ocean nodegroup %s: created access entry for principal ARN %q", ng.Name, roleARN)
 	return nil
 }
 

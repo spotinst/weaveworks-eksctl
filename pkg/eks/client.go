@@ -169,7 +169,7 @@ func UpdateAuthConfigMap(ctx context.Context, nodeGroups []*api.NodeGroup, clien
 
 		// wait for nodes to join
 		if ng.SpotOcean == nil {
-			if err := WaitForNodes(context.Background(), clientSet, ng); err != nil {
+			if err := WaitForNodes(ctx, clientSet, ng); err != nil {
 				return err
 			}
 		}
