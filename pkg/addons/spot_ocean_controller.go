@@ -16,7 +16,7 @@ import (
 	_ "embed"
 )
 
-//TODO idan - maybe here we can support installation of the new controller via Helm instead of the previous one with the image? - talk with Tal about this
+//TODO idan - we might not need this file anymore
 
 //go:embed assets/spot-ocean-controller.yaml
 var spotOceanControllerYamlBytes []byte

@@ -3,6 +3,10 @@ package eks
 import (
 	"context"
 	"fmt"
+	"github.com/weaveworks/eksctl/pkg/spot/ocean"
+	"github.com/weaveworks/eksctl/pkg/spot/ocean/providers/helm"
+	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	"strings"
 	"time"
 
@@ -204,15 +208,35 @@ func newSpotOceanControllerTask(
 func (n *spotOceanControllerTask) Describe() string { return n.desc }
 
 func (n *spotOceanControllerTask) Do(errCh chan error) error {
+	//TODO idan - test
 	defer close(errCh)
-	rawClient, err := n.clusterProvider.NewRawClient(n.spec)
+
+	config := kubeconfig.NewForKubectl(n.spec, GetUsername(n.clusterProvider.Status.IAMRoleARN), "", n.clusterProvider.AWSProvider.Profile().Name)
+	kubeConfigBytes, err := runtime.Encode(clientcmdlatest.Codec, config)
+	if err != nil {
+		return errors.Wrap(err, "generating kubeconfig")
+	}
+
+	restClientGetter := kubernetes.NewRESTClientGetter(ocean.DefaultNamespace, string(kubeConfigBytes))
+
+	helmInstaller, err := helm.NewInstaller(helm.Options{
+		Namespace:        ocean.DefaultNamespace,
+		RESTClientGetter: restClientGetter,
+	})
 	if err != nil {
 		return err
 	}
-	addon := addons.NewSpotOceanController(rawClient, n.spec, false)
-	if err := addon.Deploy(); err != nil {
+
+	oceanInstaller := ocean.NewSpotOceanControllerInstaller(ocean.Options{
+		HelmInstaller: helmInstaller,
+		Namespace:     ocean.DefaultNamespace,
+		ClusterConfig: n.spec,
+	})
+
+	if err := oceanInstaller.Install(context.Background()); err != nil {
 		return fmt.Errorf("ocean: error installing controller: %w", err)
 	}
+
 	return nil
 }
 

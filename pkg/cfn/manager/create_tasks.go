@@ -101,7 +101,6 @@ func (c *StackCollection) NewSpotOceanNodeGroupTask(ctx context.Context, vpcImpo
 		return taskTree, nil
 	}
 
-	//TODO idan - seems to be problematic since now the unmanagedNodeGroupTask creates all node groups together + still getting "api error ValidationError: Template error: instance of Fn::GetAtt references undefined resource NodeInstanceRole"
 	// Allow post-create actions on this nodegroup.
 	c.spec.NodeGroups = append(c.spec.NodeGroups, ng)
 
