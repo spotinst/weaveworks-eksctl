@@ -48,10 +48,12 @@ func NewBootstrapper(clusterConfig *api.ClusterConfig, ng *api.NodeGroup) (Boots
 		return NewWindowsBootstrapper(clusterConfig, ng, clusterDNS), nil
 	}
 	switch ng.AMIFamily {
-	case api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu1804:
+	case api.NodeImageFamilyUbuntuPro2204, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu1804:
 		return NewUbuntuBootstrapper(clusterConfig, ng, clusterDNS), nil
 	case api.NodeImageFamilyBottlerocket:
 		return NewBottlerocketBootstrapper(clusterConfig, ng), nil
+	case api.NodeImageFamilyAmazonLinux2023:
+		return NewAL2023Bootstrapper(clusterConfig, ng, clusterDNS), nil
 	case api.NodeImageFamilyAmazonLinux2:
 		return NewAL2Bootstrapper(clusterConfig, ng, clusterDNS), nil
 	default:
@@ -62,21 +64,23 @@ func NewBootstrapper(clusterConfig *api.ClusterConfig, ng *api.NodeGroup) (Boots
 
 // NewManagedBootstrapper creates a new bootstrapper for managed nodegroups based on the AMI family
 func NewManagedBootstrapper(clusterConfig *api.ClusterConfig, ng *api.ManagedNodeGroup) (Bootstrapper, error) {
+	clusterDNS, err := GetClusterDNS(clusterConfig)
+	if err != nil {
+		return nil, err
+	}
 	if api.IsWindowsImage(ng.AMIFamily) {
 		return &ManagedWindows{
 			NodeGroup: ng,
 		}, nil
 	}
 	switch ng.AMIFamily {
+	case api.NodeImageFamilyAmazonLinux2023:
+		return NewManagedAL2023Bootstrapper(clusterConfig, ng, clusterDNS), nil
 	case api.NodeImageFamilyAmazonLinux2:
 		return NewManagedAL2Bootstrapper(ng), nil
 	case api.NodeImageFamilyBottlerocket:
 		return NewManagedBottlerocketBootstrapper(clusterConfig, ng), nil
-	case api.NodeImageFamilyUbuntu1804, api.NodeImageFamilyUbuntu2004:
-		clusterDNS, err := GetClusterDNS(clusterConfig)
-		if err != nil {
-			return nil, err
-		}
+	case api.NodeImageFamilyUbuntu1804, api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntuPro2204:
 		return NewUbuntuBootstrapper(clusterConfig, ng, clusterDNS), nil
 	}
 	return nil, nil

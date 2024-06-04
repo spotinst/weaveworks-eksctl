@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 #v4.1.0
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@8c3f20df09ac63af7b3ae3d7c91f105f857d8497 # v4.0.0
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           aws-region: us-east-1
           role-duration-seconds: 7200
@@ -26,13 +26,13 @@ jobs:
 
       - name: Login to Amazon ECR Public
         id: login-ecr-public
-        uses: aws-actions/amazon-ecr-login@2fc7aceee09e9e4a7105c0d060c656fad0b4f63d # v1
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v1
         with:
           registry-type: public
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 #5.0.0
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 #5.5.1
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: eksctl
@@ -41,7 +41,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}
 
       - name: Build and push container image to ECR
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 #5.0.0
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 #5.3.0
         with:
           context: .
           push: true

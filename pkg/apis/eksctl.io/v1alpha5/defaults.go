@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	"github.com/weaveworks/eksctl/pkg/utils"
 )
@@ -51,6 +52,14 @@ func SetClusterConfigDefaults(cfg *ClusterConfig) {
 
 	if cfg.HasClusterCloudWatchLogging() && cfg.ContainsWildcardCloudWatchLogging() {
 		cfg.CloudWatch.ClusterLogging.EnableTypes = SupportedCloudWatchClusterLogTypes()
+	}
+
+	if cfg.AccessConfig == nil {
+		cfg.AccessConfig = &AccessConfig{
+			AuthenticationMode: getDefaultAuthenticationMode(cfg.IsControlPlaneOnOutposts()),
+		}
+	} else if cfg.AccessConfig.AuthenticationMode == "" {
+		cfg.AccessConfig.AuthenticationMode = getDefaultAuthenticationMode(cfg.IsControlPlaneOnOutposts())
 	}
 
 	if cfg.PrivateCluster == nil {
@@ -123,9 +132,13 @@ func SetManagedNodeGroupDefaults(ng *ManagedNodeGroup, meta *ClusterMeta, contro
 	setNodeGroupBaseDefaults(ng.NodeGroupBase, meta)
 
 	// When using custom AMIs, we want the user to explicitly specify AMI family.
-	// Thus, we only setup default AMI family when no custom AMI is being used.
+	// Thus, we only set up default AMI family when no custom AMI is being used.
 	if ng.AMIFamily == "" && ng.AMI == "" {
-		ng.AMIFamily = NodeImageFamilyAmazonLinux2
+		if isMinVer, _ := utils.IsMinVersion(Version1_30, meta.Version); isMinVer {
+			ng.AMIFamily = NodeImageFamilyAmazonLinux2023
+		} else {
+			ng.AMIFamily = NodeImageFamilyAmazonLinux2
+		}
 	}
 
 	if ng.Tags == nil {
@@ -235,22 +248,35 @@ func getDefaultVolumeType(nodeGroupOnOutposts bool) string {
 	return DefaultNodeVolumeType
 }
 
+func getDefaultAuthenticationMode(nodeGroupOnOutposts bool) ekstypes.AuthenticationMode {
+	if nodeGroupOnOutposts {
+		return ekstypes.AuthenticationModeConfigMap
+	}
+	return ekstypes.AuthenticationModeApiAndConfigMap
+}
+
 func setContainerRuntimeDefault(ng *NodeGroup, clusterVersion string) {
 	if ng.ContainerRuntime != nil {
 		return
 	}
 
-	// since clusterVersion is standardised beforehand, we can safely ignore the error
-	isDockershimDeprecated, _ := utils.IsMinVersion(DockershimDeprecationVersion, clusterVersion)
-
-	if isDockershimDeprecated {
+	if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 {
 		ng.ContainerRuntime = aws.String(ContainerRuntimeContainerD)
-	} else {
-		ng.ContainerRuntime = aws.String(ContainerRuntimeDockerD)
-		if IsWindowsImage(ng.AMIFamily) {
-			ng.ContainerRuntime = aws.String(ContainerRuntimeDockerForWindows)
-		}
+		return
 	}
+
+	// since clusterVersion is standardised beforehand, we can safely ignore the error
+	if isDockershimDeprecated, _ := utils.IsMinVersion(DockershimDeprecationVersion, clusterVersion); isDockershimDeprecated {
+		ng.ContainerRuntime = aws.String(ContainerRuntimeContainerD)
+		return
+	}
+
+	if IsWindowsImage(ng.AMIFamily) {
+		ng.ContainerRuntime = aws.String(ContainerRuntimeDockerForWindows)
+		return
+	}
+
+	ng.ContainerRuntime = aws.String(ContainerRuntimeDockerD)
 }
 
 func setIAMDefaults(iamConfig *NodeGroupIAM) {

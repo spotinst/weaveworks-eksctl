@@ -5,11 +5,18 @@ package awsapi
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	. "github.com/aws/aws-sdk-go-v2/service/iam"
 )
 
 // IAM provides an interface to the AWS IAM service.
 type IAM interface {
+	// Options returns a copy of the client configuration.
+	//
+	// Callers SHOULD NOT perform mutations on any inner structures within client
+	// config. Config overrides should instead be made on a per-operation basis through
+	// functional options.
+	Options() iam.Options
 	// Adds a new client ID (also known as audience) to the list of client IDs already
 	// registered for the specified IAM OpenID Connect (OIDC) provider resource. This
 	// operation is idempotent; it does not fail or return an error if you add an
@@ -133,12 +140,13 @@ type IAM interface {
 	// Amazon Web Services. Amazon Web Services secures communication with some OIDC
 	// identity providers (IdPs) through our library of trusted root certificate
 	// authorities (CAs) instead of using a certificate thumbprint to verify your IdP
-	// server certificate. These OIDC IdPs include Auth0, GitHub, Google, and those
-	// that use an Amazon S3 bucket to host a JSON Web Key Set (JWKS) endpoint. In
-	// these cases, your legacy thumbprint remains in your configuration, but is no
-	// longer used for validation. The trust for the OIDC provider is derived from the
-	// IAM provider that this operation creates. Therefore, it is best to limit access
-	// to the CreateOpenIDConnectProvider operation to highly privileged users.
+	// server certificate. In these cases, your legacy thumbprint remains in your
+	// configuration, but is no longer used for validation. These OIDC IdPs include
+	// Auth0, GitHub, GitLab, Google, and those that use an Amazon S3 bucket to host a
+	// JSON Web Key Set (JWKS) endpoint. The trust for the OIDC provider is derived
+	// from the IAM provider that this operation creates. Therefore, it is best to
+	// limit access to the CreateOpenIDConnectProvider operation to highly privileged
+	// users.
 	CreateOpenIDConnectProvider(ctx context.Context, params *CreateOpenIDConnectProviderInput, optFns ...func(*Options)) (*CreateOpenIDConnectProviderOutput, error)
 	// Creates a new managed policy for your Amazon Web Services account. This
 	// operation creates a policy version with a version identifier of v1 and sets v1
@@ -538,6 +546,9 @@ type IAM interface {
 	// reports activity for at least the last 400 days, or less if your Region began
 	// supporting this feature within the last year. For more information, see Regions
 	// where data is tracked (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#access-advisor_tracking-period)
+	// . For more information about services and actions for which action last accessed
+	// information is displayed, see IAM action last accessed information services and
+	// actions (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor-action-last-accessed.html)
 	// . The service last accessed data includes all attempts to access an Amazon Web
 	// Services API, not just the successful ones. This includes all attempts that were
 	// made using the Amazon Web Services Management Console, the Amazon Web Services
@@ -839,10 +850,10 @@ type IAM interface {
 	// used to sign the request. If a temporary access key is used, then UserName is
 	// required. If a long-term key is assigned to the user, then UserName is not
 	// required. This operation works for access keys under the Amazon Web Services
-	// account. Consequently, you can use this operation to manage Amazon Web Services
-	// account root user credentials even if the Amazon Web Services account has no
-	// associated users. To ensure the security of your Amazon Web Services account,
-	// the secret access key is accessible only during key and user creation.
+	// account. If the Amazon Web Services account has no associated users, the root
+	// user returns it's own access key IDs by running this command. To ensure the
+	// security of your Amazon Web Services account, the secret access key is
+	// accessible only during key and user creation.
 	ListAccessKeys(ctx context.Context, params *ListAccessKeysInput, optFns ...func(*Options)) (*ListAccessKeysOutput, error)
 	// Lists the account alias associated with the Amazon Web Services account (Note:
 	// you can have only one). For information about using an Amazon Web Services
@@ -1184,12 +1195,13 @@ type IAM interface {
 	// resource object. This operation is idempotent; it does not fail or return an
 	// error if you try to remove a client ID that does not exist.
 	RemoveClientIDFromOpenIDConnectProvider(ctx context.Context, params *RemoveClientIDFromOpenIDConnectProviderInput, optFns ...func(*Options)) (*RemoveClientIDFromOpenIDConnectProviderOutput, error)
-	// Removes the specified IAM role from the specified EC2 instance profile. Make
-	// sure that you do not have any Amazon EC2 instances running with the role you are
-	// about to remove from the instance profile. Removing a role from an instance
-	// profile that is associated with a running instance might break any applications
-	// running on the instance. For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide. For more information about instance profiles, see Using
+	// Removes the specified IAM role from the specified Amazon EC2 instance profile.
+	// Make sure that you do not have any Amazon EC2 instances running with the role
+	// you are about to remove from the instance profile. Removing a role from an
+	// instance profile that is associated with a running instance might break any
+	// applications running on the instance. For more information about roles, see IAM
+	// roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) in the
+	// IAM User Guide. For more information about instance profiles, see Using
 	// instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
 	// in the IAM User Guide.
 	RemoveRoleFromInstanceProfile(ctx context.Context, params *RemoveRoleFromInstanceProfileInput, optFns ...func(*Options)) (*RemoveRoleFromInstanceProfileOutput, error)
@@ -1603,13 +1615,13 @@ type IAM interface {
 	// the certificate thumbprint is updated. Amazon Web Services secures communication
 	// with some OIDC identity providers (IdPs) through our library of trusted root
 	// certificate authorities (CAs) instead of using a certificate thumbprint to
-	// verify your IdP server certificate. These OIDC IdPs include Auth0, GitHub,
-	// Google, and those that use an Amazon S3 bucket to host a JSON Web Key Set (JWKS)
-	// endpoint. In these cases, your legacy thumbprint remains in your configuration,
-	// but is no longer used for validation. Trust for the OIDC provider is derived
-	// from the provider certificate and is validated by the thumbprint. Therefore, it
-	// is best to limit access to the UpdateOpenIDConnectProviderThumbprint operation
-	// to highly privileged users.
+	// verify your IdP server certificate. In these cases, your legacy thumbprint
+	// remains in your configuration, but is no longer used for validation. These OIDC
+	// IdPs include Auth0, GitHub, GitLab, Google, and those that use an Amazon S3
+	// bucket to host a JSON Web Key Set (JWKS) endpoint. Trust for the OIDC provider
+	// is derived from the provider certificate and is validated by the thumbprint.
+	// Therefore, it is best to limit access to the
+	// UpdateOpenIDConnectProviderThumbprint operation to highly privileged users.
 	UpdateOpenIDConnectProviderThumbprint(ctx context.Context, params *UpdateOpenIDConnectProviderThumbprintInput, optFns ...func(*Options)) (*UpdateOpenIDConnectProviderThumbprintOutput, error)
 	// Updates the description or maximum session duration setting of a role.
 	UpdateRole(ctx context.Context, params *UpdateRoleInput, optFns ...func(*Options)) (*UpdateRoleOutput, error)

@@ -8,7 +8,9 @@ import (
 	"mime/multipart"
 	"strings"
 
+	nodeadm "github.com/awslabs/amazon-eks-ami/nodeadm/api/v1alpha1"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap/assets"
@@ -60,7 +62,7 @@ func (m *ManagedAL2) UserData() (string, error) {
 		return "", nil
 	}
 
-	if err := createMimeMessage(&buf, scripts, cloudboot, m.UserDataMimeBoundary); err != nil {
+	if err := createMimeMessage(&buf, scripts, cloudboot, nil, m.UserDataMimeBoundary); err != nil {
 		return "", err
 	}
 
@@ -85,7 +87,7 @@ func makeCustomAMIUserData(ng *api.NodeGroupBase, mimeBoundary string) (string, 
 		return "", nil
 	}
 
-	if err := createMimeMessage(&buf, scripts, nil, mimeBoundary); err != nil {
+	if err := createMimeMessage(&buf, scripts, nil, nil, mimeBoundary); err != nil {
 		return "", err
 	}
 
@@ -100,7 +102,7 @@ set -ex
 	return script
 }
 
-func createMimeMessage(writer io.Writer, scripts, cloudboots []string, mimeBoundary string) error {
+func createMimeMessage(writer io.Writer, scripts, cloudboots []string, nodeConfig *nodeadm.NodeConfig, mimeBoundary string) error {
 	mw := multipart.NewWriter(writer)
 	if mimeBoundary != "" {
 		if err := mw.SetBoundary(mimeBoundary); err != nil {
@@ -136,5 +138,22 @@ func createMimeMessage(writer io.Writer, scripts, cloudboots []string, mimeBound
 			return err
 		}
 	}
+
+	if nodeConfig != nil {
+		yamlData, err := yaml.Marshal(nodeConfig)
+		if err != nil {
+			return fmt.Errorf("error marshalling node configuration: %w", err)
+		}
+		part, err := mw.CreatePart(map[string][]string{
+			"Content-Type": {"application/node.eks.aws"},
+		})
+		if err != nil {
+			return err
+		}
+		if _, err = part.Write(yamlData); err != nil {
+			return err
+		}
+	}
+
 	return mw.Close()
 }

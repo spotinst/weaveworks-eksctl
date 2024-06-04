@@ -20,22 +20,23 @@ jobs:
       matrix:
         python-version: [3.9]
     steps:
-      - uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 #v4.1.0
+      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 #v4.7.0
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d #v5.1.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Setup Go
-        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe #v4.1.0
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 #v5.0.0
         with:
-          go-version: 1.20.x
+          go-version: 1.21.x
+          cache: false
       - name: Install doc dependencies
         run: make install-site-deps
       - name: Build docs for link check
         run: make build-pages
         # Using link-checker action to check links in Markdown, HTML files
       - name: Link Checker
-        uses: lycheeverse/lychee-action@ec3ed119d4f44ad2673a7232460dc7dff59d2421 #v1.8.0
+        uses: lycheeverse/lychee-action@c053181aa0c3d17606addfe97a9075a32723548a #v1.9.3
         with:
           fail: true
           args: --exclude-all-private --exclude-mail --exclude-file .github/workflows/exclude-file.txt --verbose --no-progress './**/*.md' './**/*.html'

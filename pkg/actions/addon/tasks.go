@@ -6,7 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
@@ -18,7 +21,7 @@ func CreateAddonTasks(ctx context.Context, cfg *api.ClusterConfig, clusterProvid
 	var preAddons []*api.Addon
 	var postAddons []*api.Addon
 	for _, addon := range cfg.Addons {
-		if strings.ToLower(addon.Name) == "vpc-cni" {
+		if strings.EqualFold(addon.Name, api.VPCCNIAddon) {
 			preAddons = append(preAddons, addon)
 		} else {
 			postAddons = append(postAddons, addon)
@@ -80,11 +83,9 @@ func (t *createAddonTask) Do(errorCh chan error) error {
 
 	stackManager := t.clusterProvider.NewStackManager(t.cfg)
 
-	clientSet, err := t.clusterProvider.NewStdClientSet(t.cfg)
-	if err != nil {
-		return err
-	}
-	addonManager, err := New(t.cfg, t.clusterProvider.AWSProvider.EKS(), stackManager, oidcProviderExists, oidc, clientSet)
+	addonManager, err := New(t.cfg, t.clusterProvider.AWSProvider.EKS(), stackManager, oidcProviderExists, oidc, func() (kubernetes.Interface, error) {
+		return t.clusterProvider.NewStdClientSet(t.cfg)
+	})
 	if err != nil {
 		return err
 	}
@@ -119,8 +120,6 @@ type deleteAddonIAMTask struct {
 func (t *deleteAddonIAMTask) Describe() string { return t.info }
 
 func (t *deleteAddonIAMTask) Do(errorCh chan error) error {
-	defer close(errorCh)
-
 	errMsg := fmt.Sprintf("deleting addon IAM %q", *t.stack.StackName)
 	if t.wait {
 		if err := t.stackManager.DeleteStackBySpecSync(t.ctx, t.stack, errorCh); err != nil {
@@ -128,6 +127,7 @@ func (t *deleteAddonIAMTask) Do(errorCh chan error) error {
 		}
 		return nil
 	}
+	defer close(errorCh)
 	if _, err := t.stackManager.DeleteStackBySpec(t.ctx, t.stack); err != nil {
 		return fmt.Errorf("%s: %w", errMsg, err)
 	}

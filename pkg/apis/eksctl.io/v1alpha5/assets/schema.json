@@ -3,6 +3,9 @@
   "type": "object",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "ARN": {
+      "$ref": "#/definitions/github.com|aws|aws-sdk-go-v2|aws|arn.ARN"
+    },
     "AZSubnetMapping": {
       "additionalProperties": {
         "$ref": "#/definitions/AZSubnetSpec"
@@ -32,6 +35,122 @@
         "cidr"
       ],
       "additionalProperties": false
+    },
+    "AccessConfig": {
+      "properties": {
+        "accessEntries": {
+          "items": {
+            "$ref": "#/definitions/AccessEntry"
+          },
+          "type": "array",
+          "description": "specifies a list of access entries for the cluster.",
+          "x-intellij-html-description": "specifies a list of access entries for the cluster."
+        },
+        "authenticationMode": {
+          "$ref": "#/definitions/github.com|aws|aws-sdk-go-v2|service|eks|types.AuthenticationMode",
+          "description": "specifies the authentication mode for a cluster.",
+          "x-intellij-html-description": "specifies the authentication mode for a cluster."
+        },
+        "bootstrapClusterCreatorAdminPermissions": {
+          "type": "boolean",
+          "description": "specifies whether the cluster creator IAM principal was set as a cluster admin access entry during cluster creation time.",
+          "x-intellij-html-description": "specifies whether the cluster creator IAM principal was set as a cluster admin access entry during cluster creation time."
+        }
+      },
+      "preferredOrder": [
+        "authenticationMode",
+        "bootstrapClusterCreatorAdminPermissions",
+        "accessEntries"
+      ],
+      "additionalProperties": false,
+      "description": "specifies the access config for a cluster.",
+      "x-intellij-html-description": "specifies the access config for a cluster."
+    },
+    "AccessEntry": {
+      "properties": {
+        "accessPolicies": {
+          "items": {
+            "$ref": "#/definitions/AccessPolicy"
+          },
+          "type": "array",
+          "description": "set of policies to associate with an access entry",
+          "x-intellij-html-description": "set of policies to associate with an access entry"
+        },
+        "kubernetesGroups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "set of Kubernetes groups to map to the principal ARN",
+          "x-intellij-html-description": "set of Kubernetes groups to map to the principal ARN"
+        },
+        "kubernetesUsername": {
+          "type": "string",
+          "description": "username to map to the principal ARN",
+          "x-intellij-html-description": "username to map to the principal ARN"
+        },
+        "principalARN": {
+          "$ref": "#/definitions/ARN",
+          "description": "existing IAM principal ARN to associate with an access entry",
+          "x-intellij-html-description": "existing IAM principal ARN to associate with an access entry"
+        },
+        "type": {
+          "type": "string",
+          "description": "`EC2_LINUX`, `EC2_WINDOWS`, `FARGATE_LINUX` or `STANDARD`",
+          "x-intellij-html-description": "<code>EC2_LINUX</code>, <code>EC2_WINDOWS</code>, <code>FARGATE_LINUX</code> or <code>STANDARD</code>"
+        }
+      },
+      "preferredOrder": [
+        "principalARN",
+        "type",
+        "kubernetesGroups",
+        "kubernetesUsername",
+        "accessPolicies"
+      ],
+      "additionalProperties": false,
+      "description": "represents an access entry for managing access to a cluster.",
+      "x-intellij-html-description": "represents an access entry for managing access to a cluster."
+    },
+    "AccessPolicy": {
+      "properties": {
+        "accessScope": {
+          "$ref": "#/definitions/AccessScope"
+        },
+        "policyARN": {
+          "$ref": "#/definitions/ARN"
+        }
+      },
+      "preferredOrder": [
+        "policyARN",
+        "accessScope"
+      ],
+      "additionalProperties": false,
+      "description": "An AccessPolicy represents a policy to associate with an access entry.",
+      "x-intellij-html-description": "An AccessPolicy represents a policy to associate with an access entry."
+    },
+    "AccessScope": {
+      "properties": {
+        "namespaces": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Scope access to namespace(s)",
+          "x-intellij-html-description": "Scope access to namespace(s)"
+        },
+        "type": {
+          "$ref": "#/definitions/github.com|aws|aws-sdk-go-v2|service|eks|types.AccessScopeType",
+          "description": "`namespace` or `cluster`",
+          "x-intellij-html-description": "<code>namespace</code> or <code>cluster</code>"
+        }
+      },
+      "preferredOrder": [
+        "type",
+        "namespaces"
+      ],
+      "additionalProperties": false,
+      "description": "defines the scope of an access policy.",
+      "x-intellij-html-description": "defines the scope of an access policy."
     },
     "Addon": {
       "required": [
@@ -216,6 +335,11 @@
         "apiVersion"
       ],
       "properties": {
+        "accessConfig": {
+          "$ref": "#/definitions/AccessConfig",
+          "description": "specifies the access config for a cluster.",
+          "x-intellij-html-description": "specifies the access config for a cluster."
+        },
         "addons": {
           "items": {
             "$ref": "#/definitions/Addon"
@@ -336,6 +460,7 @@
         "iam",
         "iamIdentityMappings",
         "identityProviders",
+        "accessConfig",
         "vpc",
         "addons",
         "privateCluster",
@@ -391,6 +516,14 @@
           "description": "permissions boundary for the fargate pod execution role`. See [EKS Fargate Support](/usage/fargate-support/)",
           "x-intellij-html-description": "permissions boundary for the fargate pod execution role`. See <a href=\"/usage/fargate-support/\">EKS Fargate Support</a>"
         },
+        "podIdentityAssociations": {
+          "items": {
+            "$ref": "#/definitions/PodIdentityAssociation"
+          },
+          "type": "array",
+          "description": "pod identity associations to create in the cluster. See [Pod Identity Associations](TBD)",
+          "x-intellij-html-description": "pod identity associations to create in the cluster. See <a href=\"TBD\">Pod Identity Associations</a>"
+        },
         "serviceAccounts": {
           "items": {
             "$ref": "#/definitions/ClusterIAMServiceAccount"
@@ -426,6 +559,7 @@
         "fargatePodExecutionRolePermissionsBoundary",
         "withOIDC",
         "serviceAccounts",
+        "podIdentityAssociations",
         "vpcResourceControllerPolicy"
       ],
       "additionalProperties": false,
@@ -537,12 +671,31 @@
     },
     "ClusterIAMServiceAccountStatus": {
       "properties": {
+        "capabilities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "roleARN": {
           "type": "string"
+        },
+        "stackName": {
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "default": "{}"
         }
       },
       "preferredOrder": [
-        "roleARN"
+        "roleARN",
+        "stackName",
+        "tags",
+        "capabilities"
       ],
       "additionalProperties": false,
       "description": "holds status of the IAM service account",
@@ -584,16 +737,18 @@
         },
         "version": {
           "type": "string",
-          "description": "Valid variants are: `\"1.23\"`, `\"1.24\"`, `\"1.25\"`, `\"1.26\"`, `\"1.27\"` (default), `\"1.28\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;1.23&quot;</code>, <code>&quot;1.24&quot;</code>, <code>&quot;1.25&quot;</code>, <code>&quot;1.26&quot;</code>, <code>&quot;1.27&quot;</code> (default), <code>&quot;1.28&quot;</code>.",
-          "default": "1.27",
+          "description": "Valid variants are: `\"1.23\"`, `\"1.24\"`, `\"1.25\"`, `\"1.26\"`, `\"1.27\"`, `\"1.28\"`, `\"1.29\"` (default), `\"1.30\"` represents Kubernetes version 1.30.x..",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;1.23&quot;</code>, <code>&quot;1.24&quot;</code>, <code>&quot;1.25&quot;</code>, <code>&quot;1.26&quot;</code>, <code>&quot;1.27&quot;</code>, <code>&quot;1.28&quot;</code>, <code>&quot;1.29&quot;</code> (default), <code>&quot;1.30&quot;</code> represents Kubernetes version 1.30.x..",
+          "default": "1.29",
           "enum": [
             "1.23",
             "1.24",
             "1.25",
             "1.26",
             "1.27",
-            "1.28"
+            "1.28",
+            "1.29",
+            "1.30"
           ]
         }
       },
@@ -660,6 +815,22 @@
           "$ref": "#/definitions/ClusterEndpoints",
           "description": "See [managing access to API](/usage/vpc-networking/#managing-access-to-the-kubernetes-api-server-endpoints)",
           "x-intellij-html-description": "See <a href=\"/usage/vpc-networking/#managing-access-to-the-kubernetes-api-server-endpoints\">managing access to API</a>"
+        },
+        "controlPlaneSecurityGroupIDs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "configures the security groups for the control plane.",
+          "x-intellij-html-description": "configures the security groups for the control plane."
+        },
+        "controlPlaneSubnetIDs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "configures the subnets for the control plane.",
+          "x-intellij-html-description": "configures the subnets for the control plane."
         },
         "extraCIDRs": {
           "items": {
@@ -739,7 +910,9 @@
         "autoAllocateIPv6",
         "nat",
         "clusterEndpoints",
-        "publicAccessCIDRs"
+        "publicAccessCIDRs",
+        "controlPlaneSubnetIDs",
+        "controlPlaneSecurityGroupIDs"
       ],
       "additionalProperties": false,
       "description": "holds global subnet and all child subnets",
@@ -1107,11 +1280,14 @@
         },
         "amiFamily": {
           "type": "string",
-          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
+          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
           "default": "AmazonLinux2",
           "enum": [
             "AmazonLinux2",
+            "AmazonLinux2023",
+            "UbuntuPro2204",
+            "Ubuntu2204",
             "Ubuntu2004",
             "Ubuntu1804",
             "Bottlerocket",
@@ -1158,8 +1334,8 @@
         },
         "disablePodIMDS": {
           "type": "boolean",
-          "description": "blocks all IMDS requests from non host networking pods",
-          "x-intellij-html-description": "blocks all IMDS requests from non host networking pods",
+          "description": "blocks all IMDS requests from non-host networking pods",
+          "x-intellij-html-description": "blocks all IMDS requests from non-host networking pods",
           "default": false
         },
         "ebsOptimized": {
@@ -1393,8 +1569,8 @@
         "releaseVersion"
       ],
       "additionalProperties": false,
-      "description": "represents an EKS-managed nodegroup TODO Validate for unmapped fields and throw an error",
-      "x-intellij-html-description": "represents an EKS-managed nodegroup TODO Validate for unmapped fields and throw an error"
+      "description": "represents an EKS-managed nodegroup",
+      "x-intellij-html-description": "represents an EKS-managed nodegroup"
     },
     "MetricsCollection": {
       "required": [
@@ -1439,11 +1615,14 @@
         },
         "amiFamily": {
           "type": "string",
-          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
+          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
           "default": "AmazonLinux2",
           "enum": [
             "AmazonLinux2",
+            "AmazonLinux2023",
+            "UbuntuPro2204",
+            "Ubuntu2204",
             "Ubuntu2004",
             "Ubuntu1804",
             "Bottlerocket",
@@ -1519,8 +1698,8 @@
         },
         "disablePodIMDS": {
           "type": "boolean",
-          "description": "blocks all IMDS requests from non host networking pods",
-          "x-intellij-html-description": "blocks all IMDS requests from non host networking pods",
+          "description": "blocks all IMDS requests from non-host networking pods",
+          "x-intellij-html-description": "blocks all IMDS requests from non-host networking pods",
           "default": false
         },
         "ebsOptimized": {
@@ -1778,8 +1957,8 @@
         },
         "settings": {
           "$ref": "#/definitions/InlineDocument",
-          "description": "contains any [bottlerocket settings](https://github.com/bottlerocket-os/bottlerocket/#description-of-settings)",
-          "x-intellij-html-description": "contains any <a href=\"https://github.com/bottlerocket-os/bottlerocket/#description-of-settings\">bottlerocket settings</a>"
+          "description": "contains any [bottlerocket settings](https://bottlerocket.dev/en/os/latest/#/api/settings/)",
+          "x-intellij-html-description": "contains any <a href=\"https://bottlerocket.dev/en/os/latest/#/api/settings/\">bottlerocket settings</a>"
         }
       },
       "preferredOrder": [
@@ -2182,6 +2361,61 @@
       "additionalProperties": false,
       "description": "specifies placement group information",
       "x-intellij-html-description": "specifies placement group information"
+    },
+    "PodIdentityAssociation": {
+      "properties": {
+        "createServiceAccount": {
+          "type": "boolean",
+          "default": "false"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "permissionPolicy": {
+          "$ref": "#/definitions/InlineDocument"
+        },
+        "permissionPolicyARNs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "permissionsBoundaryARN": {
+          "type": "string"
+        },
+        "roleARN": {
+          "type": "string"
+        },
+        "roleName": {
+          "type": "string"
+        },
+        "serviceAccountName": {
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "default": "{}"
+        },
+        "wellKnownPolicies": {
+          "$ref": "#/definitions/WellKnownPolicies"
+        }
+      },
+      "preferredOrder": [
+        "namespace",
+        "serviceAccountName",
+        "roleARN",
+        "createServiceAccount",
+        "roleName",
+        "permissionsBoundaryARN",
+        "permissionPolicyARNs",
+        "permissionPolicy",
+        "wellKnownPolicies",
+        "tags"
+      ],
+      "additionalProperties": false
     },
     "PrivateCluster": {
       "properties": {
@@ -2700,6 +2934,16 @@
       "additionalProperties": false,
       "description": "for attaching common IAM policies",
       "x-intellij-html-description": "for attaching common IAM policies"
+    },
+    "github.com|aws|aws-sdk-go-v2|aws|arn.ARN": {
+      "description": "captures the individual fields of an Amazon Resource Name. See http://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html for more information.",
+      "x-intellij-html-description": "captures the individual fields of an Amazon Resource Name. See http://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html for more information."
+    },
+    "github.com|aws|aws-sdk-go-v2|service|eks|types.AccessScopeType": {
+      "type": "string"
+    },
+    "github.com|aws|aws-sdk-go-v2|service|eks|types.AuthenticationMode": {
+      "type": "string"
     },
     "github.com|aws|aws-sdk-go-v2|service|eks|types.ResolveConflicts": {
       "type": "string"

@@ -180,4 +180,24 @@ var _ = DescribeTable("Managed Nodegroup AMI type", func(e amiTypeEntry) {
 		},
 		expectedAMIType: "CUSTOM",
 	}),
+
+	Entry("non-native Ubuntu", amiTypeEntry{
+		nodeGroup: &api.ManagedNodeGroup{
+			NodeGroupBase: &api.NodeGroupBase{
+				Name:      "test",
+				AMIFamily: api.NodeImageFamilyUbuntu2204,
+			},
+		},
+		expectedAMIType: "CUSTOM",
+	}),
+
+	Entry("non-native Ubuntu", amiTypeEntry{
+		nodeGroup: &api.ManagedNodeGroup{
+			NodeGroupBase: &api.NodeGroupBase{
+				Name:      "test",
+				AMIFamily: api.NodeImageFamilyUbuntuPro2204,
+			},
+		},
+		expectedAMIType: "CUSTOM",
+	}),
 )

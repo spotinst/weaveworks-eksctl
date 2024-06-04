@@ -27,9 +27,9 @@ type ClusterVPCConfig struct {
 }
 
 // GetCurrentClusterConfigForLogging fetches current cluster logging configuration as two sets - enabled and disabled types
-func (c *ClusterProvider) GetCurrentClusterConfigForLogging(ctx context.Context, spec *api.ClusterConfig) (sets.String, sets.String, error) {
-	enabled := sets.NewString()
-	disabled := sets.NewString()
+func (c *ClusterProvider) GetCurrentClusterConfigForLogging(ctx context.Context, spec *api.ClusterConfig) (sets.Set[string], sets.Set[string], error) {
+	enabled := sets.New[string]()
+	disabled := sets.New[string]()
 
 	if ok, err := c.CanOperateWithRefresh(ctx, spec); !ok {
 		return nil, nil, errors.Wrap(err, "unable to retrieve current cluster logging configuration")
@@ -51,18 +51,18 @@ func (c *ClusterProvider) GetCurrentClusterConfigForLogging(ctx context.Context,
 
 // UpdateClusterConfigForLogging calls UpdateClusterConfig to enable logging
 func (c *ClusterProvider) UpdateClusterConfigForLogging(ctx context.Context, cfg *api.ClusterConfig) error {
-	all := sets.NewString(api.SupportedCloudWatchClusterLogTypes()...)
+	all := sets.New[string](api.SupportedCloudWatchClusterLogTypes()...)
 
-	enabled := sets.NewString()
+	enabled := sets.New[string]()
 	if cfg.HasClusterCloudWatchLogging() {
 		enabled.Insert(cfg.CloudWatch.ClusterLogging.EnableTypes...)
 	}
 
 	disabled := all.Difference(enabled)
 
-	toLogTypes := func(logTypes sets.String) []ekstypes.LogType {
+	toLogTypes := func(logTypes sets.Set[string]) []ekstypes.LogType {
 		ret := make([]ekstypes.LogType, len(logTypes))
-		for i, logType := range logTypes.List() {
+		for i, logType := range sets.List(logTypes) {
 			ret[i] = ekstypes.LogType(logType)
 		}
 		return ret
@@ -83,23 +83,18 @@ func (c *ClusterProvider) UpdateClusterConfigForLogging(ctx context.Context, cfg
 			},
 		},
 	}
-
-	output, err := c.AWSProvider.EKS().UpdateClusterConfig(ctx, input)
-	if err != nil {
-		return err
-	}
-	if err := c.waitForUpdateToSucceed(ctx, cfg.Metadata.Name, output.Update); err != nil {
+	if err := c.UpdateClusterConfig(ctx, input); err != nil {
 		return err
 	}
 
 	describeEnabledTypes := "no types enabled"
-	if len(enabled.List()) > 0 {
-		describeEnabledTypes = fmt.Sprintf("enabled types: %s", strings.Join(enabled.List(), ", "))
+	if len(sets.List(enabled)) > 0 {
+		describeEnabledTypes = fmt.Sprintf("enabled types: %s", strings.Join(sets.List(enabled), ", "))
 	}
 
 	describeDisabledTypes := "no types disabled"
-	if len(disabled.List()) > 0 {
-		describeDisabledTypes = fmt.Sprintf("disabled types: %s", strings.Join(disabled.List(), ", "))
+	if len(sets.List(disabled)) > 0 {
+		describeDisabledTypes = fmt.Sprintf("disabled types: %s", strings.Join(sets.List(disabled), ", "))
 	}
 
 	logger.Success("configured CloudWatch logging for cluster %q in %q (%s & %s)",
@@ -147,12 +142,7 @@ func (c *ClusterProvider) UpdateClusterConfigForEndpoints(ctx context.Context, c
 		},
 	}
 
-	output, err := c.AWSProvider.EKS().UpdateClusterConfig(ctx, input)
-	if err != nil {
-		return err
-	}
-
-	return c.waitForUpdateToSucceed(ctx, cfg.Metadata.Name, output.Update)
+	return c.UpdateClusterConfig(ctx, input)
 }
 
 // UpdatePublicAccessCIDRs calls eks.UpdateClusterConfig and updates the CIDRs for public access
@@ -163,11 +153,16 @@ func (c *ClusterProvider) UpdatePublicAccessCIDRs(ctx context.Context, clusterCo
 			PublicAccessCidrs: clusterConfig.VPC.PublicAccessCIDRs,
 		},
 	}
+	return c.UpdateClusterConfig(ctx, input)
+}
+
+// UpdateClusterConfig calls EKS.UpdateClusterConfig and waits for the update to complete.
+func (c *ClusterProvider) UpdateClusterConfig(ctx context.Context, input *eks.UpdateClusterConfigInput) error {
 	output, err := c.AWSProvider.EKS().UpdateClusterConfig(ctx, input)
 	if err != nil {
 		return err
 	}
-	return c.waitForUpdateToSucceed(ctx, clusterConfig.Metadata.Name, output.Update)
+	return c.waitForUpdateToSucceed(ctx, *input.Name, output.Update)
 }
 
 // EnableKMSEncryption enables KMS encryption for the specified cluster

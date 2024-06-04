@@ -6,6 +6,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
 
@@ -22,10 +25,29 @@ var _ = Describe("Outposts validation", func() {
 		clusterConfig.Outpost = &api.Outpost{
 			ControlPlaneOutpostARN: "arn:aws:outposts:us-west-2:1234:outpost/op-1234",
 		}
+		api.SetClusterConfigDefaults(clusterConfig)
 		oe.updateDefaultConfig(clusterConfig)
 		err := api.ValidateClusterConfig(clusterConfig)
 		Expect(err).To(MatchError(ContainSubstring(oe.expectedErr)))
 	},
+		Entry("Authentication Mode - API", outpostsEntry{
+			updateDefaultConfig: func(c *api.ClusterConfig) {
+				c.AccessConfig.AuthenticationMode = ekstypes.AuthenticationModeApi
+			},
+			expectedErr: fmt.Sprintf("accessConfig.AuthenticationMode must be set to %s on Outposts", ekstypes.AuthenticationModeConfigMap),
+		}),
+		Entry("Authentication mode - API_AND_CONFIG_MAP", outpostsEntry{
+			updateDefaultConfig: func(c *api.ClusterConfig) {
+				c.AccessConfig.AuthenticationMode = ekstypes.AuthenticationModeApiAndConfigMap
+			},
+			expectedErr: fmt.Sprintf("accessConfig.AuthenticationMode must be set to %s on Outposts", ekstypes.AuthenticationModeConfigMap),
+		}),
+		Entry("BootstrapClusterCreatorAdminPermissions - false", outpostsEntry{
+			updateDefaultConfig: func(c *api.ClusterConfig) {
+				c.AccessConfig.BootstrapClusterCreatorAdminPermissions = aws.Bool(false)
+			},
+			expectedErr: "accessConfig.BootstrapClusterCreatorAdminPermissions can't be set to false on Outposts",
+		}),
 		Entry("Addons", outpostsEntry{
 			updateDefaultConfig: func(c *api.ClusterConfig) {
 				c.Addons = []*api.Addon{
@@ -186,6 +208,8 @@ var _ = Describe("Outposts validation", func() {
 		Entry("Bottlerocket", api.NodeImageFamilyBottlerocket, true),
 		Entry("Ubuntu1804", api.NodeImageFamilyUbuntu1804, true),
 		Entry("Ubuntu2004", api.NodeImageFamilyUbuntu2004, true),
+		Entry("Ubuntu2204", api.NodeImageFamilyUbuntu2204, true),
+		Entry("UbuntuPro2204", api.NodeImageFamilyUbuntuPro2204, true),
 		Entry("Windows2019Core", api.NodeImageFamilyWindowsServer2019CoreContainer, true),
 		Entry("Windows2019Full", api.NodeImageFamilyWindowsServer2019FullContainer, true),
 		Entry("Windows2022Core", api.NodeImageFamilyWindowsServer2022CoreContainer, true),

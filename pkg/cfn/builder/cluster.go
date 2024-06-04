@@ -27,7 +27,7 @@ type ClusterResourceSet struct {
 	ec2API         awsapi.EC2
 	region         string
 	vpcResourceSet VPCResourceSet
-	securityGroups []*gfnt.Value
+	securityGroups *gfnt.Value
 }
 
 // NewClusterResourceSet returns a resource set for the new cluster.
@@ -115,7 +115,13 @@ func (c *ClusterResourceSet) AddAllResources(ctx context.Context) error {
 func (c *ClusterResourceSet) addResourcesForSecurityGroups(vpcID *gfnt.Value) *clusterSecurityGroup {
 	var refControlPlaneSG, refClusterSharedNodeSG *gfnt.Value
 
-	if c.spec.VPC.SecurityGroup == "" {
+	if sg := c.spec.VPC.SecurityGroup; sg != "" {
+		refControlPlaneSG = gfnt.NewString(sg)
+		c.securityGroups = gfnt.NewStringSlice(sg)
+	} else if securityGroupIDs := c.spec.VPC.ControlPlaneSecurityGroupIDs; len(securityGroupIDs) > 0 {
+		refControlPlaneSG = gfnt.NewString(securityGroupIDs[0])
+		c.securityGroups = gfnt.NewStringSlice(securityGroupIDs...)
+	} else {
 		refControlPlaneSG = c.newResource(cfnControlPlaneSGResource, &gfnec2.SecurityGroup{
 			GroupDescription: gfnt.NewString("Communication between the control plane and worker nodegroups"),
 			VpcId:            vpcID,
@@ -146,10 +152,8 @@ func (c *ClusterResourceSet) addResourcesForSecurityGroups(vpcID *gfnt.Value) *c
 				})
 			}
 		}
-	} else {
-		refControlPlaneSG = gfnt.NewString(c.spec.VPC.SecurityGroup)
+		c.securityGroups = gfnt.NewSlice(refControlPlaneSG)
 	}
-	c.securityGroups = []*gfnt.Value{refControlPlaneSG} // only this one SG is passed to EKS API, nodes are isolated
 
 	if c.spec.VPC.SharedNodeSecurityGroup == "" {
 		refClusterSharedNodeSG = c.newResource(cfnSharedNodeSGResource, &gfnec2.SecurityGroup{
@@ -263,11 +267,15 @@ func (c *ClusterResourceSet) newResource(name string, resource gfn.Resource) *gf
 
 func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDetails) {
 	clusterVPC := &gfneks.Cluster_ResourcesVpcConfig{
-		SubnetIds:             gfnt.NewSlice(subnetDetails.ControlPlaneSubnetRefs()...),
 		EndpointPublicAccess:  gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PublicAccess),
 		EndpointPrivateAccess: gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PrivateAccess),
-		SecurityGroupIds:      gfnt.NewSlice(c.securityGroups...),
+		SecurityGroupIds:      c.securityGroups,
 		PublicAccessCidrs:     gfnt.NewStringSlice(c.spec.VPC.PublicAccessCIDRs...),
+	}
+	if subnetIDs := c.spec.VPC.ControlPlaneSubnetIDs; len(subnetIDs) > 0 {
+		clusterVPC.SubnetIds = gfnt.NewStringSlice(subnetIDs...)
+	} else {
+		clusterVPC.SubnetIds = gfnt.NewSlice(subnetDetails.ControlPlaneSubnetRefs()...)
 	}
 
 	serviceRoleARN := gfnt.MakeFnGetAttString("ServiceRole", "Arn")
@@ -293,8 +301,12 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 		Name:               gfnt.NewString(c.spec.Metadata.Name),
 		ResourcesVpcConfig: clusterVPC,
 		RoleArn:            serviceRoleARN,
-		Tags:               makeCFNTags(c.spec),
-		Version:            gfnt.NewString(c.spec.Metadata.Version),
+		AccessConfig: &gfneks.Cluster_AccessConfig{
+			AuthenticationMode:                      gfnt.NewString(string(c.spec.AccessConfig.AuthenticationMode)),
+			BootstrapClusterCreatorAdminPermissions: gfnt.NewBoolean(!api.IsDisabled(c.spec.AccessConfig.BootstrapClusterCreatorAdminPermissions)),
+		},
+		Tags:    makeCFNTags(c.spec),
+		Version: gfnt.NewString(c.spec.Metadata.Version),
 	}
 
 	if c.spec.IsControlPlaneOnOutposts() {

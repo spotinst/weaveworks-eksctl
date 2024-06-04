@@ -5,11 +5,18 @@ package awsapi
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	. "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 )
 
 // CloudFormation provides an interface to the AWS CloudFormation service.
 type CloudFormation interface {
+	// Options returns a copy of the client configuration.
+	//
+	// Callers SHOULD NOT perform mutations on any inner structures within client
+	// config. Config overrides should instead be made on a per-operation basis through
+	// functional options.
+	Options() cloudformation.Options
 	// Activate trusted access with Organizations. With trusted access between
 	// StackSets and Organizations activated, the management account has permissions to
 	// create and manage StackSets for your organization.
@@ -19,12 +26,12 @@ type CloudFormation interface {
 	// in the CloudFormation User Guide. Once you have activated a public third-party
 	// extension in your account and Region, use SetTypeConfiguration (https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_SetTypeConfiguration.html)
 	// to specify configuration properties for the extension. For more information, see
-	// Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-register.html#registry-set-configuration)
+	// Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration)
 	// in the CloudFormation User Guide.
 	ActivateType(ctx context.Context, params *ActivateTypeInput, optFns ...func(*Options)) (*ActivateTypeOutput, error)
 	// Returns configuration data for the specified CloudFormation extensions, from
 	// the CloudFormation registry for the account and Region. For more information,
-	// see Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-register.html#registry-set-configuration)
+	// see Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration)
 	// in the CloudFormation User Guide.
 	BatchDescribeTypeConfigurations(ctx context.Context, params *BatchDescribeTypeConfigurationsInput, optFns ...func(*Options)) (*BatchDescribeTypeConfigurationsOutput, error)
 	// Cancels an update on the specified stack. If the call completes successfully,
@@ -63,6 +70,10 @@ type CloudFormation interface {
 	// CloudFormation doesn't make changes until you execute the change set. To create
 	// a change set for the entire stack hierarchy, set IncludeNestedStacks to True .
 	CreateChangeSet(ctx context.Context, params *CreateChangeSetInput, optFns ...func(*Options)) (*CreateChangeSetOutput, error)
+	// Creates a template from existing resources that are not already managed with
+	// CloudFormation. You can check the status of the template generation using the
+	// DescribeGeneratedTemplate API action.
+	CreateGeneratedTemplate(ctx context.Context, params *CreateGeneratedTemplateInput, optFns ...func(*Options)) (*CreateGeneratedTemplateOutput, error)
 	// Creates a stack as specified in the template. After the call completes
 	// successfully, the stack creation starts. You can check the status of the stack
 	// through the DescribeStacks operation.
@@ -93,6 +104,8 @@ type CloudFormation interface {
 	// and will also delete all change sets for nested stacks with the status of
 	// REVIEW_IN_PROGRESS .
 	DeleteChangeSet(ctx context.Context, params *DeleteChangeSetInput, optFns ...func(*Options)) (*DeleteChangeSetOutput, error)
+	// Deleted a generated template.
+	DeleteGeneratedTemplate(ctx context.Context, params *DeleteGeneratedTemplateInput, optFns ...func(*Options)) (*DeleteGeneratedTemplateOutput, error)
 	// Deletes a specified stack. Once the call completes successfully, stack deletion
 	// starts. Deleted stacks don't show up in the DescribeStacks operation if the
 	// deletion has been completed successfully.
@@ -130,6 +143,11 @@ type CloudFormation interface {
 	// Returns hook-related information for the change set and a list of changes that
 	// CloudFormation makes when you run the change set.
 	DescribeChangeSetHooks(ctx context.Context, params *DescribeChangeSetHooksInput, optFns ...func(*Options)) (*DescribeChangeSetHooksOutput, error)
+	// Describes a generated template. The output includes details about the progress
+	// of the creation of a generated template started by a CreateGeneratedTemplate
+	// API action or the update of a generated template started with an
+	// UpdateGeneratedTemplate API action.
+	DescribeGeneratedTemplate(ctx context.Context, params *DescribeGeneratedTemplateInput, optFns ...func(*Options)) (*DescribeGeneratedTemplateOutput, error)
 	// Retrieves information about the account's OrganizationAccess status. This API
 	// can be called either by the management account or the delegated administrator by
 	// using the CallAs parameter. This API can also be called without the CallAs
@@ -143,6 +161,8 @@ type CloudFormation interface {
 	//   - Publishing extensions to make them available for public use (https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html)
 	//     in the CloudFormation CLI User Guide
 	DescribePublisher(ctx context.Context, params *DescribePublisherInput, optFns ...func(*Options)) (*DescribePublisherOutput, error)
+	// Describes details of a resource scan.
+	DescribeResourceScan(ctx context.Context, params *DescribeResourceScanInput, optFns ...func(*Options)) (*DescribeResourceScanOutput, error)
 	// Returns information about a stack drift detection operation. A stack drift
 	// detection operation detects whether a stack's actual configuration differs, or
 	// has drifted, from its expected configuration, as defined in the stack template
@@ -157,7 +177,8 @@ type CloudFormation interface {
 	// return drift information about the stack and its resources.
 	DescribeStackDriftDetectionStatus(ctx context.Context, params *DescribeStackDriftDetectionStatusInput, optFns ...func(*Options)) (*DescribeStackDriftDetectionStatusOutput, error)
 	// Returns all stack related events for a specified stack in reverse chronological
-	// order. For more information about a stack's event history, go to Stacks (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/concept-stack.html)
+	// order. For more information about a stack's event history, see CloudFormation
+	// stack creation events (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html)
 	// in the CloudFormation User Guide. You can list events for stacks that have
 	// failed to create or have been deleted by specifying the unique stack identifier
 	// (stack ID).
@@ -200,8 +221,11 @@ type CloudFormation interface {
 	// Returns the description of the specified StackSet operation.
 	DescribeStackSetOperation(ctx context.Context, params *DescribeStackSetOperationInput, optFns ...func(*Options)) (*DescribeStackSetOperationOutput, error)
 	// Returns the description for the specified stack; if no stack name was
-	// specified, then it returns the description for all the stacks created. If the
-	// stack doesn't exist, an ValidationError is returned.
+	// specified, then it returns the description for all the stacks created. For more
+	// information about a stack's event history, see CloudFormation stack creation
+	// events (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html)
+	// in the CloudFormation User Guide. If the stack doesn't exist, a ValidationError
+	// is returned.
 	DescribeStacks(ctx context.Context, params *DescribeStacksInput, optFns ...func(*Options)) (*DescribeStacksOutput, error)
 	// Returns detailed information about an extension that has been registered. If
 	// you specify a VersionId , DescribeType returns information about that specific
@@ -290,6 +314,11 @@ type CloudFormation interface {
 	// temporary stack policy that overrides the current policy. To create a change set
 	// for the entire stack hierarchy, IncludeNestedStacks must have been set to True .
 	ExecuteChangeSet(ctx context.Context, params *ExecuteChangeSetInput, optFns ...func(*Options)) (*ExecuteChangeSetOutput, error)
+	// Retrieves a generated template. If the template is in an InProgress or Pending
+	// status then the template returned will be the template when the template was
+	// last in a Complete status. If the template has not yet been in a Complete
+	// status then an empty template will be returned.
+	GetGeneratedTemplate(ctx context.Context, params *GetGeneratedTemplateInput, optFns ...func(*Options)) (*GetGeneratedTemplateOutput, error)
 	// Returns the stack policy for a specified stack. If a stack doesn't have a
 	// policy, a null value is returned.
 	GetStackPolicy(ctx context.Context, params *GetStackPolicyInput, optFns ...func(*Options)) (*GetStackPolicyOutput, error)
@@ -322,6 +351,8 @@ type CloudFormation interface {
 	// function. For more information, see CloudFormation export stack output values (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html)
 	// .
 	ListExports(ctx context.Context, params *ListExportsInput, optFns ...func(*Options)) (*ListExportsOutput, error)
+	// Lists your generated templates in this Region.
+	ListGeneratedTemplates(ctx context.Context, params *ListGeneratedTemplatesInput, optFns ...func(*Options)) (*ListGeneratedTemplatesOutput, error)
 	// Lists all stacks that are importing an exported output value. To modify or
 	// remove an exported output value, first use this action to see which stacks are
 	// using it. To see the exported output values in your account, see ListExports .
@@ -329,6 +360,18 @@ type CloudFormation interface {
 	// Fn::ImportValue (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-importvalue.html)
 	// function.
 	ListImports(ctx context.Context, params *ListImportsInput, optFns ...func(*Options)) (*ListImportsOutput, error)
+	// Lists the related resources for a list of resources from a resource scan. The
+	// response indicates whether each returned resource is already managed by
+	// CloudFormation.
+	ListResourceScanRelatedResources(ctx context.Context, params *ListResourceScanRelatedResourcesInput, optFns ...func(*Options)) (*ListResourceScanRelatedResourcesOutput, error)
+	// Lists the resources from a resource scan. The results can be filtered by
+	// resource identifier, resource type prefix, tag key, and tag value. Only
+	// resources that match all specified filters are returned. The response indicates
+	// whether each returned resource is already managed by CloudFormation.
+	ListResourceScanResources(ctx context.Context, params *ListResourceScanResourcesInput, optFns ...func(*Options)) (*ListResourceScanResourcesOutput, error)
+	// List the resource scans from newest to oldest. By default it will return up to
+	// 10 resource scans.
+	ListResourceScans(ctx context.Context, params *ListResourceScansInput, optFns ...func(*Options)) (*ListResourceScansOutput, error)
 	// Returns drift information for resources in a stack instance.
 	// ListStackInstanceResourceDrifts returns drift information for the most recent
 	// drift detection operation. If an operation is in progress, it may only return
@@ -343,6 +386,8 @@ type CloudFormation interface {
 	// stacks, ListStackResources returns resource information for up to 90 days after
 	// the stack has been deleted.
 	ListStackResources(ctx context.Context, params *ListStackResourcesInput, optFns ...func(*Options)) (*ListStackResourcesOutput, error)
+	// Returns summary information about deployment targets for a stack set.
+	ListStackSetAutoDeploymentTargets(ctx context.Context, params *ListStackSetAutoDeploymentTargetsInput, optFns ...func(*Options)) (*ListStackSetAutoDeploymentTargetsOutput, error)
 	// Returns summary information about the results of a stack set operation.
 	ListStackSetOperationResults(ctx context.Context, params *ListStackSetOperationResultsInput, optFns ...func(*Options)) (*ListStackSetOperationResultsOutput, error)
 	// Returns summary information about operations performed on a stack set.
@@ -409,7 +454,7 @@ type CloudFormation interface {
 	// to monitor the progress of the registration request. Once you have registered a
 	// private extension in your account and Region, use SetTypeConfiguration (https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_SetTypeConfiguration.html)
 	// to specify configuration properties for the extension. For more information, see
-	// Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-register.html#registry-set-configuration)
+	// Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration)
 	// in the CloudFormation User Guide.
 	RegisterType(ctx context.Context, params *RegisterTypeInput, optFns ...func(*Options)) (*RegisterTypeOutput, error)
 	// When specifying RollbackStack , you preserve the state of previously provisioned
@@ -430,7 +475,7 @@ type CloudFormation interface {
 	// Specifies the configuration data for a registered CloudFormation extension, in
 	// the given account and Region. To view the current configuration data for an
 	// extension, refer to the ConfigurationSchema element of DescribeType (https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_DescribeType.html)
-	// . For more information, see Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-register.html#registry-set-configuration)
+	// . For more information, see Configuring extensions at the account level (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration)
 	// in the CloudFormation User Guide. It's strongly recommended that you use dynamic
 	// references to restrict sensitive configuration definitions, such as third-party
 	// credentials. For more details on dynamic references, see Using dynamic
@@ -447,6 +492,9 @@ type CloudFormation interface {
 	// exceeded. The SignalResource operation is useful in cases where you want to
 	// send signals from anywhere other than an Amazon EC2 instance.
 	SignalResource(ctx context.Context, params *SignalResourceInput, optFns ...func(*Options)) (*SignalResourceOutput, error)
+	// Starts a scan of the resources in this account in this Region. You can the
+	// status of a scan using the ListResourceScans API action.
+	StartResourceScan(ctx context.Context, params *StartResourceScanInput, optFns ...func(*Options)) (*StartResourceScanOutput, error)
 	// Stops an in-progress operation on a stack set and its associated stack
 	// instances. StackSets will cancel all the unstarted stack instance deployments
 	// and wait for those are in-progress to complete.
@@ -472,6 +520,11 @@ type CloudFormation interface {
 	// available for public use (https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-publish.html)
 	// in the CloudFormation CLI User Guide.
 	TestType(ctx context.Context, params *TestTypeInput, optFns ...func(*Options)) (*TestTypeOutput, error)
+	// Updates a generated template. This can be used to change the name, add and
+	// remove resources, refresh resources, and change the DeletionPolicy and
+	// UpdateReplacePolicy settings. You can check the status of the update to the
+	// generated template using the DescribeGeneratedTemplate API action.
+	UpdateGeneratedTemplate(ctx context.Context, params *UpdateGeneratedTemplateInput, optFns ...func(*Options)) (*UpdateGeneratedTemplateOutput, error)
 	// Updates a stack as specified in the template. After the call completes
 	// successfully, the stack update starts. You can check the status of the stack
 	// through the DescribeStacks action. To get a copy of the template for an

@@ -40,7 +40,7 @@ func AddCommonCreateNodeGroupFlags(fs *pflag.FlagSet, cmd *Cmd, ng *api.NodeGrou
 	ng.SSH.EnableSSM = fs.Bool("enable-ssm", false, "Enable AWS Systems Manager (SSM)")
 
 	fs.StringVar(&ng.AMI, "node-ami", "", "'auto-ssm', 'auto' or an AMI ID (advanced use)")
-	fs.StringVar(&ng.AMIFamily, "node-ami-family", api.DefaultNodeImageFamily, "'AmazonLinux2' for the Amazon EKS optimized AMI, or use 'Ubuntu2004' or 'Ubuntu1804' for the official Canonical EKS AMIs")
+	fs.StringVar(&ng.AMIFamily, "node-ami-family", api.DefaultNodeImageFamily, fmt.Sprintf("supported AMI families: %s", strings.Join(api.SupportedAMIFamilies(), ", ")))
 
 	fs.BoolVarP(&ng.PrivateNetworking, "node-private-networking", "P", false, "whether to make nodegroup networking private")
 
@@ -59,7 +59,7 @@ func AddCommonCreateNodeGroupFlags(fs *pflag.FlagSet, cmd *Cmd, ng *api.NodeGrou
 	fs.StringSliceVar(&mngOptions.InstanceTypes, "instance-types", nil, "Comma-separated list of instance types (e.g., --instance-types=c3.large,c4.large,c5.large")
 }
 
-// AddCommonCreateNodeGroupIAMAddonsFlags adds flags to set ng.IAM.WithAddonPolicies
+// AddCommonCreateNodeGroupAddonsFlags adds flags to set ng.IAM.WithAddonPolicies
 func AddCommonCreateNodeGroupAddonsFlags(fs *pflag.FlagSet, ng *api.NodeGroup, options *CreateNGOptions) {
 	addCommonCreateNodeGroupIAMAddonsFlags(fs, ng)
 	fs.BoolVarP(&options.InstallNeuronDevicePlugin, "install-neuron-plugin", "", true, "install Neuron plugin for Inferentia and Trainium nodes")

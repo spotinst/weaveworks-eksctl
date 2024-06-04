@@ -3,6 +3,10 @@ package eks
 import (
 	"context"
 	"fmt"
+	"github.com/weaveworks/eksctl/pkg/spot/ocean"
+	"github.com/weaveworks/eksctl/pkg/spot/ocean/providers/helm"
+	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	"strings"
 	"time"
 
@@ -205,14 +209,33 @@ func (n *spotOceanControllerTask) Describe() string { return n.desc }
 
 func (n *spotOceanControllerTask) Do(errCh chan error) error {
 	defer close(errCh)
-	rawClient, err := n.clusterProvider.NewRawClient(n.spec)
+
+	config := kubeconfig.NewForKubectl(n.spec, GetUsername(n.clusterProvider.Status.IAMRoleARN), "", n.clusterProvider.AWSProvider.Profile().Name)
+	kubeConfigBytes, err := runtime.Encode(clientcmdlatest.Codec, config)
+	if err != nil {
+		return errors.Wrap(err, "generating kubeconfig")
+	}
+
+	restClientGetter := kubernetes.NewRESTClientGetter(ocean.DefaultNamespace, string(kubeConfigBytes))
+
+	helmInstaller, err := helm.NewInstaller(helm.Options{
+		Namespace:        ocean.DefaultNamespace,
+		RESTClientGetter: restClientGetter,
+	})
 	if err != nil {
 		return err
 	}
-	addon := addons.NewSpotOceanController(rawClient, n.spec, false)
-	if err := addon.Deploy(); err != nil {
+
+	oceanInstaller := ocean.NewSpotOceanControllerInstaller(ocean.Options{
+		HelmInstaller: helmInstaller,
+		Namespace:     ocean.DefaultNamespace,
+		ClusterConfig: n.spec,
+	})
+
+	if err := oceanInstaller.Install(context.Background()); err != nil {
 		return fmt.Errorf("ocean: error installing controller: %w", err)
 	}
+
 	return nil
 }
 
@@ -371,9 +394,9 @@ func LogEnabledFeatures(clusterConfig *api.ClusterConfig) {
 		return
 	}
 
-	all := sets.NewString(api.SupportedCloudWatchClusterLogTypes()...)
+	all := sets.New[string](api.SupportedCloudWatchClusterLogTypes()...)
 
-	enabled := sets.NewString()
+	enabled := sets.New[string]()
 	if clusterConfig.HasClusterCloudWatchLogging() {
 		enabled.Insert(clusterConfig.CloudWatch.ClusterLogging.EnableTypes...)
 	}
@@ -382,12 +405,12 @@ func LogEnabledFeatures(clusterConfig *api.ClusterConfig) {
 
 	describeEnabledTypes := "no types enabled"
 	if enabled.Len() > 0 {
-		describeEnabledTypes = fmt.Sprintf("enabled types: %s", strings.Join(enabled.List(), ", "))
+		describeEnabledTypes = fmt.Sprintf("enabled types: %s", strings.Join(sets.List(enabled), ", "))
 	}
 
 	describeDisabledTypes := "no types disabled"
 	if disabled.Len() > 0 {
-		describeDisabledTypes = fmt.Sprintf("disabled types: %s", strings.Join(disabled.List(), ", "))
+		describeDisabledTypes = fmt.Sprintf("disabled types: %s", strings.Join(sets.List(disabled), ", "))
 	}
 
 	logger.Info("configuring CloudWatch logging for cluster %q in %q (%s & %s)",

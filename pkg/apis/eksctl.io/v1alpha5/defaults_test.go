@@ -4,6 +4,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 )
 
 var _ = Describe("ClusterConfig validation", func() {
@@ -192,35 +194,6 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(*testNodeGroup.AdditionalVolumes[0].VolumeType).To(Equal(NodeVolumeTypeGP2))
 			Expect(*testNodeGroup.AdditionalVolumes[0].VolumeSize).To(Equal(DefaultNodeVolumeSize))
 		})
-
-		It("sets up defaults for the main volume in an ISO region", func() {
-			testNodeGroup := NodeGroup{
-				NodeGroupBase: &NodeGroupBase{},
-			}
-
-			SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{
-				Region: RegionUSISOEast1,
-			}, false)
-			Expect(*testNodeGroup.VolumeType).To(Equal(NodeVolumeTypeIO1))
-			Expect(*testNodeGroup.VolumeSize).To(Equal(DefaultNodeVolumeSize))
-		})
-		It("sets up defaults for any additional volume in an ISO region", func() {
-			testNodeGroup := NodeGroup{
-				NodeGroupBase: &NodeGroupBase{
-					AdditionalVolumes: []*VolumeMapping{
-						{
-							VolumeName: aws.String("test"),
-						},
-					},
-				},
-			}
-
-			SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{
-				Region: RegionUSISOBEast1,
-			}, false)
-			Expect(*testNodeGroup.AdditionalVolumes[0].VolumeType).To(Equal(NodeVolumeTypeIO1))
-			Expect(*testNodeGroup.AdditionalVolumes[0].VolumeSize).To(Equal(DefaultNodeVolumeSize))
-		})
 	})
 
 	Context("Bottlerocket Settings", func() {
@@ -311,6 +284,17 @@ var _ = Describe("ClusterConfig validation", func() {
 					Expect(*testNodeGroup.ContainerRuntime).To(Equal(ContainerRuntimeDockerForWindows))
 				})
 			})
+			When("ami family is AmazonLinux2023", func() {
+				It("defaults to containerd as a container runtime", func() {
+					testNodeGroup := NodeGroup{
+						NodeGroupBase: &NodeGroupBase{
+							AMIFamily: NodeImageFamilyAmazonLinux2023,
+						},
+					}
+					SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{Version: Version1_23}, false)
+					Expect(*testNodeGroup.ContainerRuntime).To(Equal(ContainerRuntimeContainerD))
+				})
+			})
 		})
 
 		Context("Kubernetes version 1.24 or greater", func() {
@@ -356,6 +340,29 @@ var _ = Describe("ClusterConfig validation", func() {
 
 	})
 
+	Context("Authentication Mode", func() {
+		var (
+			cfg *ClusterConfig
+		)
+
+		BeforeEach(func() {
+			cfg = NewClusterConfig()
+		})
+
+		It("should be set to API_AND_CONFIG_MAP by default", func() {
+			SetClusterConfigDefaults(cfg)
+			Expect(cfg.AccessConfig.AuthenticationMode).To(Equal(ekstypes.AuthenticationModeApiAndConfigMap))
+		})
+
+		It("should be set to CONFIG_MAP when control plane is on outposts", func() {
+			cfg.Outpost = &Outpost{
+				ControlPlaneOutpostARN: "arn:aws:outposts:us-west-2:1234:outpost/op-1234",
+			}
+			SetClusterConfigDefaults(cfg)
+			Expect(cfg.AccessConfig.AuthenticationMode).To(Equal(ekstypes.AuthenticationModeConfigMap))
+		})
+	})
+
 	Describe("ClusterConfig", func() {
 		var cfg *ClusterConfig
 
@@ -377,5 +384,17 @@ var _ = Describe("ClusterConfig validation", func() {
 				Expect(profile.Selectors[1].Labels).To(HaveLen(0))
 			})
 		})
+
+		DescribeTable("default AMI family", func(kubernetesVersion, expectedAMIFamily string) {
+			mng := NewManagedNodeGroup()
+			SetManagedNodeGroupDefaults(mng, &ClusterMeta{
+				Version: kubernetesVersion,
+			}, false)
+			Expect(mng.AMIFamily).To(Equal(expectedAMIFamily))
+		},
+			Entry("EKS 1.30 uses AL2023", "1.30", NodeImageFamilyAmazonLinux2023),
+			Entry("EKS 1.29 uses AL2", "1.29", NodeImageFamilyAmazonLinux2),
+			Entry("EKS 1.28 uses AL2", "1.28", NodeImageFamilyAmazonLinux2),
+		)
 	})
 })
