@@ -55,7 +55,6 @@ func (o *Installer) Install(ctx context.Context) error {
 	logger.Info("adding Spot Ocean Controller to cluster %s", o.ClusterConfig.Metadata.Name)
 	logger.Info("cluster endpoint used by Spot Ocean Controller: %s", o.ClusterConfig.Status.Endpoint)
 
-	//TODO idan - test this
 	config := spotinst.DefaultConfig()
 	c, err := config.Credentials.Get()
 	if err != nil {

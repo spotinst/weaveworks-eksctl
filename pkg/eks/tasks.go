@@ -208,7 +208,6 @@ func newSpotOceanControllerTask(
 func (n *spotOceanControllerTask) Describe() string { return n.desc }
 
 func (n *spotOceanControllerTask) Do(errCh chan error) error {
-	//TODO idan - test
 	defer close(errCh)
 
 	config := kubeconfig.NewForKubectl(n.spec, GetUsername(n.clusterProvider.Status.IAMRoleARN), "", n.clusterProvider.AWSProvider.Profile().Name)

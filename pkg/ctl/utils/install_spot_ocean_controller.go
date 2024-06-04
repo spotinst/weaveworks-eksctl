@@ -57,7 +57,6 @@ func doInstallSpotOceanController(cmd *cmdutils.Cmd) error {
 		return err
 	}
 
-	//TODO idan - test this
 	config := kubeconfig.NewForKubectl(cfg, eks.GetUsername(ctl.Status.IAMRoleARN), "", cmd.ProviderConfig.Profile.Name)
 	kubeConfigBytes, err := runtime.Encode(clientcmdlatest.Codec, config)
 	if err != nil {
@@ -84,6 +83,6 @@ func doInstallSpotOceanController(cmd *cmdutils.Cmd) error {
 		return fmt.Errorf("ocean: error installing controller: %w", err)
 	}
 
-	cmdutils.LogPlanModeWarning(cmd.Plan) //TODO idan - not sure what is this for
+	cmdutils.LogPlanModeWarning(cmd.Plan)
 	return nil
 }
