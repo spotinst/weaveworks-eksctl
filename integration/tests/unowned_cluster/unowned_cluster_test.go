@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cfn "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -47,8 +47,8 @@ func TestE2E(t *testing.T) {
 
 var (
 	stackName, ng1, mng1, mng2 string
-	version                    = "1.22"
-	upgradeVersion             = "1.23"
+	version                    string
+	upgradeVersion             string
 	ctl                        api.ClusterProvider
 	cfg                        *api.ClusterConfig
 )
@@ -58,6 +58,9 @@ var _ = BeforeSuite(func() {
 	mng1 = "mng-1"
 	mng2 = "mng-2"
 	stackName = fmt.Sprintf("eksctl-%s", params.ClusterName)
+
+	version, upgradeVersion = clusterutils.GetCurrentAndNextVersionsForUpgrade(params.Version)
+
 	cfg = &api.ClusterConfig{
 		TypeMeta: api.ClusterConfigTypeMeta(),
 		Metadata: &api.ClusterMeta{
@@ -71,7 +74,15 @@ var _ = BeforeSuite(func() {
 		clusterProvider, err := eks.New(context.Background(), &api.ProviderConfig{Region: params.Region}, cfg)
 		Expect(err).NotTo(HaveOccurred())
 		ctl = clusterProvider.AWSProvider
-		cfg.VPC = createClusterWithNodeGroup(context.Background(), params.ClusterName, stackName, mng1, version, ctl)
+		ctx := context.Background()
+		cfg.VPC = createClusterWithNodeGroup(ctx, params.ClusterName, stackName, mng1, version, ctl)
+		DeferCleanup(func() {
+			By(fmt.Sprintf("deleting launch template: %s", params.ClusterName))
+			_, err := ctl.EC2().DeleteLaunchTemplate(ctx, &ec2.DeleteLaunchTemplateInput{
+				LaunchTemplateName: aws.String(params.ClusterName),
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
 	}
 })
 
@@ -409,6 +420,17 @@ func createClusterWithNodeGroup(ctx context.Context, clusterName, stackName, ng1
 		},
 	}
 
+	launchTemplate, err := ctl.EC2().CreateLaunchTemplate(ctx, &ec2.CreateLaunchTemplateInput{
+		LaunchTemplateData: &ec2types.RequestLaunchTemplateData{
+			MetadataOptions: &ec2types.LaunchTemplateInstanceMetadataOptionsRequest{
+				HttpPutResponseHopLimit: aws.Int32(1),
+				HttpTokens:              ec2types.LaunchTemplateHttpTokensStateRequired,
+			},
+		},
+		LaunchTemplateName: aws.String(params.ClusterName),
+	})
+	Expect(err).NotTo(HaveOccurred())
+
 	_, err = ctl.EKS().CreateNodegroup(ctx, &awseks.CreateNodegroupInput{
 		NodegroupName: &ng1,
 		ClusterName:   &clusterName,
@@ -419,16 +441,16 @@ func createClusterWithNodeGroup(ctx context.Context, clusterName, stackName, ng1
 			DesiredSize: aws.Int32(1),
 			MinSize:     aws.Int32(1),
 		},
+		LaunchTemplate: &ekstypes.LaunchTemplateSpecification{
+			Id: launchTemplate.LaunchTemplate.LaunchTemplateId,
+		},
 	})
 	Expect(err).NotTo(HaveOccurred())
-	Eventually(func() string {
-		out, err := ctl.EKS().DescribeNodegroup(ctx, &awseks.DescribeNodegroupInput{
-			ClusterName:   &clusterName,
-			NodegroupName: &ng1,
-		})
-		Expect(err).NotTo(HaveOccurred())
-		return string(out.Nodegroup.Status)
-	}, timeoutDuration, time.Second*30).Should(Equal("ACTIVE"))
+	waiter := awseks.NewNodegroupActiveWaiter(ctl.EKS())
+	Expect(waiter.Wait(ctx, &awseks.DescribeNodegroupInput{
+		ClusterName:   &clusterName,
+		NodegroupName: &ng1,
+	}, timeoutDuration)).To(Succeed())
 
 	return newVPC
 }

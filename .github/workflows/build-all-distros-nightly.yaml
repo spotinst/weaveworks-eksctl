@@ -1,7 +1,7 @@
 name: Build all distros
 on:
   schedule:
-    - cron: '0 9 * * *'
+    - cron: '0 9 * * 1-5'
   workflow_dispatch: {}
 
 jobs:
@@ -9,36 +9,41 @@ jobs:
     name: build all distros
     runs-on: ubuntu-latest
     steps:
+      - name: Clean unncessary files to save space
+        run: |
+          docker rmi `docker images -q`
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /etc/sudo apt/sources.list.d
+          sudo apt -y autoremove --purge
+          sudo apt -y autoclean
+          sudo apt clean
+          rm --recursive --force "$AGENT_TOOLSDIRECTORY"
+          df -h
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be #v1.3.1
+        with:
+          # This might remove tools that are actually needed, if set to "true" but frees about 6 GB
+          tool-cache: false
+          large-packages: true
+          swap-storage: true
+
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
         with:
           fetch-depth: 0
-      - name: Cache go-build and mod
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build/
-            ~/go/pkg/mod/
-          key: ${{ hashFiles('go.sum') }}
-      - name: Setup Go
-        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 #v4.0.0
-        with:
-          go-version: 1.18.x
-      - name: Setup deps
-        run: |
-          make install-build-deps
-      - name: build image
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
+
+      - name: Build image
         run: |
           EKSCTL_IMAGE_VERSION=${GITHUB_REF#refs/*/} make -f Makefile.docker eksctl-image
-      - name: build all
+
+      - name: Generate artifacts
         run: |
-          make build-all
-      - name: slack on failure
-        if: failure()
-        uses: actions-ecosystem/action-slack-notifier@fc778468d09c43a6f4d1b8cccaca59766656996a
+          make generate-always
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@7ec5c2b0c6cdda6e8bbb49444bc797dd33d74dd8 #v5.0.0
         with:
-          slack_token: ${{ secrets.WEAVEWORKS_SLACK_EKSCTLBOT_TOKEN }}
-          message: ":ahhhhhhhhh: build-all-distros has failed"
-          channel: team-pitch-black
-          color: red
-          verbose: true
+          version: v1.24.0
+          args: --config=.github/.goreleaser-local.yaml --snapshot --skip=publish --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

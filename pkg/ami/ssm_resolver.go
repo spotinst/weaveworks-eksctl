@@ -54,6 +54,9 @@ func MakeSSMParameterName(version, instanceType, imageFamily string) (string, er
 	const fieldName = "image_id"
 
 	switch imageFamily {
+	case api.NodeImageFamilyAmazonLinux2023:
+		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/%s/standard/recommended/%s",
+			version, utils.ToKebabCase(imageFamily), instanceEC2ArchName(instanceType), fieldName), nil
 	case api.NodeImageFamilyAmazonLinux2:
 		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/recommended/%s", version, imageType(imageFamily, instanceType, version), fieldName), nil
 	case api.NodeImageFamilyWindowsServer2019CoreContainer,
@@ -72,7 +75,8 @@ func MakeSSMParameterName(version, instanceType, imageFamily string) (string, er
 		return fmt.Sprintf("/aws/service/ami-windows-latest/Windows_Server-2022-English-%s-EKS_Optimized-%s/%s", windowsAmiType(imageFamily), version, fieldName), nil
 	case api.NodeImageFamilyBottlerocket:
 		return fmt.Sprintf("/aws/service/bottlerocket/aws-k8s-%s/%s/latest/%s", imageType(imageFamily, instanceType, version), instanceEC2ArchName(instanceType), fieldName), nil
-	case api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu1804:
+	case api.NodeImageFamilyUbuntuPro2204, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu1804:
+		// FIXME: SSM lookup for Ubuntu EKS images is supported nowadays
 		return "", &UnsupportedQueryError{msg: fmt.Sprintf("SSM Parameter lookups for %s AMIs is not supported yet", imageFamily)}
 	default:
 		return "", fmt.Errorf("unknown image family %s", imageFamily)
@@ -82,12 +86,20 @@ func MakeSSMParameterName(version, instanceType, imageFamily string) (string, er
 // MakeManagedSSMParameterName creates an SSM parameter name for a managed nodegroup
 func MakeManagedSSMParameterName(version string, amiType ekstypes.AMITypes) (string, error) {
 	switch amiType {
+	case ekstypes.AMITypesAl2023X8664Standard:
+		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/x86_64/standard/recommended/release_version", version, utils.ToKebabCase(api.NodeImageFamilyAmazonLinux2023)), nil
+	case ekstypes.AMITypesAl2023Arm64Standard:
+		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/arm64/standard/recommended/release_version", version, utils.ToKebabCase(api.NodeImageFamilyAmazonLinux2023)), nil
 	case ekstypes.AMITypesAl2X8664:
 		imageType := utils.ToKebabCase(api.NodeImageFamilyAmazonLinux2)
 		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/recommended/release_version", version, imageType), nil
 	case ekstypes.AMITypesAl2X8664Gpu:
 		imageType := utils.ToKebabCase(api.NodeImageFamilyAmazonLinux2) + "-gpu"
 		return fmt.Sprintf("/aws/service/eks/optimized-ami/%s/%s/recommended/release_version", version, imageType), nil
+	case ekstypes.AMITypesBottlerocketArm64, ekstypes.AMITypesBottlerocketArm64Nvidia:
+		return fmt.Sprintf("/aws/service/bottlerocket/aws-k8s-%s/arm64/latest/image_version", version), nil
+	case ekstypes.AMITypesBottlerocketX8664, ekstypes.AMITypesBottlerocketX8664Nvidia:
+		return fmt.Sprintf("/aws/service/bottlerocket/aws-k8s-%s/x86_64/latest/image_version", version), nil
 	}
 	return "", nil
 }

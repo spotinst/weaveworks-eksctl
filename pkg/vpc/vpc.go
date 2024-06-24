@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -300,7 +301,47 @@ func UseFromClusterStack(ctx context.Context, provider api.ClusterProvider, stac
 		return strings.Split(v, ",")
 	}
 	importSubnetsFromIDList := func(subnetMapping api.AZSubnetMapping, value string) error {
-		return ImportSubnetsFromIDList(ctx, provider.EC2(), spec, subnetMapping, splitOutputValue(value))
+		var (
+			vpcSubnets   []string
+			stackSubnets []string
+			toBeImported []string
+		)
+		// collect VPC subnets as returned by CFN stack outputs
+		stackSubnets = splitOutputValue(value)
+
+		// collect VPC subnets as returned by EC2 API
+		ec2API := provider.EC2()
+		output, err := ec2API.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+			Filters: []ec2types.Filter{
+				{
+					Name:   aws.String("vpc-id"),
+					Values: []string{spec.VPC.ID},
+				},
+			},
+		})
+		if err != nil {
+			return err
+		}
+		for _, o := range output.Subnets {
+			vpcSubnets = append(vpcSubnets, *o.SubnetId)
+		}
+
+		// if a subnet is present on the stack outputs, but actually missing from VPC
+		// e.g. it was manually deleted by the user using AWS CLI/Console
+		// than log a warning and don't import it into cluster spec
+		stackDriftFound := false
+		for _, ssID := range stackSubnets {
+			if !slices.Contains(vpcSubnets, ssID) {
+				stackDriftFound = true
+				logger.Warning("%s was found on cluster cloudformation stack outputs, but has been removed from VPC %s outside of eksctl", ssID, spec.VPC.ID)
+				continue
+			}
+			toBeImported = append(toBeImported, ssID)
+		}
+		if stackDriftFound {
+			logger.Warning("VPC %s contains the following subnets: %s", spec.VPC.ID, strings.Join(vpcSubnets, ","))
+		}
+		return ImportSubnetsFromIDList(ctx, provider.EC2(), spec, subnetMapping, toBeImported)
 	}
 
 	optionalCollectors := map[string]outputs.Collector{
@@ -345,7 +386,12 @@ func UseFromClusterStack(ctx context.Context, provider api.ClusterProvider, stac
 		}
 	}
 
-	return outputs.Collect(*stack, requiredCollectors, optionalCollectors)
+	if err := outputs.Collect(*stack, requiredCollectors, optionalCollectors); err != nil {
+		return err
+	}
+	// to clean up invalid subnets based on AZ after importing valid subnets from stack
+	cleanupSubnets(spec)
+	return nil
 }
 
 // MakeExtendedSubnetAliasFunc returns a function for creating an alias for a subnet that was added as part of extending
@@ -428,6 +474,13 @@ func ImportSubnets(ctx context.Context, ec2API awsapi.EC2, spec *api.ClusterConf
 		}
 	}
 
+	// as subnetMapping will be populated / altered within ImportSubnet,
+	// we want to keep an unchanged copy for local against remote VPC config validation
+	localSubnetConfig := api.AZSubnetMapping{}
+	for k, v := range subnetMapping {
+		localSubnetConfig[k] = v
+	}
+
 	for _, sn := range subnets {
 		if spec.VPC.ID == "" {
 			// if VPC wasn't defined, import it based on VPC of the first
@@ -439,7 +492,7 @@ func ImportSubnets(ctx context.Context, ec2API awsapi.EC2, spec *api.ClusterConf
 			return fmt.Errorf("given %s is in %s, not in %s", *sn.SubnetId, *sn.VpcId, spec.VPC.ID)
 		}
 
-		if err := api.ImportSubnet(subnetMapping, &sn, makeSubnetAlias); err != nil {
+		if err := api.ImportSubnet(subnetMapping, localSubnetConfig, &sn, makeSubnetAlias); err != nil {
 			return fmt.Errorf("could not import subnet %s: %w", *sn.SubnetId, err)
 		}
 		spec.AppendAvailabilityZone(*sn.AvailabilityZone)
@@ -507,7 +560,7 @@ func ImportSubnetsByIDsWithAlias(ctx context.Context, ec2API awsapi.EC2, spec *a
 }
 
 func ValidateLegacySubnetsForNodeGroups(ctx context.Context, spec *api.ClusterConfig, provider api.ClusterProvider) error {
-	subnetsToValidate := sets.NewString()
+	subnetsToValidate := sets.New[string]()
 
 	selectSubnets := func(np api.NodePool) error {
 		if ng := np.BaseNodeGroup(); ng.PrivateNetworking || ng.OutpostARN != "" {
@@ -537,7 +590,7 @@ func ValidateLegacySubnetsForNodeGroups(ctx context.Context, spec *api.ClusterCo
 			return err
 		}
 	}
-	if err := ValidateExistingPublicSubnets(ctx, provider, spec.VPC.ID, subnetsToValidate.List()); err != nil {
+	if err := ValidateExistingPublicSubnets(ctx, provider, spec.VPC.ID, sets.List(subnetsToValidate)); err != nil {
 		// If the cluster endpoint is reachable from the VPC, nodes might still be able to join
 		if spec.HasPrivateEndpointAccess() {
 			logger.Warning("public subnets for one or more nodegroups have %q disabled. This means that nodes won't "+
@@ -640,6 +693,14 @@ func cleanupSubnets(spec *api.ClusterConfig) {
 	cleanup := func(subnets *api.AZSubnetMapping) {
 		for name, subnet := range *subnets {
 			if _, ok := availabilityZones[subnet.AZ]; !ok {
+				// since we're removing the subnet with invalid AZ from spec, we want to reference it by ID in any subsequent nodegroup creation task
+				for _, node := range nodes.ToNodePools(spec) {
+					for i, subnetRef := range node.BaseNodeGroup().Subnets {
+						if subnetRef == name {
+							node.BaseNodeGroup().Subnets[i] = subnet.ID
+						}
+					}
+				}
 				delete(*subnets, name)
 			}
 		}

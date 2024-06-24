@@ -105,13 +105,7 @@ func (c *ClusterResourceSet) addResourcesForIAM() {
 	if api.IsSetAndNonEmptyString(c.spec.IAM.ServiceRolePermissionsBoundary) {
 		role.PermissionsBoundary = gfnt.NewString(*c.spec.IAM.ServiceRolePermissionsBoundary)
 	}
-	refSR := c.newResource("ServiceRole", role)
-	c.rs.attachAllowPolicy("PolicyCloudWatchMetrics", refSR, cloudWatchMetricsStatements())
-	// These are potentially required for creating load balancers but aren't included in the
-	// AmazonEKSClusterPolicy
-	// See https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/elb-api-permissions.html#required-permissions-v2
-	// and weaveworks/eksctl#2488
-	c.rs.attachAllowPolicy("PolicyELBPermissions", refSR, elbStatements())
+	c.newResource("ServiceRole", role)
 
 	c.rs.defineOutputFromAtt(outputs.ClusterServiceRoleARN, "ServiceRole", "Arn", true, func(v string) error {
 		c.spec.IAM.ServiceRoleARN = &v
@@ -130,21 +124,22 @@ func (n *NodeGroupResourceSet) WithNamedIAM() bool {
 }
 
 func (n *NodeGroupResourceSet) addResourcesForIAM(ctx context.Context) error {
-	if n.spec.IAM.InstanceProfileARN != "" {
+	nodeGroupIAM := n.options.NodeGroup.IAM
+	if nodeGroupIAM.InstanceProfileARN != "" {
 		n.rs.withIAM = false
 		n.rs.withNamedIAM = false
 
 		// if instance profile is given, as well as the role, we simply use both and export the role
 		// (which is needed in order to authorise the nodegroup)
-		n.instanceProfileARN = gfnt.NewString(n.spec.IAM.InstanceProfileARN)
-		if n.spec.IAM.InstanceRoleARN != "" {
-			n.rs.defineOutputWithoutCollector(outputs.NodeGroupInstanceProfileARN, n.spec.IAM.InstanceProfileARN, true)
-			n.rs.defineOutputWithoutCollector(outputs.NodeGroupInstanceRoleARN, n.spec.IAM.InstanceRoleARN, true)
+		n.instanceProfileARN = gfnt.NewString(nodeGroupIAM.InstanceProfileARN)
+		if nodeGroupIAM.InstanceRoleARN != "" {
+			n.rs.defineOutputWithoutCollector(outputs.NodeGroupInstanceProfileARN, nodeGroupIAM.InstanceProfileARN, true)
+			n.rs.defineOutputWithoutCollector(outputs.NodeGroupInstanceRoleARN, nodeGroupIAM.InstanceRoleARN, true)
 			return nil
 		}
 		// if instance role is not given, export profile and use the getter to call importer function
-		n.rs.defineOutput(outputs.NodeGroupInstanceProfileARN, n.spec.IAM.InstanceProfileARN, true, func(v string) error {
-			return iam.ImportInstanceRoleFromProfileARN(ctx, n.iamAPI, n.spec, v)
+		n.rs.defineOutput(outputs.NodeGroupInstanceProfileARN, nodeGroupIAM.InstanceProfileARN, true, func(v string) error {
+			return iam.ImportInstanceRoleFromProfileARN(ctx, n.iamAPI, n.options.NodeGroup, v)
 		})
 
 		return nil
@@ -152,8 +147,8 @@ func (n *NodeGroupResourceSet) addResourcesForIAM(ctx context.Context) error {
 
 	n.rs.withIAM = true
 
-	if n.spec.IAM.InstanceRoleARN != "" {
-		roleARN := NormalizeARN(n.spec.IAM.InstanceRoleARN)
+	if nodeGroupIAM.InstanceRoleARN != "" {
+		roleARN := NormalizeARN(nodeGroupIAM.InstanceRoleARN)
 
 		// if role is set, but profile isn't - create profile
 		n.newResource(cfnIAMInstanceProfileName, &gfniam.InstanceProfile{
@@ -162,7 +157,7 @@ func (n *NodeGroupResourceSet) addResourcesForIAM(ctx context.Context) error {
 		})
 		n.instanceProfileARN = gfnt.MakeFnGetAttString(cfnIAMInstanceProfileName, "Arn")
 		n.rs.defineOutputFromAtt(outputs.NodeGroupInstanceProfileARN, cfnIAMInstanceProfileName, "Arn", true, func(v string) error {
-			n.spec.IAM.InstanceProfileARN = v
+			nodeGroupIAM.InstanceProfileARN = v
 			return nil
 		})
 		n.rs.defineOutputWithoutCollector(outputs.NodeGroupInstanceRoleARN, roleARN, true)
@@ -171,12 +166,12 @@ func (n *NodeGroupResourceSet) addResourcesForIAM(ctx context.Context) error {
 
 	// if neither role nor profile is given - create both
 
-	if n.spec.IAM.InstanceRoleName != "" {
+	if nodeGroupIAM.InstanceRoleName != "" {
 		// setting role name requires additional capabilities
 		n.rs.withNamedIAM = true
 	}
 
-	if err := createRole(n.rs, n.clusterSpec.IAM, n.spec.IAM, false, n.forceAddCNIPolicy); err != nil {
+	if err := createRole(n.rs, n.options.ClusterConfig.IAM, nodeGroupIAM, false, n.options.ForceAddCNIPolicy); err != nil {
 		return err
 	}
 
@@ -187,11 +182,11 @@ func (n *NodeGroupResourceSet) addResourcesForIAM(ctx context.Context) error {
 	n.instanceProfileARN = gfnt.MakeFnGetAttString(cfnIAMInstanceProfileName, "Arn")
 
 	n.rs.defineOutputFromAtt(outputs.NodeGroupInstanceProfileARN, cfnIAMInstanceProfileName, "Arn", true, func(v string) error {
-		n.spec.IAM.InstanceProfileARN = v
+		nodeGroupIAM.InstanceProfileARN = v
 		return nil
 	})
 	n.rs.defineOutputFromAtt(outputs.NodeGroupInstanceRoleARN, cfnIAMInstanceRoleName, "Arn", true, func(v string) error {
-		n.spec.IAM.InstanceRoleARN = v
+		nodeGroupIAM.InstanceRoleARN = v
 		return nil
 	})
 	return nil
@@ -222,6 +217,33 @@ func NewIAMRoleResourceSetForServiceAccount(spec *api.ClusterIAMServiceAccount, 
 	}
 }
 
+func NewIAMRoleResourceSetForPodIdentityWithTrustStatements(spec *api.PodIdentityAssociation, trustStatements []api.IAMStatement) *IAMRoleResourceSet {
+	rs := NewIAMRoleResourceSetForPodIdentity(spec)
+	rs.trustStatements = trustStatements
+	return rs
+}
+
+func NewIAMRoleResourceSetForPodIdentity(spec *api.PodIdentityAssociation) *IAMRoleResourceSet {
+	return &IAMRoleResourceSet{
+		template:            cft.NewTemplate(),
+		attachPolicy:        spec.PermissionPolicy,
+		attachPolicyARNs:    spec.PermissionPolicyARNs,
+		serviceAccount:      spec.ServiceAccountName,
+		namespace:           spec.Namespace,
+		wellKnownPolicies:   spec.WellKnownPolicies,
+		roleName:            spec.RoleName,
+		permissionsBoundary: spec.PermissionsBoundaryARN,
+		description: fmt.Sprintf(
+			"IAM role for pod identity association %s",
+			templateDescriptionSuffix,
+		),
+		roleNameCollector: func(v string) error {
+			spec.RoleARN = v
+			return nil
+		},
+	}
+}
+
 // IAMRoleResourceSet holds IAM Role stack build-time information
 type IAMRoleResourceSet struct {
 	template            *cft.Template
@@ -231,6 +253,7 @@ type IAMRoleResourceSet struct {
 	wellKnownPolicies   api.WellKnownPolicies
 	attachPolicyARNs    []string
 	attachPolicy        api.InlineDocument
+	trustStatements     []api.IAMStatement
 	roleNameCollector   func(string) error
 	OutputRole          string
 	serviceAccount      string
@@ -289,16 +312,8 @@ func (rs *IAMRoleResourceSet) WithNamedIAM() bool { return rs.roleName != "" }
 func (rs *IAMRoleResourceSet) AddAllResources() error {
 	rs.template.Description = rs.description
 
-	var assumeRolePolicyDocument cft.MapOfInterfaces
-	if rs.serviceAccount != "" && rs.namespace != "" {
-		logger.Debug("service account location provided: %s/%s, adding sub condition", api.AWSNodeMeta.Namespace, api.AWSNodeMeta.Name)
-		assumeRolePolicyDocument = rs.oidc.MakeAssumeRolePolicyDocumentWithServiceAccountConditions(rs.namespace, rs.serviceAccount)
-	} else {
-		assumeRolePolicyDocument = rs.oidc.MakeAssumeRolePolicyDocument()
-	}
-
 	role := &cft.IAMRole{
-		AssumeRolePolicyDocument: assumeRolePolicyDocument,
+		AssumeRolePolicyDocument: rs.makeAssumeRolePolicyDocument(),
 		PermissionsBoundary:      rs.permissionsBoundary,
 		RoleName:                 rs.roleName,
 	}
@@ -332,6 +347,28 @@ func (rs *IAMRoleResourceSet) AddAllResources() error {
 	}
 
 	return nil
+}
+
+func (rs *IAMRoleResourceSet) makeAssumeRolePolicyDocument() cft.MapOfInterfaces {
+	if len(rs.trustStatements) > 0 {
+		return cft.MakePolicyDocument(toMapOfInterfaces(rs.trustStatements)...)
+	}
+	if rs.oidc == nil {
+		return cft.MakeAssumeRolePolicyDocumentForPodIdentity()
+	}
+	if rs.serviceAccount != "" && rs.namespace != "" {
+		logger.Debug("service account location provided: %s/%s, adding sub condition", api.AWSNodeMeta.Namespace, api.AWSNodeMeta.Name)
+		return rs.oidc.MakeAssumeRolePolicyDocumentWithServiceAccountConditions(rs.namespace, rs.serviceAccount)
+	}
+	return rs.oidc.MakeAssumeRolePolicyDocument()
+}
+
+func toMapOfInterfaces(old []api.IAMStatement) []cft.MapOfInterfaces {
+	new := []cft.MapOfInterfaces{}
+	for _, s := range old {
+		new = append(new, s.ToMapOfInterfaces())
+	}
+	return new
 }
 
 // RenderJSON will render iamserviceaccount stack as JSON

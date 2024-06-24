@@ -26,20 +26,6 @@ func (t *createClusterTask) Do(errorCh chan error) error {
 	return t.stackCollection.createClusterTask(t.ctx, errorCh, t.supportsManagedNodes)
 }
 
-type nodeGroupTask struct {
-	info              string
-	ctx               context.Context
-	nodeGroup         *api.NodeGroup
-	forceAddCNIPolicy bool
-	vpcImporter       vpc.Importer
-	stackCollection   *StackCollection
-}
-
-func (t *nodeGroupTask) Describe() string { return t.info }
-func (t *nodeGroupTask) Do(errs chan error) error {
-	return t.stackCollection.createNodeGroupTask(t.ctx, errs, t.nodeGroup, t.forceAddCNIPolicy, t.vpcImporter)
-}
-
 type managedNodeGroupTask struct {
 	info              string
 	nodeGroup         *api.ManagedNodeGroup

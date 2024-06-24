@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,10 +36,12 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 		fakeVPCImporter   *vpcfakes.FakeImporter
 		fakeBootstrapper  *bootstrapfakes.FakeBootstrapper
 		p                 = mockprovider.NewMockProvider()
+		skipEgressRules   bool
 	)
 
 	BeforeEach(func() {
 		forceAddCNIPolicy = false
+		skipEgressRules = false
 		fakeVPCImporter = new(vpcfakes.FakeImporter)
 		fakeBootstrapper = new(bootstrapfakes.FakeBootstrapper)
 		cfg, ng = newClusterAndNodeGroup()
@@ -51,7 +54,15 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 	})
 
 	JustBeforeEach(func() {
-		ngrs = builder.NewNodeGroupResourceSet(p.MockEC2(), p.MockIAM(), cfg, ng, fakeBootstrapper, forceAddCNIPolicy, fakeVPCImporter)
+		ngrs = builder.NewNodeGroupResourceSet(p.MockEC2(), p.MockIAM(), builder.NodeGroupOptions{
+			ClusterConfig:      cfg,
+			NodeGroup:          ng,
+			Bootstrapper:       fakeBootstrapper,
+			ForceAddCNIPolicy:  forceAddCNIPolicy,
+			VPCImporter:        fakeVPCImporter,
+			SkipEgressRules:    skipEgressRules,
+			DisableAccessEntry: false,
+		})
 	})
 
 	Describe("AddAllResources", func() {
@@ -194,7 +205,7 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 			})
 
 			It("adds the InstanceProfileARN output", func() {
-				Expect(ngTemplate.Outputs).To(HaveLen(4))
+				Expect(ngTemplate.Outputs).To(HaveLen(5))
 				Expect(ngTemplate.Outputs).To(HaveKey(outputs.NodeGroupInstanceProfileARN))
 			})
 
@@ -204,7 +215,7 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 				})
 
 				It("adds the InstanceRoleARN output", func() {
-					Expect(ngTemplate.Outputs).To(HaveLen(5))
+					Expect(ngTemplate.Outputs).To(HaveLen(6))
 					Expect(ngTemplate.Outputs).To(HaveKey(outputs.NodeGroupInstanceRoleARN))
 					Expect(ngTemplate.Outputs).To(HaveKey(outputs.NodeGroupInstanceProfileARN))
 				})
@@ -223,7 +234,7 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 			})
 
 			It("adds the InstanceRoleARN and InstanceProfileARN outputs", func() {
-				Expect(ngTemplate.Outputs).To(HaveLen(5))
+				Expect(ngTemplate.Outputs).To(HaveLen(6))
 				Expect(ngTemplate.Outputs).To(HaveKey(outputs.NodeGroupInstanceRoleARN))
 				Expect(ngTemplate.Outputs).To(HaveKey(outputs.NodeGroupInstanceProfileARN))
 			})
@@ -1310,6 +1321,24 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 				It("enables the value on the launch template", func() {
 					properties := ngTemplate.Resources["NodeGroupLaunchTemplate"].Properties
 					Expect(properties.LaunchTemplateData.Monitoring.Enabled).To(Equal(true))
+				})
+			})
+
+			Context("skipEgressRules is false", func() {
+				It("should add egress rules", func() {
+					Expect(ngTemplate.Resources).To(HaveKey("EgressInterCluster"))
+					Expect(ngTemplate.Resources).To(HaveKey("EgressInterClusterAPI"))
+				})
+			})
+
+			Context("skipEgressRules is true", func() {
+				BeforeEach(func() {
+					skipEgressRules = true
+				})
+
+				It("should not add egress rules", func() {
+					Expect(ngTemplate.Resources).NotTo(HaveKey("EgressInterCluster"))
+					Expect(ngTemplate.Resources).NotTo(HaveKey("EgressInterClusterAPI"))
 				})
 			})
 		})

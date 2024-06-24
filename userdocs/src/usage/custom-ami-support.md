@@ -16,6 +16,7 @@ The flag can take the AMI image id for an image to explicitly use. It also can t
 ???+ note
     When setting `--node-ami` to an ID string, `eksctl` will assume that a custom AMI has been requested.
     For AmazonLinux2 and Ubuntu nodes, both EKS managed and self-managed, this will mean that `overrideBootstrapCommand` is required.
+    For AmazonLinux2023, since it stops using the `/etc/eks/bootstrap.sh` script for node bootstrapping, in favour of a nodeadm initialization process (for more information, please refer to [node bootstrapping docs](https://github.com/eksctl-io/eksctl/blob/main/pkg/nodebootstrap/README.md)), `overrideBootstrapCommand` is not supported.
 
 CLI flag examples:
 ```sh
@@ -30,12 +31,15 @@ Config file example:
 nodeGroups:
   - name: ng1
     instanceType: p2.xlarge
+    amiFamily: AmazonLinux2
     ami: auto
   - name: ng2
     instanceType: m5.large
+    amiFamily: AmazonLinux2
     ami: ami-custom1234
 managedNodeGroups:
   - name: m-ng-2
+    amiFamily: AmazonLinux2
     ami: ami-custom1234
     instanceType: m5.large
     overrideBootstrapCommand: |
@@ -49,16 +53,19 @@ The `--node-ami` flag can also be used with `eksctl create nodegroup`.
 
 The `--node-ami-family` can take following keywords:
 
-| Keyword                        |                                          Description                                         |
-|--------------------------------|:--------------------------------------------------------------------------------------------:|
-| AmazonLinux2                   | Indicates that the EKS AMI image based on Amazon Linux 2 should be used (default).           |
-| Ubuntu2004                     | Indicates that the EKS AMI image based on Ubuntu 20.04 LTS (Focal) should be used.           |
-| Ubuntu1804                     | Indicates that the EKS AMI image based on Ubuntu 18.04 LTS (Bionic) should be used.          |
-| Bottlerocket                   | Indicates that the EKS AMI image based on Bottlerocket should be used.                       |
-| WindowsServer2019FullContainer | Indicates that the EKS AMI image based on Windows Server 2019 Full Container should be used. |
-| WindowsServer2019CoreContainer | Indicates that the EKS AMI image based on Windows Server 2019 Core Container should be used. |
-| WindowsServer2022FullContainer | Indicates that the EKS AMI image based on Windows Server 2022 Full Container should be used. |
-| WindowsServer2022CoreContainer | Indicates that the EKS AMI image based on Windows Server 2022 Core Container should be used. |
+| Keyword                        |                                          Description                                                               |
+|--------------------------------|:------------------------------------------------------------------------------------------------------------------:|
+| AmazonLinux2                   | Indicates that the EKS AMI image based on Amazon Linux 2 should be used (default).                                 |
+| AmazonLinux2023                | Indicates that the EKS AMI image based on Amazon Linux 2023 should be used.                                        |
+| Ubuntu1804                     | Indicates that the EKS AMI image based on Ubuntu 18.04 LTS (Bionic) should be used.                                |
+| Ubuntu2004                     | Indicates that the EKS AMI image based on Ubuntu 20.04 LTS (Focal) should be used (supported for EKS <= 1.29).     |
+| Ubuntu2204                     | Indicates that the EKS AMI image based on Ubuntu 22.04 LTS (Jammy) should be used (available for EKS >= 1.29).     |
+| UbuntuPro2204                  | Indicates that the EKS AMI image based on Ubuntu Pro 22.04 LTS (Jammy) should be used (available for EKS >= 1.29). |
+| Bottlerocket                   | Indicates that the EKS AMI image based on Bottlerocket should be used.                                             |
+| WindowsServer2019FullContainer | Indicates that the EKS AMI image based on Windows Server 2019 Full Container should be used.                       |
+| WindowsServer2019CoreContainer | Indicates that the EKS AMI image based on Windows Server 2019 Core Container should be used.                       |
+| WindowsServer2022FullContainer | Indicates that the EKS AMI image based on Windows Server 2022 Full Container should be used.                       |
+| WindowsServer2022CoreContainer | Indicates that the EKS AMI image based on Windows Server 2022 Core Container should be used.                       |
 
 CLI flag example:
 ```sh
@@ -74,10 +81,40 @@ nodeGroups:
 managedNodeGroups:
   - name: m-ng-2
     instanceType: m5.large
-    amiFamily: Ubuntu2004
+    amiFamily: Ubuntu2204
 ```
 
 The `--node-ami-family` flag can also be used with `eksctl create nodegroup`. `eksctl` requires AMI Family to be explicitly set via config file or via `--node-ami-family` CLI flag, whenever working with a custom AMI.
+
+???+ note
+    At the moment, EKS managed nodegroups only support the following AMI Families when working with custom AMIs: `AmazonLinux2023`, `AmazonLinux2`, `Ubuntu1804`, `Ubuntu2004` and `Ubuntu2204`
+
+## Windows custom AMI support
+Only self-managed Windows nodegroups can specify a custom AMI. `amiFamily` should be set to a valid Windows AMI family.
+
+The following PowerShell variables will be available to the bootstrap script:
+
+```
+$EKSBootstrapScriptFile
+$EKSClusterName
+$APIServerEndpoint
+$Base64ClusterCA
+$ServiceCIDR
+$KubeletExtraArgs
+$KubeletExtraArgsMap: A hashtable containing arguments for the kubelet, e.g., @{ 'node-labels' = ''; 'register-with-taints' = ''; 'max-pods' = '10'}
+$DNSClusterIP
+$ContainerRuntime
+```
+
+Config file example:
+```yaml
+nodeGroups:
+  - name: custom-windows
+    amiFamily: WindowsServer2022FullContainer
+    ami: ami-01579b74557facaf7
+    overrideBootstrapCommand: |
+      & $EKSBootstrapScriptFile -EKSClusterName "$EKSClusterName" -APIServerEndpoint "$APIServerEndpoint" -Base64ClusterCA "$Base64ClusterCA" -ContainerRuntime "containerd" -KubeletExtraArgs "$KubeletExtraArgs" 3>&1 4>&1 5>&1 6>&1
+```
 
 ## Bottlerocket custom AMI support
 
@@ -91,7 +128,7 @@ For Bottlerocket nodes, the `overrideBootstrapCommand` is not supported. Instead
     bottlerocket:
       enableAdminContainer: true
       settings:
-        bootstrap-containers
-          bootstrap
+        bootstrap-containers:
+          bootstrap:
             source: <MY-CONTAINER-URI>
 ```

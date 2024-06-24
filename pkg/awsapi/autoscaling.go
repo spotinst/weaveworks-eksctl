@@ -5,11 +5,18 @@ package awsapi
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	. "github.com/aws/aws-sdk-go-v2/service/autoscaling"
 )
 
 // ASG provides an interface to the AWS ASG service.
 type ASG interface {
+	// Options returns a copy of the client configuration.
+	//
+	// Callers SHOULD NOT perform mutations on any inner structures within client
+	// config. Config overrides should instead be made on a per-operation basis through
+	// functional options.
+	Options() autoscaling.Options
 	// Attaches one or more EC2 instances to the specified Auto Scaling group. When
 	// you attach instances, Amazon EC2 Auto Scaling increases the desired capacity of
 	// the group by the number of instances being attached. If the number of instances
@@ -104,7 +111,7 @@ type ASG interface {
 	//   - If you finish before the timeout period ends, send a callback by using the
 	//     CompleteLifecycleAction API call.
 	//
-	// For more information, see Amazon EC2 Auto Scaling lifecycle hooks (https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html)
+	// For more information, see Complete a lifecycle action (https://docs.aws.amazon.com/autoscaling/ec2/userguide/completing-lifecycle-hooks.html)
 	// in the Amazon EC2 Auto Scaling User Guide.
 	CompleteLifecycleAction(ctx context.Context, params *CompleteLifecycleActionInput, optFns ...func(*Options)) (*CompleteLifecycleActionOutput, error)
 	// We strongly recommend using a launch template when calling this operation to
@@ -113,11 +120,9 @@ type ASG interface {
 	// maximum limit of Auto Scaling groups, the call fails. To query this limit, call
 	// the DescribeAccountLimits API. For information about updating this limit, see
 	// Quotas for Amazon EC2 Auto Scaling (https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-quotas.html)
-	// in the Amazon EC2 Auto Scaling User Guide. For introductory exercises for
-	// creating an Auto Scaling group, see Getting started with Amazon EC2 Auto Scaling (https://docs.aws.amazon.com/autoscaling/ec2/userguide/GettingStartedTutorial.html)
-	// and Tutorial: Set up a scaled and load-balanced application (https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-register-lbs-with-asg.html)
-	// in the Amazon EC2 Auto Scaling User Guide. For more information, see Auto
-	// Scaling groups (https://docs.aws.amazon.com/autoscaling/ec2/userguide/AutoScalingGroup.html)
+	// in the Amazon EC2 Auto Scaling User Guide. If you're new to Amazon EC2 Auto
+	// Scaling, see the introductory tutorials in Get started with Amazon EC2 Auto
+	// Scaling (https://docs.aws.amazon.com/autoscaling/ec2/userguide/get-started-with-ec2-auto-scaling.html)
 	// in the Amazon EC2 Auto Scaling User Guide. Every Auto Scaling group has three
 	// size properties ( DesiredCapacity , MaxSize , and MinSize ). Usually, you set
 	// these sizes based on a specific number of instances. However, if you configure a
@@ -210,7 +215,8 @@ type ASG interface {
 	// Describes the notification types that are supported by Amazon EC2 Auto Scaling.
 	DescribeAutoScalingNotificationTypes(ctx context.Context, params *DescribeAutoScalingNotificationTypesInput, optFns ...func(*Options)) (*DescribeAutoScalingNotificationTypesOutput, error)
 	// Gets information about the instance refreshes for the specified Auto Scaling
-	// group. This operation is part of the instance refresh feature (https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html)
+	// group from the previous six weeks. This operation is part of the instance
+	// refresh feature (https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html)
 	// in Amazon EC2 Auto Scaling, which helps you update instances in your Auto
 	// Scaling group after you make configuration changes. To help you determine the
 	// status of an instance refresh, Amazon EC2 Auto Scaling returns information about
@@ -376,10 +382,10 @@ type ASG interface {
 	// balancer using the DescribeLoadBalancers API call. The instances remain running.
 	DetachLoadBalancers(ctx context.Context, params *DetachLoadBalancersInput, optFns ...func(*Options)) (*DetachLoadBalancersOutput, error)
 	// Detaches one or more traffic sources from the specified Auto Scaling group.
-	// When you detach a taffic, it enters the Removing state while deregistering the
-	// instances in the group. When all instances are deregistered, then you can no
-	// longer describe the traffic source using the DescribeTrafficSources API call.
-	// The instances continue to run.
+	// When you detach a traffic source, it enters the Removing state while
+	// deregistering the instances in the group. When all instances are deregistered,
+	// then you can no longer describe the traffic source using the
+	// DescribeTrafficSources API call. The instances continue to run.
 	DetachTrafficSources(ctx context.Context, params *DetachTrafficSourcesInput, optFns ...func(*Options)) (*DetachTrafficSourcesOutput, error)
 	// Disables group metrics collection for the specified Auto Scaling group.
 	DisableMetricsCollection(ctx context.Context, params *DisableMetricsCollectionInput, optFns ...func(*Options)) (*DisableMetricsCollectionOutput, error)
@@ -551,11 +557,8 @@ type ASG interface {
 	// in the Amazon EC2 Auto Scaling User Guide. If you exceed your maximum limit of
 	// instance IDs, which is 50 per Auto Scaling group, the call fails.
 	SetInstanceProtection(ctx context.Context, params *SetInstanceProtectionInput, optFns ...func(*Options)) (*SetInstanceProtectionOutput, error)
-	// Starts an instance refresh. During an instance refresh, Amazon EC2 Auto Scaling
-	// performs a rolling update of instances in an Auto Scaling group. Instances are
-	// terminated first and then replaced, which temporarily reduces the capacity
-	// available within your Auto Scaling group. This operation is part of the
-	// instance refresh feature (https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html)
+	// Starts an instance refresh. This operation is part of the instance refresh
+	// feature (https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html)
 	// in Amazon EC2 Auto Scaling, which helps you update instances in your Auto
 	// Scaling group. This feature is helpful, for example, when you have a new AMI or
 	// a new user data script. You just need to create a new launch template that

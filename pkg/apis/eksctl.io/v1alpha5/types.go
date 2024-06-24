@@ -29,8 +29,6 @@ import (
 // Values for `KubernetesVersion`
 // All valid values should go in this block
 const (
-	Version1_22 = "1.22"
-
 	Version1_23 = "1.23"
 
 	Version1_24 = "1.24"
@@ -41,10 +39,17 @@ const (
 
 	Version1_27 = "1.27"
 
-	// DefaultVersion (default)
-	DefaultVersion = Version1_25
+	Version1_28 = "1.28"
 
-	LatestVersion = Version1_27
+	Version1_29 = "1.29"
+
+	// Version1_30 represents Kubernetes version 1.30.x.
+	Version1_30 = "1.30"
+
+	// DefaultVersion (default)
+	DefaultVersion = Version1_29
+
+	LatestVersion = Version1_30
 
 	DockershimDeprecationVersion = Version1_24
 )
@@ -86,12 +91,15 @@ const (
 
 	// Version1_21 represents Kubernetes version 1.21.x
 	Version1_21 = "1.21"
+
+	// Version1_22 represents Kubernetes version 1.22.x
+	Version1_22 = "1.22"
 )
 
 // Not yet supported versions
 const (
-	// Version1_28 represents Kubernetes version 1.28.x
-	Version1_28 = "1.28"
+	// Version1_31 represents Kubernetes version 1.31.x
+	Version1_31 = "1.31"
 )
 
 const (
@@ -115,6 +123,9 @@ const (
 
 	// RegionCACentral1 represents the Canada Central Region
 	RegionCACentral1 = "ca-central-1"
+
+	// RegionCAWest1 represents the Canada West region Calgary.
+	RegionCAWest1 = "ca-west-1"
 
 	// RegionEUWest1 represents the EU West Region Ireland
 	RegionEUWest1 = "eu-west-1"
@@ -188,6 +199,9 @@ const (
 	// RegionCNNorth1 represents the China region Beijing
 	RegionCNNorth1 = "cn-north-1"
 
+	// RegionILCentral1 represents the Israel region Tel Aviv
+	RegionILCentral1 = "il-central-1"
+
 	// RegionUSGovWest1 represents the region GovCloud (US-West)
 	RegionUSGovWest1 = "us-gov-west-1"
 
@@ -200,28 +214,25 @@ const (
 	// RegionUSISOBEast1 represents the region US ISOB East (Ohio).
 	RegionUSISOBEast1 = "us-isob-east-1"
 
+	// RegionUSISOWest1 represents the region US ISOB West.
+	RegionUSISOWest1 = "us-iso-west-1"
+
 	// DefaultRegion defines the default region, where to deploy the EKS cluster
 	DefaultRegion = RegionUSWest2
 )
-
-func defaultVolumeTypeForRegion(region string) string {
-	switch region {
-	case RegionUSISOEast1, RegionUSISOBEast1:
-		return NodeVolumeTypeIO1
-	default:
-		return DefaultNodeVolumeType
-	}
-}
 
 // Values for `NodeAMIFamily`
 // All valid values of supported families should go in this block
 const (
 	// DefaultNodeImageFamily (default)
-	DefaultNodeImageFamily      = NodeImageFamilyAmazonLinux2
-	NodeImageFamilyAmazonLinux2 = "AmazonLinux2"
-	NodeImageFamilyUbuntu2004   = "Ubuntu2004"
-	NodeImageFamilyUbuntu1804   = "Ubuntu1804"
-	NodeImageFamilyBottlerocket = "Bottlerocket"
+	DefaultNodeImageFamily         = NodeImageFamilyAmazonLinux2
+	NodeImageFamilyAmazonLinux2023 = "AmazonLinux2023"
+	NodeImageFamilyAmazonLinux2    = "AmazonLinux2"
+	NodeImageFamilyUbuntuPro2204   = "UbuntuPro2204"
+	NodeImageFamilyUbuntu2204      = "Ubuntu2204"
+	NodeImageFamilyUbuntu2004      = "Ubuntu2004"
+	NodeImageFamilyUbuntu1804      = "Ubuntu1804"
+	NodeImageFamilyBottlerocket    = "Bottlerocket"
 
 	NodeImageFamilyWindowsServer2019CoreContainer = "WindowsServer2019CoreContainer"
 	NodeImageFamilyWindowsServer2019FullContainer = "WindowsServer2019FullContainer"
@@ -286,6 +297,9 @@ const (
 	// IAMServiceAccountNameTag defines the tag of the IAM service account name
 	IAMServiceAccountNameTag = "alpha.eksctl.io/iamserviceaccount-name"
 
+	// PodIdentityAssociationNameTag defines the tag of Pod Identity Association name
+	PodIdentityAssociationNameTag = "alpha.eksctl.io/podidentityassociation-name"
+
 	// AddonNameTag defines the tag of the IAM service account name
 	AddonNameTag = "alpha.eksctl.io/addon-name"
 
@@ -332,6 +346,9 @@ const (
 	// eksResourceAccountAPEast1 defines the AWS EKS account ID that provides node resources in ap-east-1 region
 	eksResourceAccountAPEast1 = "800184023465"
 
+	// eksResourceAccountCAWest1 defines the AWS EKS account ID that provides node resources in ca-west-1 region
+	eksResourceAccountCAWest1 = "761377655185"
+
 	// eksResourceAccountMECentral1 defines the AWS EKS account ID that provides node resources in me-central-1 region
 	eksResourceAccountMECentral1 = "759879836304"
 
@@ -368,6 +385,9 @@ const (
 	// eksResourceAccountAPSouthEast3 defines the AWS EKS account ID that provides node resources in ap-southeast-3
 	eksResourceAccountAPSouthEast3 = "296578399912"
 
+	// eksResourceAccountILCentral1 defines the AWS EKS account ID that provides node resources in il-central-1
+	eksResourceAccountILCentral1 = "066635153087"
+
 	// eksResourceAccountAPSouthEast4 defines the AWS EKS account ID that provides node resources in ap-southeast-4
 	eksResourceAccountAPSouthEast4 = "491585149902"
 	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-iso-east-1
@@ -375,6 +395,9 @@ const (
 
 	// eksResourceAccountUSISOBEast1 defines the AWS EKS account ID that provides node resources in us-isob-east-1
 	eksResourceAccountUSISOBEast1 = "187977181151"
+
+	// eksResourceAccountUSISOWest1 defines the AWS EKS account ID that provides node resources in us-iso-west-1
+	eksResourceAccountUSISOWest1 = "608367168043"
 )
 
 // Values for `VolumeType`
@@ -423,7 +446,9 @@ const (
 	VPCCNIAddon                 = "vpc-cni"
 	KubeProxyAddon              = "kube-proxy"
 	CoreDNSAddon                = "coredns"
+	PodIdentityAgentAddon       = "eks-pod-identity-agent"
 	AWSEBSCSIDriverAddon        = "aws-ebs-csi-driver"
+	AWSEFSCSIDriverAddon        = "aws-efs-csi-driver"
 )
 
 // supported version of Karpenter
@@ -506,6 +531,7 @@ func SupportedRegions() []string {
 		RegionUSEast1,
 		RegionUSEast2,
 		RegionCACentral1,
+		RegionCAWest1,
 		RegionEUWest1,
 		RegionEUWest2,
 		RegionEUWest3,
@@ -530,10 +556,12 @@ func SupportedRegions() []string {
 		RegionAFSouth1,
 		RegionCNNorthwest1,
 		RegionCNNorth1,
+		RegionILCentral1,
 		RegionUSGovWest1,
 		RegionUSGovEast1,
 		RegionUSISOEast1,
 		RegionUSISOBEast1,
+		RegionUSISOWest1,
 	}
 }
 
@@ -554,6 +582,7 @@ func DeprecatedVersions() []string {
 		Version1_19,
 		Version1_20,
 		Version1_21,
+		Version1_22,
 	}
 }
 
@@ -570,12 +599,14 @@ func IsDeprecatedVersion(version string) bool {
 // SupportedVersions are the versions of Kubernetes that EKS supports
 func SupportedVersions() []string {
 	return []string{
-		Version1_22,
 		Version1_23,
 		Version1_24,
 		Version1_25,
 		Version1_26,
 		Version1_27,
+		Version1_28,
+		Version1_29,
+		Version1_30,
 	}
 }
 
@@ -600,10 +631,13 @@ func SupportedNodeVolumeTypes() []string {
 	}
 }
 
-// supportedAMIFamilies are the AMI families supported by EKS
-func supportedAMIFamilies() []string {
+// SupportedAMIFamilies are the AMI families supported by EKS
+func SupportedAMIFamilies() []string {
 	return []string{
+		NodeImageFamilyAmazonLinux2023,
 		NodeImageFamilyAmazonLinux2,
+		NodeImageFamilyUbuntuPro2204,
+		NodeImageFamilyUbuntu2204,
 		NodeImageFamilyUbuntu2004,
 		NodeImageFamilyUbuntu1804,
 		NodeImageFamilyBottlerocket,
@@ -631,6 +665,8 @@ func EKSResourceAccountID(region string) string {
 	switch region {
 	case RegionAPEast1:
 		return eksResourceAccountAPEast1
+	case RegionCAWest1:
+		return eksResourceAccountCAWest1
 	case RegionMECentral1:
 		return eksResourceAccountMECentral1
 	case RegionMESouth1:
@@ -657,10 +693,14 @@ func EKSResourceAccountID(region string) string {
 		return eksResourceAccountAPSouthEast3
 	case RegionAPSouthEast4:
 		return eksResourceAccountAPSouthEast4
+	case RegionILCentral1:
+		return eksResourceAccountILCentral1
 	case RegionUSISOEast1:
 		return eksResourceAccountUSISOEast1
 	case RegionUSISOBEast1:
 		return eksResourceAccountUSISOBEast1
+	case RegionUSISOWest1:
+		return eksResourceAccountUSISOWest1
 	default:
 		return eksResourceAccountStandard
 	}
@@ -888,6 +928,10 @@ type ClusterConfig struct {
 	// +optional
 	IdentityProviders []IdentityProvider `json:"identityProviders,omitempty"`
 
+	// AccessConfig specifies the access config for a cluster.
+	// +optional
+	AccessConfig *AccessConfig `json:"accessConfig,omitempty"`
+
 	// +optional
 	VPC *ClusterVPC `json:"vpc,omitempty"`
 
@@ -980,6 +1024,9 @@ type OutpostInfo interface {
 	GetOutpost() *Outpost
 }
 
+// ErrUnsupportedLocalCluster is an error for when an unsupported operation is attempted on a local cluster.
+var ErrUnsupportedLocalCluster = errors.New("this operation is not supported on Outposts clusters")
+
 // Karpenter provides configuration options
 type Karpenter struct {
 	// Version defines the Karpenter version to install
@@ -1032,6 +1079,7 @@ func NewClusterConfig() *ClusterConfig {
 			ClusterLogging: &ClusterCloudWatchLogging{},
 		},
 		PrivateCluster: &PrivateCluster{},
+		AccessConfig:   &AccessConfig{},
 	}
 
 	return cfg
@@ -1467,7 +1515,7 @@ type (
 		// +optional
 		EnableAdminContainer *bool `json:"enableAdminContainer,omitempty"`
 		// Settings contains any [bottlerocket
-		// settings](https://github.com/bottlerocket-os/bottlerocket/#description-of-settings)
+		// settings](https://bottlerocket.dev/en/os/latest/#/api/settings/)
 		// +optional
 		Settings *InlineDocument `json:"settings,omitempty"`
 	}
@@ -1547,6 +1595,8 @@ type (
 		InstanceTypes *SpotOceanClusterInstanceTypes `json:"instanceTypes,omitempty"`
 		// +optional
 		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
+		// +optional
+		ResourceTagSpecification *ResourceTagSpecification `json:"resourceTagSpecification,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupCompute holds the compute configuration used by Spot Ocean.
@@ -1554,12 +1604,31 @@ type (
 		InstanceTypes []string `json:"instanceTypes,omitempty"`
 		// +optional
 		InstanceMetadataOptions *InstanceMetadataOptions `json:"instanceMetadataOptions,omitempty"`
+		// +optional
+		Images []*Images `json:"images,omitempty"`
 	}
 
 	// InstanceMetadataOptions holds the instance metadata options used by Spot Ocean.
 	InstanceMetadataOptions struct {
 		HttpPutResponseHopLimit *int    `json:"httpPutResponseHopLimit,omitempty"`
 		HttpTokens              *string `json:"httpTokens,omitempty"`
+	}
+
+	// ResourceTagSpecification holds the Resource Tag Volumes ability  used by Spot Ocean.
+	ResourceTagSpecification struct {
+		// +optional
+		Volumes *Volumes `json:"volumes,omitempty"`
+	}
+
+	Volumes struct {
+		// +optional
+		ShouldTag *bool `json:"shouldTag,omitempty"`
+	}
+
+	// Images holds the images for  Dual Architecture  options used by Spot Ocean.
+	Images struct {
+		// +optional
+		ImageId *string `json:"id,omitempty"`
 	}
 
 	// SpotOceanClusterInstanceTypes holds the instance types configuration used by Spot Ocean.
@@ -1815,7 +1884,7 @@ type NodeGroupBase struct {
 	// +optional
 	DisableIMDSv1 *bool `json:"disableIMDSv1,omitempty"`
 
-	// DisablePodIMDS blocks all IMDS requests from non host networking pods
+	// DisablePodIMDS blocks all IMDS requests from non-host networking pods
 	// Defaults to `false`
 	// +optional
 	DisablePodIMDS *bool `json:"disablePodIMDS,omitempty"`
@@ -1917,7 +1986,6 @@ type NodeGroupTaint struct {
 }
 
 // ManagedNodeGroup represents an EKS-managed nodegroup
-// TODO Validate for unmapped fields and throw an error
 type ManagedNodeGroup struct {
 	*NodeGroupBase
 
@@ -2121,6 +2189,20 @@ func (t *taintsWrapper) UnmarshalJSON(data []byte) error {
 	}
 	*t = ngTaints
 	return nil
+}
+
+// AccessConfig specifies the access config for a cluster.
+type AccessConfig struct {
+	// AuthenticationMode specifies the authentication mode for a cluster.
+	AuthenticationMode ekstypes.AuthenticationMode `json:"authenticationMode,omitempty"`
+
+	// BootstrapClusterCreatorAdminPermissions specifies whether the cluster creator IAM principal was set as a cluster
+	// admin access entry during cluster creation time.
+	BootstrapClusterCreatorAdminPermissions *bool `json:"bootstrapClusterCreatorAdminPermissions,omitempty"`
+
+	// AccessEntries specifies a list of access entries for the cluster.
+	// +optional
+	AccessEntries []AccessEntry `json:"accessEntries,omitempty"`
 }
 
 // UnsupportedFeatureError is an error that represents an unsupported feature

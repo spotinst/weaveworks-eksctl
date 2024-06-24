@@ -497,7 +497,7 @@ func (r *RawResource) Get() (runtime.Object, bool, error) {
 	return obj, true, nil
 }
 
-//Credit https://github.com/helm/helm/issues/6910#issuecomment-601277026
+// Credit https://github.com/helm/helm/issues/6910#issuecomment-601277026
 type SimpleRESTClientGetter struct {
 	Namespace  string
 	KubeConfig string
@@ -540,7 +540,9 @@ func (c *SimpleRESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
 	}
 
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
-	expander := restmapper.NewShortcutExpander(mapper, discoveryClient)
+	expander := restmapper.NewShortcutExpander(mapper, discoveryClient, func(a string) {
+		logger.Warning("unexpected warning message %s", a)
+	})
 	return expander, nil
 }
 

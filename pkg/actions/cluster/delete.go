@@ -195,10 +195,11 @@ func drainAllNodeGroups(ctx context.Context, cfg *api.ClusterConfig, ctl *eks.Cl
 		}
 	}
 
+	// EKS automatically drains managed nodegroups
 	logger.Info("will drain %d unmanaged nodegroup(s) in cluster %q", len(cfg.NodeGroups), cfg.Metadata.Name)
 
 	drainInput := &nodegroup.DrainInput{
-		NodeGroups:            cmdutils.ToKubeNodeGroups(cfg),
+		NodeGroups:            cmdutils.ToKubeNodeGroups(cfg.NodeGroups, []*api.ManagedNodeGroup{}),
 		MaxGracePeriod:        ctl.AWSProvider.WaitTimeout(),
 		DisableEviction:       disableEviction,
 		PodEvictionWaitPeriod: podEvictionWaitPeriod,
@@ -236,6 +237,6 @@ func attemptVpcCniDeletion(ctx context.Context, clusterConfig *api.ClusterConfig
 	logger.Debug("deleting kube-system/aws-node DaemonSet")
 	err := clientSet.AppsV1().DaemonSets("kube-system").Delete(ctx, "aws-node", metav1.DeleteOptions{})
 	if err != nil {
-		logger.Debug("failed to delete kube-system/aws-node DaemonSet: %w", err)
+		logger.Debug("failed to delete kube-system/aws-node DaemonSet: %v", err)
 	}
 }

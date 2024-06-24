@@ -7,22 +7,22 @@ import (
 	"strconv"
 	"strings"
 
-	instanceutils "github.com/weaveworks/eksctl/pkg/utils/instance"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+
 	"github.com/hashicorp/go-version"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/weaveworks/eksctl/pkg/utils"
-	"github.com/weaveworks/eksctl/pkg/utils/taints"
-
 	"k8s.io/apimachinery/pkg/util/validation"
 	kubeletapis "k8s.io/kubelet/pkg/apis"
+
+	"github.com/weaveworks/eksctl/pkg/utils"
+	instanceutils "github.com/weaveworks/eksctl/pkg/utils/instance"
+	"github.com/weaveworks/eksctl/pkg/utils/taints"
 )
 
 // https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-launchtemplate-blockdevicemapping-ebs.html
@@ -48,6 +48,23 @@ var (
 		"updates to some AWS resources.  See: " +
 		"https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html " +
 		"for more details")
+
+	ErrPodIdentityAgentNotInstalled = func(suggestion string) error {
+		return fmt.Errorf("the %q addon must be installed to create pod identity associations; %s", PodIdentityAgentAddon, suggestion)
+	}
+
+	ErrUnsupportedInstanceTypes = func(instanceType, amiFamily, suggestion string) error {
+		return fmt.Errorf("%s instance types are not supported for %s; %s", instanceType, amiFamily, suggestion)
+	}
+
+	GPUDriversWarning = func(amiFamily string) string {
+		return fmt.Sprintf("%s does not ship with NVIDIA GPU drivers installed, hence won't support running GPU-accelerated workloads out of the box", amiFamily)
+	}
+)
+
+var (
+	SupportedAmazonLinuxImages = supportedAMIFamiliesForOS(IsAmazonLinuxImage)
+	SupportedUbuntuImages      = supportedAMIFamiliesForOS(IsUbuntuImage)
 )
 
 // NOTE: we don't use k8s.io/apimachinery/pkg/util/sets here to keep API package free of dependencies
@@ -145,6 +162,12 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 			return err
 		}
 
+		if cfg.AccessConfig.AuthenticationMode != ekstypes.AuthenticationModeConfigMap {
+			return fmt.Errorf("accessConfig.AuthenticationMode must be set to %s on Outposts", ekstypes.AuthenticationModeConfigMap)
+		}
+		if IsDisabled(cfg.AccessConfig.BootstrapClusterCreatorAdminPermissions) {
+			return fmt.Errorf("accessConfig.BootstrapClusterCreatorAdminPermissions can't be set to false on Outposts")
+		}
 		if cfg.IPv6Enabled() {
 			return errors.New("IPv6 is not supported on Outposts")
 		}
@@ -198,6 +221,17 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 
 	if err := validateIAMIdentityMappings(cfg); err != nil {
 		return err
+	}
+
+	if len(cfg.AccessConfig.AccessEntries) > 0 {
+		switch cfg.AccessConfig.AuthenticationMode {
+		case ekstypes.AuthenticationModeConfigMap:
+			return fmt.Errorf("accessConfig.authenticationMode must be set to either %s or %s to use access entries",
+				ekstypes.AuthenticationModeApiAndConfigMap, ekstypes.AuthenticationModeApi)
+		}
+		if err := validateAccessEntries(cfg.AccessConfig.AccessEntries); err != nil {
+			return err
+		}
 	}
 
 	if err := validateKarpenterConfig(cfg); err != nil {
@@ -316,6 +350,10 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 			return err
 		}
 		c.VPC.ExtraIPv6CIDRs = cidrs
+	}
+
+	if c.VPC.SecurityGroup != "" && len(c.VPC.ControlPlaneSecurityGroupIDs) > 0 {
+		return errors.New("only one of vpc.securityGroup and vpc.controlPlaneSecurityGroupIDs can be specified")
 	}
 
 	if (c.VPC.IPv6Cidr != "" || c.VPC.IPv6Pool != "") && !c.IPv6Enabled() {
@@ -602,7 +640,7 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 			if ng.AMIFamily == NodeImageFamilyWindowsServer20H2CoreContainer || ng.AMIFamily == NodeImageFamilyWindowsServer2004CoreContainer {
 				return fmt.Errorf("AMI Family %s is deprecated. For more information, head to the Amazon documentation on Windows AMIs (https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-windows-ami.html)", ng.AMIFamily)
 			}
-			return fmt.Errorf("AMI Family %s is not supported - use one of: %s", ng.AMIFamily, strings.Join(supportedAMIFamilies(), ", "))
+			return fmt.Errorf("AMI Family %s is not supported - use one of: %s", ng.AMIFamily, strings.Join(SupportedAMIFamilies(), ", "))
 		}
 		if controlPlaneOnOutposts && ng.AMIFamily != NodeImageFamilyAmazonLinux2 {
 			return fmt.Errorf("only %s is supported on local clusters", NodeImageFamilyAmazonLinux2)
@@ -618,23 +656,31 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 		}
 	}
 
-	if instanceutils.IsNvidiaInstanceType(SelectInstanceType(np)) &&
-		(ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != NodeImageFamilyBottlerocket && ng.AMIFamily != "") {
-		logger.Warning("%s does not ship with NVIDIA GPU drivers installed, hence won't support running GPU-accelerated workloads out of the box", ng.AMIFamily)
+	instanceType := SelectInstanceType(np)
+
+	if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 && instanceutils.IsNvidiaInstanceType(instanceType) {
+		return ErrUnsupportedInstanceTypes("GPU", NodeImageFamilyAmazonLinux2023,
+			fmt.Sprintf("EKS accelerated AMIs based on %s will be available at a later date", NodeImageFamilyAmazonLinux2023))
+	}
+
+	if ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != NodeImageFamilyBottlerocket && ng.AMIFamily != "" {
+		if instanceutils.IsNvidiaInstanceType(instanceType) {
+			logger.Warning(GPUDriversWarning(ng.AMIFamily))
+		}
+		if ng.InstanceSelector != nil && !ng.InstanceSelector.IsZero() &&
+			(ng.InstanceSelector.GPUs == nil || *ng.InstanceSelector.GPUs != 0) {
+			logger.Warning("instance selector may/will select GPU instance types, " + GPUDriversWarning(ng.AMIFamily))
+		}
 	}
 
 	if ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != "" {
-		instanceType := SelectInstanceType(np)
-		unsupportedErr := func(instanceTypeName string) error {
-			return fmt.Errorf("%s instance types are not supported for %s", instanceTypeName, ng.AMIFamily)
-		}
 		// Only AL2 supports Inferentia hosts.
 		if instanceutils.IsInferentiaInstanceType(instanceType) {
-			return unsupportedErr("Inferentia")
+			return ErrUnsupportedInstanceTypes("Inferentia", ng.AMIFamily, fmt.Sprintf("please use %s instead", NodeImageFamilyAmazonLinux2))
 		}
 		// Only AL2 supports Trainium hosts.
 		if instanceutils.IsTrainiumInstanceType(instanceType) {
-			return unsupportedErr("Trainium")
+			return ErrUnsupportedInstanceTypes("Trainium", ng.AMIFamily, fmt.Sprintf("please use %s instead", NodeImageFamilyAmazonLinux2))
 		}
 	}
 
@@ -789,15 +835,18 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 			ng.AMIFamily, path)
 	}
 
-	if ng.AMI != "" && ng.OverrideBootstrapCommand == nil && ng.AMIFamily != NodeImageFamilyBottlerocket && !IsWindowsImage(ng.AMIFamily) {
-		return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI (%[1]s.ami)", path)
+	if ng.AMI != "" && ng.OverrideBootstrapCommand == nil &&
+		ng.AMIFamily != NodeImageFamilyAmazonLinux2023 &&
+		ng.AMIFamily != NodeImageFamilyBottlerocket &&
+		!IsWindowsImage(ng.AMIFamily) {
+		return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
 	}
 
 	if err := validateTaints(ng.Taints); err != nil {
 		return err
 	}
 
-	if err := validateNodeGroupLabels(ng.Labels); err != nil {
+	if err := validateLabels(ng.Labels); err != nil {
 		return err
 	}
 
@@ -807,40 +856,42 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		}
 	}
 
-	if IsWindowsImage(ng.AMIFamily) || ng.AMIFamily == NodeImageFamilyBottlerocket {
-		fieldNotSupported := func(field string) error {
-			return &unsupportedFieldError{
-				ng:    ng.NodeGroupBase,
-				path:  path,
-				field: field,
-			}
+	fieldNotSupported := func(field string) error {
+		return &unsupportedFieldError{
+			ng:    ng.NodeGroupBase,
+			path:  path,
+			field: field,
 		}
+	}
 
+	if IsWindowsImage(ng.AMIFamily) {
 		if ng.KubeletExtraConfig != nil {
 			return fieldNotSupported("kubeletExtraConfig")
 		}
-
-		if IsWindowsImage(ng.AMIFamily) && ng.OverrideBootstrapCommand != nil {
+	} else if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 {
+		if ng.PreBootstrapCommands != nil {
+			return fieldNotSupported("preBootstrapCommands")
+		}
+		if ng.OverrideBootstrapCommand != nil {
 			return fieldNotSupported("overrideBootstrapCommand")
 		}
-
-		if ng.AMIFamily == NodeImageFamilyBottlerocket {
-			if ng.PreBootstrapCommands != nil {
-				return fieldNotSupported("preBootstrapCommands")
-			}
-			if ng.OverrideBootstrapCommand != nil {
-				return fieldNotSupported("overrideBootstrapCommand")
+	} else if ng.AMIFamily == NodeImageFamilyBottlerocket {
+		if ng.KubeletExtraConfig != nil {
+			return fieldNotSupported("kubeletExtraConfig")
+		}
+		if ng.PreBootstrapCommands != nil {
+			return fieldNotSupported("preBootstrapCommands")
+		}
+		if ng.OverrideBootstrapCommand != nil {
+			return fieldNotSupported("overrideBootstrapCommand")
+		}
+		if ng.Bottlerocket != nil && ng.Bottlerocket.Settings != nil {
+			if err := checkBottlerocketSettings(ng, path); err != nil {
+				return err
 			}
 		}
 	} else if err := validateNodeGroupKubeletExtraConfig(ng.KubeletExtraConfig); err != nil {
 		return err
-	}
-
-	if ng.AMIFamily == NodeImageFamilyBottlerocket && ng.Bottlerocket != nil {
-		err := checkBottlerocketSettings(ng.Bottlerocket.Settings, path)
-		if err != nil {
-			return err
-		}
 	}
 
 	if instanceutils.IsARMGPUInstanceType(SelectInstanceType(ng)) && ng.AMIFamily != NodeImageFamilyBottlerocket {
@@ -860,6 +911,9 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 	}
 
 	if ng.ContainerRuntime != nil {
+		if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 && *ng.ContainerRuntime != ContainerRuntimeContainerD {
+			return fmt.Errorf("only %s is supported for container runtime on %s nodes", ContainerRuntimeContainerD, NodeImageFamilyAmazonLinux2023)
+		}
 		if *ng.ContainerRuntime != ContainerRuntimeDockerD && *ng.ContainerRuntime != ContainerRuntimeContainerD && *ng.ContainerRuntime != ContainerRuntimeDockerForWindows {
 			return fmt.Errorf("only %s, %s and %s are supported for container runtime", ContainerRuntimeContainerD, ContainerRuntimeDockerD, ContainerRuntimeDockerForWindows)
 		}
@@ -923,16 +977,16 @@ func validateOutpostARN(val string) error {
 	return nil
 }
 
-// validateNodeGroupLabels uses proper Kubernetes label validation,
-// it's designed to make sure users don't pass weird labels to the
-// nodes, which would prevent kubelets to startup properly
-func validateNodeGroupLabels(labels map[string]string) error {
+// validateLabels uses proper Kubernetes label validation,
+// it's designed to make sure users don't pass invalid or disallowed labels,
+// which would prevent kubelets to startup properly
+func validateLabels(labels map[string]string) error {
 	// compact version based on:
 	// - https://github.com/kubernetes/kubernetes/blob/v1.13.2/cmd/kubelet/app/options/options.go#L257-L267
 	// - https://github.com/kubernetes/kubernetes/blob/v1.13.2/pkg/kubelet/apis/well_known_labels.go
 	// we cannot import those packages because they break other dependencies
 
-	unknownKubernetesLabels := []string{}
+	disallowedKubernetesLabels := []string{}
 
 	for label := range labels {
 		labelParts := strings.Split(label, "/")
@@ -951,13 +1005,13 @@ func validateNodeGroupLabels(labels map[string]string) error {
 		if len(labelParts) == 2 {
 			namespace := labelParts[0]
 			if isKubernetesLabel(namespace) && !kubeletapis.IsKubeletLabel(label) {
-				unknownKubernetesLabels = append(unknownKubernetesLabels, label)
+				disallowedKubernetesLabels = append(disallowedKubernetesLabels, label)
 			}
 		}
 	}
 
-	if len(unknownKubernetesLabels) > 0 {
-		return fmt.Errorf("unknown 'kubernetes.io' or 'k8s.io' labels were specified: %v", unknownKubernetesLabels)
+	if len(disallowedKubernetesLabels) > 0 {
+		return fmt.Errorf("the following nodegroup labels are disallowed as they have reserved prefixes [kubernetes.io/, k8s.io/]: %v", disallowedKubernetesLabels)
 	}
 	return nil
 }
@@ -1141,6 +1195,10 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 		}
 	}
 
+	if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 && ng.MaxPodsPerNode > 0 {
+		return errors.Errorf("eksctl does not support configuring maxPodsPerNode EKS-managed nodes based on %s", NodeImageFamilyAmazonLinux2023)
+	}
+
 	if ng.AMIFamily == NodeImageFamilyBottlerocket {
 		fieldNotSupported := func(field string) error {
 			return &unsupportedFieldError{
@@ -1172,6 +1230,14 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 	}
 
 	if err := validateTaints(ng.Taints); err != nil {
+		return err
+	}
+
+	if err := validateLabels(ng.Labels); err != nil {
+		return err
+	}
+
+	if err := validateLabels(ng.Labels); err != nil {
 		return err
 	}
 
@@ -1212,11 +1278,15 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 		if ng.AMIFamily == "" {
 			return errors.Errorf("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
 		}
-		if ng.AMIFamily != NodeImageFamilyAmazonLinux2 {
-			return errors.Errorf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s is supported", ng.AMIFamily, NodeImageFamilyAmazonLinux2)
+		if !IsAmazonLinuxImage(ng.AMIFamily) && !IsUbuntuImage(ng.AMIFamily) {
+			return errors.Errorf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s are supported", ng.AMIFamily,
+				strings.Join(append(SupportedAmazonLinuxImages, SupportedUbuntuImages...), ", "))
 		}
-		if ng.OverrideBootstrapCommand == nil {
-			return errors.Errorf("%s.overrideBootstrapCommand is required when using a custom AMI (%s.ami)", path, path)
+		if ng.OverrideBootstrapCommand == nil && ng.AMIFamily != NodeImageFamilyAmazonLinux2023 {
+			return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
+		}
+		if ng.OverrideBootstrapCommand != nil && ng.AMIFamily == NodeImageFamilyAmazonLinux2023 {
+			return errors.Errorf("%[1]s.overrideBootstrapCommand is not supported when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
 		}
 		notSupportedWithCustomAMIErr := func(field string) error {
 			return errors.Errorf("%s.%s is not supported when using a custom AMI (%s.ami)", path, field, path)
@@ -1239,7 +1309,7 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 }
 
 func normalizeAMIFamily(ng *NodeGroupBase) {
-	for _, family := range supportedAMIFamilies() {
+	for _, family := range SupportedAMIFamilies() {
 		if strings.EqualFold(ng.AMIFamily, family) {
 			ng.AMIFamily = family
 			return
@@ -1409,12 +1479,46 @@ func validateNodeGroupKubeletExtraConfig(kubeletConfig *InlineDocument) error {
 }
 
 func isSupportedAMIFamily(imageFamily string) bool {
-	for _, image := range supportedAMIFamilies() {
+	for _, image := range SupportedAMIFamilies() {
 		if imageFamily == image {
 			return true
 		}
 	}
 	return false
+}
+
+func supportedAMIFamiliesForOS(isOSImage func(string) bool) []string {
+	amiFamilies := []string{}
+	for _, image := range SupportedAMIFamilies() {
+		if isOSImage(image) {
+			amiFamilies = append(amiFamilies, image)
+		}
+	}
+	return amiFamilies
+}
+
+func IsAmazonLinuxImage(imageFamily string) bool {
+	switch imageFamily {
+	case NodeImageFamilyAmazonLinux2023,
+		NodeImageFamilyAmazonLinux2:
+		return true
+
+	default:
+		return false
+	}
+}
+
+func IsUbuntuImage(imageFamily string) bool {
+	switch imageFamily {
+	case NodeImageFamilyUbuntuPro2204,
+		NodeImageFamilyUbuntu2204,
+		NodeImageFamilyUbuntu2004,
+		NodeImageFamilyUbuntu1804:
+		return true
+
+	default:
+		return false
+	}
 }
 
 // IsWindowsImage reports whether the AMI family is for Windows
@@ -1489,17 +1593,13 @@ func (fps FargateProfileSelector) Validate() error {
 	return nil
 }
 
-func checkBottlerocketSettings(doc *InlineDocument, path string) error {
-	if doc == nil {
-		return nil
-	}
-
-	overlapErr := func(key, ngField string) error {
-		return errors.Errorf("invalid Bottlerocket setting: use %s.%s instead (path=%s)", path, ngField, key)
+func checkBottlerocketSettings(ng *NodeGroup, path string) error {
+	overlapErr := func(kubernetesField, ngField string) error {
+		return fmt.Errorf("invalid Bottlerocket setting: use %[1]s.%[2]s instead (path=%[1]s.bottlerocket.settings.kubernetes.%[3]s)", path, ngField, kubernetesField)
 	}
 
 	// Dig into kubernetes settings if provided.
-	kubeVal, ok := (*doc)["kubernetes"]
+	kubeVal, ok := (*ng.Bottlerocket.Settings)["kubernetes"]
 	if !ok {
 		return nil
 	}
@@ -1510,17 +1610,20 @@ func checkBottlerocketSettings(doc *InlineDocument, path string) error {
 	}
 
 	checkMapping := map[string]string{
-		"node-labels":    "labels",
-		"node-taints":    "taints",
-		"max-pods":       "maxPodsPerNode",
-		"cluster-dns-ip": "clusterDNS",
+		"node-labels": "labels",
+		"node-taints": "taints",
+		"max-pods":    "maxPodsPerNode",
 	}
 
 	for checkKey, shouldUse := range checkMapping {
 		_, ok := kube[checkKey]
 		if ok {
-			return overlapErr(path+".kubernetes."+checkKey, shouldUse)
+			return overlapErr(checkKey, shouldUse)
 		}
+	}
+
+	if _, ok := kube["cluster-dns-ip"]; ok && ng.ClusterDNS != "" {
+		return fmt.Errorf("only one of %[1]s.bottlerocket.settings.kubernetes.cluster-dns-ip or %[1]s.clusterDNS can be set", path)
 	}
 
 	return nil

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/hashicorp/go-version"
 	"github.com/kris-nova/logger"
@@ -14,34 +15,54 @@ import (
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/awsapi"
+	"github.com/weaveworks/eksctl/pkg/cfn/builder"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 )
 
-type Manager struct {
-	clusterConfig *api.ClusterConfig
-	eksAPI        awsapi.EKS
-	withOIDC      bool
-	oidcManager   *iamoidc.OpenIDConnectManager
-	stackManager  manager.StackManager
-	clientSet     kubeclient.Interface
+// StackManager manages CloudFormation stacks for addons.
+//
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//counterfeiter:generate -o fakes/fake_stack_manager.go . StackManager
+type StackManager interface {
+	CreateStack(ctx context.Context, name string, stack builder.ResourceSetReader, tags, parameters map[string]string, errs chan error) error
+	DeleteStackBySpec(ctx context.Context, s *cfntypes.Stack) (*cfntypes.Stack, error)
+	DeleteStackBySpecSync(ctx context.Context, s *cfntypes.Stack, errs chan error) error
+	DescribeStack(ctx context.Context, i *cfntypes.Stack) (*cfntypes.Stack, error)
+	GetIAMAddonsStacks(ctx context.Context) ([]*cfntypes.Stack, error)
+	UpdateStack(ctx context.Context, options manager.UpdateStackOptions) error
 }
 
-func New(clusterConfig *api.ClusterConfig, eksAPI awsapi.EKS, stackManager manager.StackManager, withOIDC bool, oidcManager *iamoidc.OpenIDConnectManager, clientSet kubeclient.Interface) (*Manager, error) {
+// CreateClientSet creates a Kubernetes ClientSet.
+type CreateClientSet func() (kubeclient.Interface, error)
+
+type Manager struct {
+	clusterConfig   *api.ClusterConfig
+	eksAPI          awsapi.EKS
+	withOIDC        bool
+	oidcManager     *iamoidc.OpenIDConnectManager
+	stackManager    StackManager
+	createClientSet CreateClientSet
+}
+
+func New(clusterConfig *api.ClusterConfig, eksAPI awsapi.EKS, stackManager StackManager, withOIDC bool, oidcManager *iamoidc.OpenIDConnectManager, createClientSet CreateClientSet) (*Manager, error) {
 	return &Manager{
-		clusterConfig: clusterConfig,
-		eksAPI:        eksAPI,
-		withOIDC:      withOIDC,
-		oidcManager:   oidcManager,
-		stackManager:  stackManager,
-		clientSet:     clientSet,
+		clusterConfig:   clusterConfig,
+		eksAPI:          eksAPI,
+		withOIDC:        withOIDC,
+		oidcManager:     oidcManager,
+		stackManager:    stackManager,
+		createClientSet: createClientSet,
 	}, nil
 }
 
 func (a *Manager) waitForAddonToBeActive(ctx context.Context, addon *api.Addon, waitTimeout time.Duration) error {
-	// Don't wait for coredns or aws-ebs-csi-driver if there are no nodegroups.
+	// Don't wait for coredns, aws-ebs-csi-driver or aws-efs-csi-driver if there are no nodegroups.
 	// They will be in degraded state until nodegroups are added.
-	if (addon.Name == api.CoreDNSAddon || addon.Name == api.AWSEBSCSIDriverAddon) && !a.clusterConfig.HasNodes() {
+	if (addon.Name == api.CoreDNSAddon ||
+		addon.Name == api.AWSEBSCSIDriverAddon ||
+		addon.Name == api.AWSEFSCSIDriverAddon) &&
+		!a.clusterConfig.HasNodes() {
 		return nil
 	}
 	activeWaiter := eks.NewAddonActiveWaiter(a.eksAPI)

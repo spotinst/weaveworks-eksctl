@@ -4,13 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/aws/amazon-ec2-instance-selector/v2/pkg/selector"
-
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
+	"github.com/weaveworks/eksctl/pkg/actions/addon"
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
@@ -26,14 +25,10 @@ type UnownedCluster struct {
 	ctl                 *eks.ClusterProvider
 	stackManager        manager.StackManager
 	newClientSet        func() (kubernetes.Interface, error)
-	newNodeGroupManager func(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) NodeGroupDrainer
+	newNodeGroupDrainer func(clientSet kubernetes.Interface) NodeGroupDrainer
 }
 
-func NewUnownedCluster(ctx context.Context, cfg *api.ClusterConfig, ctl *eks.ClusterProvider, stackManager manager.StackManager) (*UnownedCluster, error) {
-	instanceSelector, err := selector.New(context.Background(), ctl.AWSProvider.AWSConfig())
-	if err != nil {
-		return nil, err
-	}
+func NewUnownedCluster(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, stackManager manager.StackManager) *UnownedCluster {
 	return &UnownedCluster{
 		cfg:          cfg,
 		ctl:          ctl,
@@ -41,10 +36,12 @@ func NewUnownedCluster(ctx context.Context, cfg *api.ClusterConfig, ctl *eks.Clu
 		newClientSet: func() (kubernetes.Interface, error) {
 			return ctl.NewStdClientSet(cfg)
 		},
-		newNodeGroupManager: func(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) NodeGroupDrainer {
-			return nodegroup.New(cfg, ctl, clientSet, instanceSelector)
+		newNodeGroupDrainer: func(clientSet kubernetes.Interface) NodeGroupDrainer {
+			return &nodegroup.Drainer{
+				ClientSet: clientSet,
+			}
 		},
-	}, nil
+	}
 }
 
 func (c *UnownedCluster) Upgrade(ctx context.Context, dryRun bool) error {
@@ -82,8 +79,8 @@ func (c *UnownedCluster) Delete(ctx context.Context, waitInterval, podEvictionWa
 			return err
 		}
 
-		nodeGroupManager := c.newNodeGroupManager(c.cfg, c.ctl, clientSet)
-		if err := drainAllNodeGroups(ctx, c.cfg, c.ctl, clientSet, allStacks, disableNodegroupEviction, parallel, nodeGroupManager, func(clusterConfig *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) {
+		drainer := c.newNodeGroupDrainer(clientSet)
+		if err := drainAllNodeGroups(ctx, c.cfg, c.ctl, clientSet, allStacks, disableNodegroupEviction, parallel, drainer, func(clusterConfig *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) {
 			attemptVpcCniDeletion(ctx, clusterConfig, ctl, clientSet)
 		}, podEvictionWaitPeriod); err != nil {
 			if !force {
@@ -184,7 +181,7 @@ func (c *UnownedCluster) deleteIAMAndOIDC(ctx context.Context, wait bool, cluste
 		}
 	}
 
-	deleteAddonIAMTasks, err := c.stackManager.NewTaskToDeleteAddonIAM(ctx, wait)
+	deleteAddonIAMTasks, err := addon.NewRemover(c.stackManager).DeleteAddonIAMTasks(ctx, wait)
 	if err != nil {
 		return err
 	}

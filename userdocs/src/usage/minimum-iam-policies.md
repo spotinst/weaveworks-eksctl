@@ -128,7 +128,6 @@ IamLimitedAccess
                 "iam:DeleteRole",
                 "iam:AttachRolePolicy",
                 "iam:PutRolePolicy",
-                "iam:ListInstanceProfiles",
                 "iam:AddRoleToInstanceProfile",
                 "iam:ListInstanceProfilesForRole",
                 "iam:PassRole",
@@ -158,10 +157,12 @@ IamLimitedAccess
         {
             "Effect": "Allow",
             "Action": [
-                "iam:GetRole"
+                "iam:GetRole",
+                "iam:GetUser"
             ],
             "Resource": [
-                "arn:aws:iam::<account_id>:role/*"
+                "arn:aws:iam::<account_id>:role/*",
+                "arn:aws:iam::<account_id>:user/*"
             ]
         },
         {

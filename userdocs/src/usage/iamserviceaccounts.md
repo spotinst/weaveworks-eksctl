@@ -94,8 +94,15 @@ To manage `iamserviceaccounts` using config file, you will be looking to set `ia
 
 All of the commands support `--config-file`, you can manage _iamserviceaccounts_ the same way as _nodegroups_.
 The `eksctl create iamserviceaccount` command supports `--include` and `--exclude` flags (see
-[this section](/usage/managing-nodegroups#include-and-exclude-rules) for more details about how these work).
+[this section](/usage/nodegroups#include-and-exclude-rules) for more details about how these work).
 And the `eksctl delete iamserviceaccount` command supports `--only-missing` as well, so you can perform deletions the same way as nodegroups.
+
+???+ note
+    IAM service accounts are scoped within a namespace, i.e. two service accounts with the same name may exist in different namespaces. Thus, to uniquely define a service account as part of `--include`, `--exclude` flags, you will need to pass the name string in the `namespace/name` format. E.g.
+
+    ```
+    eksctl create iamserviceaccount --config-file=<path> --include backend-apps/s3-reader
+    ```
 
 The option to enable `wellKnownPolicies` is included for using IRSA with well-known
 use cases like `cluster-autoscaler` and `cert-manager`, as a shorthand for lists

@@ -5,11 +5,18 @@ package awsapi
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	. "github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
 // SSM provides an interface to the AWS SSM service.
 type SSM interface {
+	// Options returns a copy of the client configuration.
+	//
+	// Callers SHOULD NOT perform mutations on any inner structures within client
+	// config. Config overrides should instead be made on a per-operation basis through
+	// functional options.
+	Options() ssm.Options
 	// Adds or overwrites one or more tags for the specified resource. Tags are
 	// metadata that you can assign to your automations, documents, managed nodes,
 	// maintenance windows, Parameter Store parameters, and patch baselines. Tags
@@ -31,8 +38,8 @@ type SSM interface {
 	// to manage your resources. You can search and filter the resources based on the
 	// tags you add. Tags don't have any semantic meaning to and are interpreted
 	// strictly as a string of characters. For more information about using tags with
-	// Amazon Elastic Compute Cloud (Amazon EC2) instances, see Tagging your Amazon
-	// EC2 resources (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html)
+	// Amazon Elastic Compute Cloud (Amazon EC2) instances, see Tag your Amazon EC2
+	// resources (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html)
 	// in the Amazon EC2 User Guide.
 	AddTagsToResource(ctx context.Context, params *AddTagsToResourceInput, optFns ...func(*Options)) (*AddTagsToResourceOutput, error)
 	// Associates a related item to a Systems Manager OpsCenter OpsItem. For example,
@@ -55,7 +62,7 @@ type SSM interface {
 	// activation code and ID when installing SSM Agent on machines in your hybrid
 	// environment. For more information about requirements for managing on-premises
 	// machines using Systems Manager, see Setting up Amazon Web Services Systems
-	// Manager for hybrid environments (https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-managedinstances.html)
+	// Manager for hybrid and multicloud environments (https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-managedinstances.html)
 	// in the Amazon Web Services Systems Manager User Guide. Amazon Elastic Compute
 	// Cloud (Amazon EC2) instances, edge devices, and on-premises servers and VMs that
 	// are configured for Systems Manager are all called managed nodes.
@@ -159,6 +166,25 @@ type SSM interface {
 	DeleteInventory(ctx context.Context, params *DeleteInventoryInput, optFns ...func(*Options)) (*DeleteInventoryOutput, error)
 	// Deletes a maintenance window.
 	DeleteMaintenanceWindow(ctx context.Context, params *DeleteMaintenanceWindowInput, optFns ...func(*Options)) (*DeleteMaintenanceWindowOutput, error)
+	// Delete an OpsItem. You must have permission in Identity and Access Management
+	// (IAM) to delete an OpsItem. Note the following important information about this
+	// operation.
+	//   - Deleting an OpsItem is irreversible. You can't restore a deleted OpsItem.
+	//   - This operation uses an eventual consistency model, which means the system
+	//     can take a few minutes to complete this operation. If you delete an OpsItem and
+	//     immediately call, for example, GetOpsItem , the deleted OpsItem might still
+	//     appear in the response.
+	//   - This operation is idempotent. The system doesn't throw an exception if you
+	//     repeatedly call this operation for the same OpsItem. If the first call is
+	//     successful, all additional calls return the same successful response as the
+	//     first call.
+	//   - This operation doesn't support cross-account calls. A delegated
+	//     administrator or management account can't delete OpsItems in other accounts,
+	//     even if OpsCenter has been set up for cross-account administration. For more
+	//     information about cross-account administration, see Setting up OpsCenter to
+	//     centrally manage OpsItems across accounts (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter-setting-up-cross-account.html)
+	//     in the Systems Manager User Guide.
+	DeleteOpsItem(ctx context.Context, params *DeleteOpsItemInput, optFns ...func(*Options)) (*DeleteOpsItemOutput, error)
 	// Delete OpsMetadata related to an application.
 	DeleteOpsMetadata(ctx context.Context, params *DeleteOpsMetadataInput, optFns ...func(*Options)) (*DeleteOpsMetadataOutput, error)
 	// Delete a parameter from the system. After deleting a parameter, wait for at
@@ -175,10 +201,15 @@ type SSM interface {
 	DeleteResourceDataSync(ctx context.Context, params *DeleteResourceDataSyncInput, optFns ...func(*Options)) (*DeleteResourceDataSyncOutput, error)
 	// Deletes a Systems Manager resource policy. A resource policy helps you to
 	// define the IAM entity (for example, an Amazon Web Services account) that can
-	// manage your Systems Manager resources. Currently, OpsItemGroup is the only
-	// resource that supports Systems Manager resource policies. The resource policy
-	// for OpsItemGroup enables Amazon Web Services accounts to view and interact with
-	// OpsCenter operational work items (OpsItems).
+	// manage your Systems Manager resources. The following resources support Systems
+	// Manager resource policies.
+	//   - OpsItemGroup - The resource policy for OpsItemGroup enables Amazon Web
+	//     Services accounts to view and interact with OpsCenter operational work items
+	//     (OpsItems).
+	//   - Parameter - The resource policy is used to share a parameter with other
+	//     accounts using Resource Access Manager (RAM). For more information about
+	//     cross-account sharing of parameters, see Working with shared parameters (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-shared-parameters.html)
+	//     in the Amazon Web Services Systems Manager User Guide.
 	DeleteResourcePolicy(ctx context.Context, params *DeleteResourcePolicyInput, optFns ...func(*Options)) (*DeleteResourcePolicyOutput, error)
 	// Removes the server or virtual machine from the list of registered servers. You
 	// can reregister the node again at any time. If you don't plan to use Run Command
@@ -208,7 +239,9 @@ type SSM interface {
 	// Information about all active and terminated step executions in an Automation
 	// workflow.
 	DescribeAutomationStepExecutions(ctx context.Context, params *DescribeAutomationStepExecutionsInput, optFns ...func(*Options)) (*DescribeAutomationStepExecutionsOutput, error)
-	// Lists all patches eligible to be included in a patch baseline.
+	// Lists all patches eligible to be included in a patch baseline. Currently,
+	// DescribeAvailablePatches supports only the Amazon Linux 1, Amazon Linux 2, and
+	// Windows Server operating systems.
 	DescribeAvailablePatches(ctx context.Context, params *DescribeAvailablePatchesInput, optFns ...func(*Options)) (*DescribeAvailablePatchesOutput, error)
 	// Describes the specified Amazon Web Services Systems Manager document (SSM
 	// document).
@@ -218,12 +251,12 @@ type SSM interface {
 	// shared, it can either be shared privately (by specifying a user's Amazon Web
 	// Services account ID) or publicly (All).
 	DescribeDocumentPermission(ctx context.Context, params *DescribeDocumentPermissionInput, optFns ...func(*Options)) (*DescribeDocumentPermissionOutput, error)
-	// All associations for the managed node(s).
+	// All associations for the managed nodes.
 	DescribeEffectiveInstanceAssociations(ctx context.Context, params *DescribeEffectiveInstanceAssociationsInput, optFns ...func(*Options)) (*DescribeEffectiveInstanceAssociationsOutput, error)
 	// Retrieves the current effective patches (the patch and the approval state) for
 	// the specified patch baseline. Applies to patch baselines for Windows only.
 	DescribeEffectivePatchesForPatchBaseline(ctx context.Context, params *DescribeEffectivePatchesForPatchBaselineInput, optFns ...func(*Options)) (*DescribeEffectivePatchesForPatchBaselineOutput, error)
-	// The status of the associations for the managed node(s).
+	// The status of the associations for the managed nodes.
 	DescribeInstanceAssociationsStatus(ctx context.Context, params *DescribeInstanceAssociationsStatusInput, optFns ...func(*Options)) (*DescribeInstanceAssociationsStatusOutput, error)
 	// Provides information about one or more of your managed nodes, including the
 	// operating system platform, SSM Agent version, association status, and IP
@@ -276,21 +309,22 @@ type SSM interface {
 	// in the Amazon Web Services Systems Manager User Guide. Operations engineers and
 	// IT professionals use Amazon Web Services Systems Manager OpsCenter to view,
 	// investigate, and remediate operational issues impacting the performance and
-	// health of their Amazon Web Services resources. For more information, see
-	// OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
+	// health of their Amazon Web Services resources. For more information, see Amazon
+	// Web Services Systems Manager OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	DescribeOpsItems(ctx context.Context, params *DescribeOpsItemsInput, optFns ...func(*Options)) (*DescribeOpsItemsOutput, error)
-	// Get information about a parameter. Request results are returned on a
-	// best-effort basis. If you specify MaxResults in the request, the response
-	// includes information up to the limit specified. The number of items returned,
-	// however, can be between zero and the value of MaxResults . If the service
-	// reaches an internal limit while processing the results, it stops the operation
-	// and returns the matching values up to that point and a NextToken . You can
-	// specify the NextToken in a subsequent call to get the next set of results. If
-	// you change the KMS key alias for the KMS key used to encrypt a parameter, then
-	// you must also update the key alias the parameter uses to reference KMS.
-	// Otherwise, DescribeParameters retrieves whatever the original key alias was
-	// referencing.
+	// Lists the parameters in your Amazon Web Services account or the parameters
+	// shared with you when you enable the Shared (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeParameters.html#systemsmanager-DescribeParameters-request-Shared)
+	// option. Request results are returned on a best-effort basis. If you specify
+	// MaxResults in the request, the response includes information up to the limit
+	// specified. The number of items returned, however, can be between zero and the
+	// value of MaxResults . If the service reaches an internal limit while processing
+	// the results, it stops the operation and returns the matching values up to that
+	// point and a NextToken . You can specify the NextToken in a subsequent call to
+	// get the next set of results. If you change the KMS key alias for the KMS key
+	// used to encrypt a parameter, then you must also update the key alias the
+	// parameter uses to reference KMS. Otherwise, DescribeParameters retrieves
+	// whatever the original key alias was referencing.
 	DescribeParameters(ctx context.Context, params *DescribeParametersInput, optFns ...func(*Options)) (*DescribeParametersOutput, error)
 	// Lists the patch baselines in your Amazon Web Services account.
 	DescribePatchBaselines(ctx context.Context, params *DescribePatchBaselinesInput, optFns ...func(*Options)) (*DescribePatchBaselinesOutput, error)
@@ -391,8 +425,8 @@ type SSM interface {
 	// in the Amazon Web Services Systems Manager User Guide. Operations engineers and
 	// IT professionals use Amazon Web Services Systems Manager OpsCenter to view,
 	// investigate, and remediate operational issues impacting the performance and
-	// health of their Amazon Web Services resources. For more information, see
-	// OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
+	// health of their Amazon Web Services resources. For more information, see Amazon
+	// Web Services Systems Manager OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	GetOpsItem(ctx context.Context, params *GetOpsItemInput, optFns ...func(*Options)) (*GetOpsItemOutput, error)
 	// View operational metadata related to an application in Application Manager.
@@ -569,10 +603,32 @@ type SSM interface {
 	PutParameter(ctx context.Context, params *PutParameterInput, optFns ...func(*Options)) (*PutParameterOutput, error)
 	// Creates or updates a Systems Manager resource policy. A resource policy helps
 	// you to define the IAM entity (for example, an Amazon Web Services account) that
-	// can manage your Systems Manager resources. Currently, OpsItemGroup is the only
-	// resource that supports Systems Manager resource policies. The resource policy
-	// for OpsItemGroup enables Amazon Web Services accounts to view and interact with
-	// OpsCenter operational work items (OpsItems).
+	// can manage your Systems Manager resources. The following resources support
+	// Systems Manager resource policies.
+	//   - OpsItemGroup - The resource policy for OpsItemGroup enables Amazon Web
+	//     Services accounts to view and interact with OpsCenter operational work items
+	//     (OpsItems).
+	//   - Parameter - The resource policy is used to share a parameter with other
+	//     accounts using Resource Access Manager (RAM). To share a parameter, it must be
+	//     in the advanced parameter tier. For information about parameter tiers, see
+	//     Managing parameter tiers (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-advanced-parameters.html)
+	//     . For information about changing an existing standard parameter to an advanced
+	//     parameter, see Changing a standard parameter to an advanced parameter (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-advanced-parameters.html#parameter-store-advanced-parameters-enabling)
+	//     . To share a SecureString parameter, it must be encrypted with a customer
+	//     managed key, and you must share the key separately through Key Management
+	//     Service. Amazon Web Services managed keys cannot be shared. Parameters encrypted
+	//     with the default Amazon Web Services managed key can be updated to use a
+	//     customer managed key instead. For KMS key definitions, see KMS concepts (https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html)
+	//     in the Key Management Service Developer Guide. While you can share a parameter
+	//     using the Systems Manager PutResourcePolicy operation, we recommend using
+	//     Resource Access Manager (RAM) instead. This is because using PutResourcePolicy
+	//     requires the extra step of promoting the parameter to a standard RAM Resource
+	//     Share using the RAM PromoteResourceShareCreatedFromPolicy (https://docs.aws.amazon.com/ram/latest/APIReference/API_PromoteResourceShareCreatedFromPolicy.html)
+	//     API operation. Otherwise, the parameter won't be returned by the Systems Manager
+	//     DescribeParameters (https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_DescribeParameters.html)
+	//     API operation using the --shared option. For more information, see Sharing a
+	//     parameter (https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-shared-parameters.html#share)
+	//     in the Amazon Web Services Systems Manager User Guide
 	PutResourcePolicy(ctx context.Context, params *PutResourcePolicyInput, optFns ...func(*Options)) (*PutResourcePolicyOutput, error)
 	// Defines the default patch baseline for the relevant operating system. To reset
 	// the Amazon Web Services-predefined patch baseline as the default, specify the
@@ -736,8 +792,8 @@ type SSM interface {
 	// in the Amazon Web Services Systems Manager User Guide. Operations engineers and
 	// IT professionals use Amazon Web Services Systems Manager OpsCenter to view,
 	// investigate, and remediate operational issues impacting the performance and
-	// health of their Amazon Web Services resources. For more information, see
-	// OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
+	// health of their Amazon Web Services resources. For more information, see Amazon
+	// Web Services Systems Manager OpsCenter (https://docs.aws.amazon.com/systems-manager/latest/userguide/OpsCenter.html)
 	// in the Amazon Web Services Systems Manager User Guide.
 	UpdateOpsItem(ctx context.Context, params *UpdateOpsItemInput, optFns ...func(*Options)) (*UpdateOpsItemOutput, error)
 	// Amazon Web Services Systems Manager calls this API operation when you edit

@@ -6,16 +6,17 @@ import (
 	"strings"
 	"time"
 
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
+	"github.com/weaveworks/eksctl/pkg/actions/accessentry"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/awsapi"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/cfn/waiter"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
@@ -30,8 +31,25 @@ func deleteAll(_ string) bool { return true }
 
 type NewOIDCManager func() (*iamoidc.OpenIDConnectManager, error)
 
+// NewTasksToDeleteAddonIAM temporary type, to be removed after moving NewTasksToDeleteClusterWithNodeGroups to actions package
+type NewTasksToDeleteAddonIAM func(ctx context.Context, wait bool) (*tasks.TaskTree, error)
+
+// NewTasksToDeletePodIdentityRole temporary type, to be removed after moving NewTasksToDeleteClusterWithNodeGroups to actions package
+type NewTasksToDeletePodIdentityRole func() (*tasks.TaskTree, error)
+
 // NewTasksToDeleteClusterWithNodeGroups defines tasks required to delete the given cluster along with all of its resources
-func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Context, clusterStack *Stack, nodeGroupStacks []NodeGroupStack, clusterOperable bool, newOIDCManager NewOIDCManager, cluster *ekstypes.Cluster, clientSetGetter kubernetes.ClientSetGetter, wait, force bool, cleanup func(chan error, string) error) (*tasks.TaskTree, error) {
+func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(
+	ctx context.Context,
+	clusterStack *Stack,
+	nodeGroupStacks []NodeGroupStack,
+	clusterOperable bool,
+	newOIDCManager NewOIDCManager,
+	newTasksToDeleteAddonIAM NewTasksToDeleteAddonIAM,
+	newTasksToDeletePodIdentityRole NewTasksToDeletePodIdentityRole,
+	cluster *ekstypes.Cluster,
+	clientSetGetter kubernetes.ClientSetGetter,
+	wait, force bool,
+	cleanup func(chan error, string) error) (*tasks.TaskTree, error) {
 	taskTree := &tasks.TaskTree{Parallel: false}
 
 	nodeGroupTasks, err := c.NewTasksToDeleteNodeGroups(nodeGroupStacks, deleteAll, true, cleanup)
@@ -56,7 +74,7 @@ func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Cont
 		}
 	}
 
-	deleteAddonIAMTasks, err := c.NewTaskToDeleteAddonIAM(ctx, wait)
+	deleteAddonIAMTasks, err := newTasksToDeleteAddonIAM(ctx, wait)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +82,26 @@ func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Cont
 	if deleteAddonIAMTasks.Len() > 0 {
 		deleteAddonIAMTasks.IsSubTask = true
 		taskTree.Append(deleteAddonIAMTasks)
+	}
+
+	deletePodIdentityRoleTasks, err := newTasksToDeletePodIdentityRole()
+	if err != nil {
+		return nil, err
+	}
+	if deletePodIdentityRoleTasks.Len() > 0 {
+		deletePodIdentityRoleTasks.IsSubTask = true
+		taskTree.Append(deletePodIdentityRoleTasks)
+	}
+
+	deleteAccessEntriesTasks, err := accessentry.
+		NewRemover(c.spec.Metadata.Name, c, c.eksAPI).
+		DeleteTasks(ctx, []api.AccessEntry{})
+	if err != nil {
+		return nil, err
+	}
+	if deleteAccessEntriesTasks.Len() > 0 {
+		deleteAccessEntriesTasks.IsSubTask = true
+		taskTree.Append(deleteAccessEntriesTasks)
 	}
 
 	if clusterStack == nil {
@@ -88,12 +126,11 @@ func (c *StackCollection) NewTasksToDeleteClusterWithNodeGroups(ctx context.Cont
 	return taskTree, nil
 }
 
-// NewTasksToDeleteNodeGroups defines tasks required to delete all of the nodegroups
+// NewTasksToDeleteNodeGroups defines tasks required to delete all nodegroups.
 func (c *StackCollection) NewTasksToDeleteNodeGroups(nodeGroupStacks []NodeGroupStack, shouldDelete func(string) bool, wait bool, cleanup func(chan error, string) error) (*tasks.TaskTree, error) {
 	taskTree := &tasks.TaskTree{Parallel: true}
 
 	for _, s := range nodeGroupStacks {
-
 		if !shouldDelete(s.NodeGroupName) || s.NodeGroupName == api.SpotOceanClusterNodeGroupName {
 			continue
 		}
@@ -135,19 +172,33 @@ func (c *StackCollection) NewTasksToDeleteNodeGroups(nodeGroupStacks []NodeGroup
 	return taskTree, nil
 }
 
+func usesAccessEntry(stack *Stack) bool {
+	for _, output := range stack.Outputs {
+		if *output.OutputKey == outputs.NodeGroupUsesAccessEntry {
+			return *output.OutputValue == "true"
+		}
+	}
+	return false
+}
+
 type DeleteWaitCondition struct {
 	Condition func() (bool, error)
 	Timeout   time.Duration
 	Interval  time.Duration
 }
 
+//counterfeiter:generate -o fakes/fake_nodegroup_deleter.go . NodeGroupDeleter
+type NodeGroupDeleter interface {
+	DeleteNodegroup(ctx context.Context, params *awseks.DeleteNodegroupInput, optFns ...func(*awseks.Options)) (*awseks.DeleteNodegroupOutput, error)
+}
+
 type DeleteUnownedNodegroupTask struct {
-	cluster   string
-	nodegroup string
-	wait      *DeleteWaitCondition
-	info      string
-	eksAPI    awsapi.EKS
-	ctx       context.Context
+	cluster          string
+	nodegroup        string
+	wait             *DeleteWaitCondition
+	info             string
+	nodeGroupDeleter NodeGroupDeleter
+	ctx              context.Context
 }
 
 func (d *DeleteUnownedNodegroupTask) Describe() string {
@@ -155,7 +206,7 @@ func (d *DeleteUnownedNodegroupTask) Describe() string {
 }
 
 func (d *DeleteUnownedNodegroupTask) Do() error {
-	out, err := d.eksAPI.DeleteNodegroup(d.ctx, &awseks.DeleteNodegroupInput{
+	out, err := d.nodeGroupDeleter.DeleteNodegroup(d.ctx, &awseks.DeleteNodegroupInput{
 		ClusterName:   &d.cluster,
 		NodegroupName: &d.nodegroup,
 	})
@@ -185,15 +236,15 @@ func (d *DeleteUnownedNodegroupTask) Do() error {
 	return nil
 }
 
-func (c *StackCollection) NewTaskToDeleteUnownedNodeGroup(ctx context.Context, clusterName, nodegroup string, eksAPI awsapi.EKS, waitCondition *DeleteWaitCondition) tasks.Task {
+func (c *StackCollection) NewTaskToDeleteUnownedNodeGroup(ctx context.Context, clusterName, nodegroup string, nodeGroupDeleter NodeGroupDeleter, waitCondition *DeleteWaitCondition) tasks.Task {
 	return tasks.SynchronousTask{
 		SynchronousTaskIface: &DeleteUnownedNodegroupTask{
-			cluster:   clusterName,
-			nodegroup: nodegroup,
-			eksAPI:    eksAPI,
-			wait:      waitCondition,
-			info:      fmt.Sprintf("delete unowned nodegroup %s", nodegroup),
-			ctx:       ctx,
+			cluster:          clusterName,
+			nodegroup:        nodegroup,
+			nodeGroupDeleter: nodeGroupDeleter,
+			wait:             waitCondition,
+			info:             fmt.Sprintf("delete unowned nodegroup %s", nodegroup),
+			ctx:              ctx,
 		}}
 }
 
@@ -337,39 +388,6 @@ func stacksToServiceAccountMap(stacks []*types.Stack) map[string]*types.Stack {
 	}
 
 	return stackMap
-}
-
-// NewTaskToDeleteAddonIAM defines tasks required to delete all of the addons
-func (c *StackCollection) NewTaskToDeleteAddonIAM(ctx context.Context, wait bool) (*tasks.TaskTree, error) {
-	stacks, err := c.GetIAMAddonsStacks(ctx)
-	if err != nil {
-		return nil, err
-	}
-	taskTree := &tasks.TaskTree{Parallel: true}
-	for _, s := range stacks {
-		info := fmt.Sprintf("delete addon IAM %q", *s.StackName)
-
-		deleteStackTasks := &tasks.TaskTree{
-			Parallel:  false,
-			IsSubTask: true,
-		}
-		if wait {
-			deleteStackTasks.Append(&taskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpecSync,
-			})
-		} else {
-			deleteStackTasks.Append(&asyncTaskWithStackSpec{
-				info:  info,
-				stack: s,
-				call:  c.DeleteStackBySpec,
-			})
-		}
-		taskTree.Append(deleteStackTasks)
-	}
-	return taskTree, nil
-
 }
 
 // NewTasksToDeleteSpotOceanNodeGroup defines tasks required to delete Ocean nodegroup.

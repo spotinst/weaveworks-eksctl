@@ -2,6 +2,7 @@ package v1alpha5_test
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
@@ -114,6 +115,20 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("should reject docker runtime if AMI Family is AmazonLinux2023", func() {
+			cfg := api.NewClusterConfig()
+			cfg.Metadata.Version = api.Version1_23
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2023
+			ng0.ContainerRuntime = aws.String(api.ContainerRuntimeDockerD)
+			err := api.ValidateClusterConfig(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			err = api.ValidateNodeGroup(0, ng0, cfg)
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("only %s is supported for container runtime on %s nodes", api.ContainerRuntimeContainerD, api.NodeImageFamilyAmazonLinux2023))))
+		})
+
 		It("should reject docker runtime if version is 1.24 or greater", func() {
 			cfg := api.NewClusterConfig()
 			cfg.Metadata.Version = api.Version1_24
@@ -153,7 +168,16 @@ var _ = Describe("ClusterConfig validation", func() {
 			ng0.Name = "node-group"
 			ng0.AMI = "ami-1234"
 			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2
-			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring("overrideBootstrapCommand is required when using a custom AMI ")))
+			errMsg := fmt.Sprintf("overrideBootstrapCommand is required when using a custom AMI based on %s", ng0.AMIFamily)
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring(errMsg)))
+		})
+		It("should not require overrideBootstrapCommand if ami is set and type is AmazonLinux2023", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2023
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(Succeed())
 		})
 		It("should not require overrideBootstrapCommand if ami is set and type is Bottlerocket", func() {
 			cfg := api.NewClusterConfig()
@@ -171,14 +195,32 @@ var _ = Describe("ClusterConfig validation", func() {
 			ng0.AMIFamily = api.NodeImageFamilyWindowsServer2019CoreContainer
 			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(Succeed())
 		})
-		It("should throw an error if overrideBootstrapCommand is set and type is Windows", func() {
+		It("should not throw an error if overrideBootstrapCommand is set and type is Windows", func() {
 			cfg := api.NewClusterConfig()
 			ng0 := cfg.NewNodeGroup()
 			ng0.Name = "node-group"
 			ng0.AMI = "ami-1234"
 			ng0.AMIFamily = api.NodeImageFamilyWindowsServer2019CoreContainer
 			ng0.OverrideBootstrapCommand = aws.String("echo 'yo'")
-			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring("overrideBootstrapCommand is not supported for WindowsServer2019CoreContainer nodegroups")))
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(Succeed())
+		})
+		It("should throw an error if overrideBootstrapCommand is set and type is AmazonLinux2023", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2023
+			ng0.OverrideBootstrapCommand = aws.String("echo 'yo'")
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring(fmt.Sprintf("overrideBootstrapCommand is not supported for %s nodegroups", api.NodeImageFamilyAmazonLinux2023))))
+		})
+		It("should throw an error if overrideBootstrapCommand is set and type is Bottlerocket", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			ng0.AMIFamily = api.NodeImageFamilyBottlerocket
+			ng0.OverrideBootstrapCommand = aws.String("echo 'yo'")
+			Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError(ContainSubstring(fmt.Sprintf("overrideBootstrapCommand is not supported for %s nodegroups", api.NodeImageFamilyBottlerocket))))
 		})
 		It("should accept ami with a overrideBootstrapCommand set", func() {
 			cfg := api.NewClusterConfig()
@@ -1331,6 +1373,41 @@ var _ = Describe("ClusterConfig validation", func() {
 			})
 
 		})
+
+		type vpcSecurityGroupEntry struct {
+			updateVPC   func(*api.ClusterVPC)
+			expectedErr string
+		}
+		DescribeTable("vpc.securityGroup and vpc.controlPlaneSecurityGroupIDs", func(e vpcSecurityGroupEntry) {
+			e.updateVPC(cfg.VPC)
+			err := cfg.ValidateVPCConfig()
+			if e.expectedErr != "" {
+				Expect(err).To(MatchError(ContainSubstring(e.expectedErr)))
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+			}
+		},
+			Entry("both set", vpcSecurityGroupEntry{
+				updateVPC: func(v *api.ClusterVPC) {
+					v.SecurityGroup = "sg-1234"
+					v.ControlPlaneSecurityGroupIDs = []string{"sg-1234"}
+				},
+				expectedErr: "only one of vpc.securityGroup and vpc.controlPlaneSecurityGroupIDs can be specified",
+			}),
+			Entry("vpc.securityGroup set", vpcSecurityGroupEntry{
+				updateVPC: func(v *api.ClusterVPC) {
+					v.SecurityGroup = "sg-1234"
+				},
+			}),
+			Entry("vpc.controlPlaneSecurityGroupIDs set", vpcSecurityGroupEntry{
+				updateVPC: func(v *api.ClusterVPC) {
+					v.ControlPlaneSecurityGroupIDs = []string{"sg-1234"}
+				},
+			}),
+			Entry("neither set", vpcSecurityGroupEntry{
+				updateVPC: func(v *api.ClusterVPC) {},
+			}),
+		)
 	})
 
 	Describe("ValidatePrivateCluster", func() {
@@ -1802,23 +1879,55 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).To(MatchError(ContainSubstring(`bottlerocket config can only be used with amiFamily "Bottlerocket"`)))
 		})
 
-		It("returns an error with unsupported fields", func() {
-			cmd := "/usr/bin/some-command"
-			doc := api.InlineDocument{
-				"cgroupDriver": "systemd",
-			}
+		type bottlerocketEntry struct {
+			ng          *api.NodeGroup
+			expectedErr string
+		}
 
-			ngs := map[string]*api.NodeGroup{
-				"PreBootstrapCommands": {
+		DescribeTable("field validation", func(be bottlerocketEntry) {
+			if be.ng.NodeGroupBase == nil {
+				be.ng.NodeGroupBase = &api.NodeGroupBase{}
+			}
+			be.ng.AMIFamily = api.NodeImageFamilyBottlerocket
+			err := api.ValidateNodeGroup(0, be.ng, api.NewClusterConfig())
+			if be.expectedErr != "" {
+				Expect(err).To(MatchError(be.expectedErr))
+			} else {
+				Expect(err).NotTo(HaveOccurred())
+			}
+		},
+			Entry("preBootstrapCommands", bottlerocketEntry{
+				ng: &api.NodeGroup{
 					NodeGroupBase: &api.NodeGroupBase{
 						PreBootstrapCommands: []string{"/usr/bin/env true"},
-					}},
-				"OverrideBootstrapCommand": {
+					},
+				},
+
+				expectedErr: "preBootstrapCommands is not supported for Bottlerocket nodegroups (path=nodeGroups[0].preBootstrapCommands)",
+			}),
+
+			Entry("overrideBootstrapCommand", bottlerocketEntry{
+				ng: &api.NodeGroup{
 					NodeGroupBase: &api.NodeGroupBase{
-						OverrideBootstrapCommand: &cmd,
-					}},
-				"KubeletExtraConfig": {KubeletExtraConfig: &doc},
-				"overlapping Bottlerocket settings": {
+						OverrideBootstrapCommand: aws.String("/usr/bin/some-command"),
+					},
+				},
+
+				expectedErr: "overrideBootstrapCommand is not supported for Bottlerocket nodegroups (path=nodeGroups[0].overrideBootstrapCommand)",
+			}),
+
+			Entry("kubeletExtraConfig", bottlerocketEntry{
+				ng: &api.NodeGroup{
+					KubeletExtraConfig: &api.InlineDocument{
+						"cgroupDriver": "systemd",
+					},
+				},
+
+				expectedErr: "kubeletExtraConfig is not supported for Bottlerocket nodegroups (path=nodeGroups[0].kubeletExtraConfig)",
+			}),
+
+			Entry("overlapping settings", bottlerocketEntry{
+				ng: &api.NodeGroup{
 					NodeGroupBase: &api.NodeGroupBase{
 						Bottlerocket: &api.NodeGroupBottlerocket{
 							Settings: &api.InlineDocument{
@@ -1831,39 +1940,49 @@ var _ = Describe("ClusterConfig validation", func() {
 						},
 					},
 				},
-			}
 
-			cfg := api.NewClusterConfig()
-			for name, ng := range ngs {
-				if ng.NodeGroupBase == nil {
-					ng.NodeGroupBase = &api.NodeGroupBase{}
-				}
-				ng.AMIFamily = api.NodeImageFamilyBottlerocket
-				err := api.ValidateNodeGroup(0, ng, cfg)
-				Expect(err).To(HaveOccurred(), "foo", name)
-			}
-		})
+				expectedErr: "invalid Bottlerocket setting: use nodeGroups[0].labels instead (path=nodeGroups[0].bottlerocket.settings.kubernetes.node-labels)",
+			}),
 
-		It("has no error with supported fields", func() {
-			x := 32
-			ngs := []*api.NodeGroup{
-				{NodeGroupBase: &api.NodeGroupBase{Labels: map[string]string{"label": "label-value"}}},
-				{NodeGroupBase: &api.NodeGroupBase{MaxPodsPerNode: x}},
-				{
+			Entry("both clusterDNS and cluster-dns-ip set", bottlerocketEntry{
+				ng: &api.NodeGroup{
+					NodeGroupBase: &api.NodeGroupBase{
+						Bottlerocket: &api.NodeGroupBottlerocket{
+							Settings: &api.InlineDocument{
+								"kubernetes": map[string]interface{}{
+									"cluster-dns-ip": "10.100.0.10",
+								},
+							},
+						},
+					},
+					ClusterDNS: "10.100.0.10",
+				},
+
+				expectedErr: "only one of nodeGroups[0].bottlerocket.settings.kubernetes.cluster-dns-ip or nodeGroups[0].clusterDNS can be set",
+			}),
+
+			Entry("labels", bottlerocketEntry{
+				ng: &api.NodeGroup{
+					NodeGroupBase: &api.NodeGroupBase{Labels: map[string]string{"label": "label-value"}},
+				},
+			}),
+
+			Entry("maxPods", bottlerocketEntry{
+				ng: &api.NodeGroup{
+					NodeGroupBase: &api.NodeGroupBase{MaxPodsPerNode: 32},
+				},
+			}),
+
+			Entry("maxPods", bottlerocketEntry{
+				ng: &api.NodeGroup{
 					NodeGroupBase: &api.NodeGroupBase{
 						ScalingConfig: &api.ScalingConfig{
-							MinSize: &x,
+							MinSize: aws.Int(5),
 						},
 					},
 				},
-			}
-
-			cfg := api.NewClusterConfig()
-			for i, ng := range ngs {
-				ng.AMIFamily = api.NodeImageFamilyBottlerocket
-				Expect(api.ValidateNodeGroup(i, ng, cfg)).To(Succeed())
-			}
-		})
+			}),
+		)
 	})
 
 	type kmsFieldCase struct {
@@ -1924,7 +2043,68 @@ var _ = Describe("ClusterConfig validation", func() {
 		It("fails when the AMIFamily is not supported", func() {
 			ng.AMIFamily = "SomeTrash"
 			err := api.ValidateNodeGroup(0, ng, cfg)
-			Expect(err).To(MatchError("AMI Family SomeTrash is not supported - use one of: AmazonLinux2, Ubuntu2004, Ubuntu1804, Bottlerocket, WindowsServer2019CoreContainer, WindowsServer2019FullContainer, WindowsServer2022CoreContainer, WindowsServer2022FullContainer"))
+			Expect(err).To(MatchError(fmt.Sprintf("AMI Family SomeTrash is not supported - use one of: %s", strings.Join(api.SupportedAMIFamilies(), ", "))))
+		})
+
+		It("fails when the AmiFamily is not supported for managed nodes with custom AMI", func() {
+			mng := api.NewManagedNodeGroup()
+			mng.AMI = "ami-1234"
+			mng.OverrideBootstrapCommand = aws.String("bootstrap command")
+
+			mng.AMIFamily = api.NodeImageFamilyAmazonLinux2
+			err := api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu1804
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu2004
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu2204
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntuPro2204
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyBottlerocket
+			mng.OverrideBootstrapCommand = nil
+			err = api.ValidateManagedNodeGroup(0, mng)
+			errorMsg := fmt.Sprintf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s are supported", mng.AMIFamily,
+				strings.Join(append(api.SupportedAmazonLinuxImages, api.SupportedUbuntuImages...), ", "))
+			Expect(err).To(MatchError(errorMsg))
+
+			mng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("fails when the AmiFamily is not supported for managed nodes with custom AMI", func() {
+			mng := api.NewManagedNodeGroup()
+			mng.AMI = "ami-1234"
+			mng.OverrideBootstrapCommand = aws.String("bootstrap command")
+
+			mng.AMIFamily = api.NodeImageFamilyAmazonLinux2
+			err := api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu1804
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu2004
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyBottlerocket
+			mng.OverrideBootstrapCommand = nil
+			err = api.ValidateManagedNodeGroup(0, mng)
+			errorMsg := fmt.Sprintf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s, %s and %s are supported", mng.AMIFamily, api.NodeImageFamilyAmazonLinux2, api.NodeImageFamilyUbuntu1804, api.NodeImageFamilyUbuntu2004)
+			Expect(err).To(MatchError(errorMsg))
 		})
 
 		It("fails when the AMIFamily is WindowsServer2004CoreContainer", func() {
@@ -1937,6 +2117,16 @@ var _ = Describe("ClusterConfig validation", func() {
 			ng.AMIFamily = api.NodeImageFamilyWindowsServer20H2CoreContainer
 			err := api.ValidateNodeGroup(0, ng, cfg)
 			Expect(err).To(MatchError("AMI Family WindowsServer20H2CoreContainer is deprecated. For more information, head to the Amazon documentation on Windows AMIs (https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-windows-ami.html)"))
+		})
+	})
+
+	Describe("AmazonLinux2023 node groups", func() {
+		It("returns an error when setting maxPodsPerNode for managed nodegroups", func() {
+			ng := api.NewManagedNodeGroup()
+			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
+			ng.MaxPodsPerNode = 5
+			err := api.ValidateManagedNodeGroup(0, ng)
+			Expect(err).To(MatchError(ContainSubstring("eksctl does not support configuring maxPodsPerNode EKS-managed nodes")))
 		})
 	})
 
@@ -2019,7 +2209,19 @@ var _ = Describe("ClusterConfig validation", func() {
 		ng := newNodeGroup()
 		ng.Labels = e.labels
 		ng.Taints = e.taints
+
+		mng := api.NewManagedNodeGroup()
+		mng.Labels = e.labels
+		mng.Taints = e.taints
+
 		err := api.ValidateNodeGroup(0, ng, api.NewClusterConfig())
+		if e.valid {
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			Expect(err).To(HaveOccurred())
+		}
+
+		err = api.ValidateManagedNodeGroup(0, mng)
 		if e.valid {
 			Expect(err).NotTo(HaveOccurred())
 		} else {

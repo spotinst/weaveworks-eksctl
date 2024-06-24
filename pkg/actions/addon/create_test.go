@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
@@ -15,9 +17,9 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/weaveworks/eksctl/pkg/actions/addon"
+	"github.com/weaveworks/eksctl/pkg/actions/addon/fakes"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/builder"
-	"github.com/weaveworks/eksctl/pkg/cfn/manager/fakes"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 	"github.com/weaveworks/eksctl/pkg/testutils"
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
@@ -93,7 +95,9 @@ var _ = Describe("Create", func() {
 			createAddonInput = args[1].(*eks.CreateAddonInput)
 		}).Return(nil, returnedErr)
 
-		manager, err = addon.New(clusterConfig, mockProvider.EKS(), fakeStackManager, withOIDC, oidc, rawClient.ClientSet())
+		manager, err = addon.New(clusterConfig, mockProvider.EKS(), fakeStackManager, withOIDC, oidc, func() (kubernetes.Interface, error) {
+			return rawClient.ClientSet(), nil
+		})
 		Expect(err).NotTo(HaveOccurred())
 
 		mockProvider.MockEKS().On("DescribeAddonVersions", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
@@ -381,7 +385,7 @@ var _ = Describe("Create", func() {
 			}
 		})
 
-		DescribeTable("addons created with a waitTimeout", func(e createAddonEntry) {
+		DescribeTable("addons created with a waitTimeout when there are no active nodes", func(e createAddonEntry) {
 			expectedDescribeCallsCount := 1
 			if e.shouldWait {
 				expectedDescribeCallsCount++
@@ -403,6 +407,9 @@ var _ = Describe("Create", func() {
 			}),
 			Entry("should not wait for Amazon EBS CSI driver to become active", createAddonEntry{
 				addonName: api.AWSEBSCSIDriverAddon,
+			}),
+			Entry("should not wait for Amazon EFS CSI driver to become active", createAddonEntry{
+				addonName: api.AWSEFSCSIDriverAddon,
 			}),
 			Entry("should wait for VPC CNI to become active", createAddonEntry{
 				addonName:  api.VPCCNIAddon,
@@ -626,6 +633,31 @@ var _ = Describe("Create", func() {
 					Expect(string(output)).To(ContainSubstring("PolicyEBSCSIController"))
 					Expect(*createAddonInput.ClusterName).To(Equal("my-cluster"))
 					Expect(*createAddonInput.AddonName).To(Equal(api.AWSEBSCSIDriverAddon))
+					Expect(*createAddonInput.AddonVersion).To(Equal("v1.0.0-eksbuild.1"))
+					Expect(*createAddonInput.ServiceAccountRoleArn).To(Equal("role-arn"))
+				})
+			})
+
+			When("it's the aws-efs-csi-driver addon", func() {
+				It("creates a role with the recommended policies and attaches it to the addon", func() {
+					err := manager.Create(context.Background(), &api.Addon{
+						Name:    api.AWSEFSCSIDriverAddon,
+						Version: "v1.0.0-eksbuild.1",
+					}, 0)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(fakeStackManager.CreateStackCallCount()).To(Equal(1))
+					_, name, resourceSet, tags, _, _ := fakeStackManager.CreateStackArgsForCall(0)
+					Expect(name).To(Equal("eksctl-my-cluster-addon-aws-efs-csi-driver"))
+					Expect(resourceSet).NotTo(BeNil())
+					Expect(tags).To(Equal(map[string]string{
+						api.AddonNameTag: api.AWSEFSCSIDriverAddon,
+					}))
+					output, err := resourceSet.RenderJSON()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(string(output)).To(ContainSubstring("PolicyEFSCSIController"))
+					Expect(*createAddonInput.ClusterName).To(Equal("my-cluster"))
+					Expect(*createAddonInput.AddonName).To(Equal(api.AWSEFSCSIDriverAddon))
 					Expect(*createAddonInput.AddonVersion).To(Equal("v1.0.0-eksbuild.1"))
 					Expect(*createAddonInput.ServiceAccountRoleArn).To(Equal("role-arn"))
 				})

@@ -13,11 +13,11 @@ categories:
     labels:
       - 'kind/bug'
   - title: '🧰 Maintenance'
-    labels: 
+    labels:
       - 'area/tech-debt'
       - 'area/ci'
   - title: '📝 Documentation'
-    labels: 
+    labels:
       - 'area/docs'
       - 'kind/docs'
 change-template: '- $TITLE (#$NUMBER)'
@@ -29,10 +29,19 @@ template: |
   $CHANGES
 
   ## Acknowledgments
-  Weaveworks would like to sincerely thank:
-  $CONTRIBUTORS
-replacers:
-  - search: '/@(Himangini|TiberiuGC|A-Hilaly|yuxiang-zhang|cPu1|eksctl-bot|dependabot(?:\[bot\])?)(?:,| |$)/gm'
-    replace: ''
+
+  The eksctl maintainers would like to sincerely thank $CONTRIBUTORS.
+
 exclude-labels:
   - 'skip-release-notes'
+exclude-contributors:
+  - 'Himangini'
+  - 'TiberiuGC'
+  - 'cPu1'
+  - 'a-hilaly'
+  - 'yuxiang-zhang'
+  - 'eksctl-bot'
+  - 'dependabot'
+replacers:
+  - search: '/\s(?:and )?@dependabot(?:\[bot\])?,?/g'
+    replace: ''

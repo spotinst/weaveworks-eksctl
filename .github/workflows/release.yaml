@@ -1,21 +1,21 @@
-name: Release
+name: Trigger Release
 
 on:
   workflow_dispatch: {}
 
 jobs:
   rc:
-    name: Trigger release build
+    name: Push release tag
     runs-on: ubuntu-latest
-    container: weaveworks/eksctl-build:dd26c9e3baf8c275667bc15b1ce08aff6424a709
+    container: public.ecr.aws/eksctl/eksctl-build:833f4464e865a6398788bf6cbc5447967b8974b7
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
         with:
           token: ${{ secrets.EKSCTLBOT_TOKEN }}
           fetch-depth: 0
       - name: Cache go-build and mod
-        uses: actions/cache@v3
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 #v4.0.2
         with:
           path: |
             ~/.cache/go-build/

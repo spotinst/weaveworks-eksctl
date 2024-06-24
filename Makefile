@@ -17,7 +17,7 @@ generated_code_deep_copy_helper := pkg/apis/eksctl.io/v1alpha5/zz_generated.deep
 generated_code_aws_sdk_mocks := $(wildcard pkg/eks/mocks/*API.go)
 
 conditionally_generated_files := \
-  $(generated_code_deep_copy_helper) $(generated_code_aws_sdk_mocks) $(generated_code_aws_sdk_v2_mocks)
+  $(generated_code_deep_copy_helper) $(generated_code_aws_sdk_mocks)
 
 .DEFAULT_GOAL := help
 
@@ -52,10 +52,6 @@ binary: ## Build eksctl binary for current OS and place it at ./eksctl
 	CGO_ENABLED=0 go build -ldflags "-s -w -X $(version_pkg).gitCommit=$(git_commit) -X $(version_pkg).buildDate=$(build_date)" ./cmd/eksctl
 
 
-.PHONY: build-all
-build-all: generate-always ## Build binaries for Linux, Windows and Mac and place them in dist/
-	goreleaser --config=.goreleaser-local.yaml --snapshot --skip-publish --rm-dist
-
 clean: ## Remove artefacts or generated files from previous build
 	rm -rf eksctl eksctl-integration-test
 
@@ -83,7 +79,6 @@ endif
 .PHONY: lint
 lint: ## Run linter over the codebase
 	golangci-lint run --timeout=30m
-	@for config_file in $(shell ls .goreleaser*); do goreleaser check -f $${config_file} || exit 1; done
 
 .PHONY: test
 test: ## Lint, generate and run unit tests. Also ensure that integration tests compile
@@ -92,7 +87,10 @@ test: ## Lint, generate and run unit tests. Also ensure that integration tests c
 	$(MAKE) build-integration-test
 
 .PHONY: unit-test
-unit-test: check-all-generated-files-up-to-date ## Run unit test only
+unit-test: check-all-generated-files-up-to-date unit-test-no-generate
+
+.PHONY: unit-test-no-generate ## Run unit test only
+unit-test-no-generate:
 	CGO_ENABLED=0 go test  -tags=release ./pkg/... ./cmd/... $(UNIT_TEST_ARGS)
 
 .PHONY: unit-test-race
@@ -108,7 +106,11 @@ build-integration-test: $(all_generated_code) ## Ensure integration tests compil
 	go build -tags integration -o ./eksctl-integration-test ./integration/main.go
 
 .PHONY: integration-test
-integration-test: build build-integration-test ## Run the integration tests (with cluster creation and cleanup)
+integration-test: build build-integration-test ## Generate then build and run the integration tests (with cluster creation and cleanup)
+	INTEGRATION_TEST_FOCUS="$(INTEGRATION_TEST_FOCUS)" ./eksctl-integration-test $(INTEGRATION_TEST_ARGS)
+
+.PHONY: integration-test-no-build
+integration-test-no-build:
 	INTEGRATION_TEST_FOCUS="$(INTEGRATION_TEST_FOCUS)" ./eksctl-integration-test $(INTEGRATION_TEST_ARGS)
 
 list-integration-suites:
@@ -144,6 +146,7 @@ generate-always: pkg/addons/default/assets/aws-node.yaml ## Generate code (requi
 	go generate ./pkg/authconfigmap
 	go generate ./pkg/awsapi/...
 	go generate ./pkg/eks
+	${GOBIN}/mockery
 	go generate ./pkg/drain
 	go generate ./pkg/actions/...
 	go generate ./pkg/executor
@@ -165,6 +168,10 @@ pkg/addons/default/assets/aws-node.yaml:
 update-aws-node: ## Re-download the aws-node manifests from AWS
 	go generate ./pkg/addons/default/aws_node_generate.go
 
+.PHONY:
+update-coredns: ## get latest coredns builds for each available eks version
+	@go run pkg/addons/default/scripts/update_coredns_assets.go
+
 deep_copy_helper_input = $(shell $(call godeps_cmd,./pkg/apis/...) | sed 's|$(generated_code_deep_copy_helper)||' )
 $(generated_code_deep_copy_helper): $(deep_copy_helper_input) ## Generate Kubernetes API helpers
 	build/scripts/update-codegen.sh
@@ -172,8 +179,6 @@ $(generated_code_deep_copy_helper): $(deep_copy_helper_input) ## Generate Kuber
 $(generated_code_aws_sdk_mocks): $(call godeps,pkg/eks/mocks/mocks.go) ## Generate AWS SDK mocks
 	AWS_SDK_GO_DIR=$(AWS_SDK_GO_DIR) go generate ./pkg/eks/mocks
 
-$(generated_code_aws_sdk_v2_mocks): $(call godeps,pkg/eks/mockv2s/generate.go) ## Generate AWS SDK V2 mocks
-	AWS_SDK_GO_DIR=$(AWS_SDK_V2_GO_DIR) go generate ./pkg/eks/mocksv2
 
 .PHONY: generate-kube-reserved
 generate-kube-reserved: ## Update instance list with respective specs

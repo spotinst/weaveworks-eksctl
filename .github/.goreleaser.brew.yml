@@ -1,0 +1,34 @@
+brews:
+  - tap:
+      owner: weaveworks
+      name: homebrew-tap
+
+    commit_author:
+      name: eksctl-bot
+      email: 53547694+eksctl-bot@users.noreply.github.com
+
+    folder: Formula
+
+    homepage: "https://eksctl.io/"
+
+    description: "The official CLI for Amazon EKS"
+
+    skip_upload: false
+
+    dependencies:
+      - kubernetes-cli
+      - aws-iam-authenticator
+
+    custom_block: |
+      head "https://github.com/eksctl-io/eksctl/releases/download/latest_release/eksctl_Darwin_amd64.tar.gz"
+
+    install: |
+        bin.install "eksctl"
+
+        # Install bash completion
+        output = Utils.popen_read("#{bin}/eksctl completion bash")
+        (bash_completion/"eksctl").write output
+
+        # Install zsh completion
+        output = Utils.popen_read("#{bin}/eksctl completion zsh")
+        (zsh_completion/"_eksctl").write output
