@@ -3,6 +3,8 @@ package nodegroup_test
 import (
 	"context"
 	"fmt"
+	"github.com/weaveworks/eksctl/pkg/authconfigmap"
+	"github.com/weaveworks/eksctl/pkg/iam"
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,14 +23,11 @@ import (
 	core "k8s.io/client-go/testing"
 
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
-	ngfakes "github.com/weaveworks/eksctl/pkg/actions/nodegroup/fakes"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
-	utilfakes "github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter/fakes"
+	utilFakes "github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter/fakes"
 	"github.com/weaveworks/eksctl/pkg/eks"
-	eksfakes "github.com/weaveworks/eksctl/pkg/eks/fakes"
-	"github.com/weaveworks/eksctl/pkg/iam"
+	"github.com/weaveworks/eksctl/pkg/eks/fakes"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	"github.com/weaveworks/eksctl/pkg/testutils"
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
@@ -39,11 +38,11 @@ import (
 type ngEntry struct {
 	version             string
 	opts                nodegroup.CreateOpts
-	mockCalls           func(mockCalls)
+	mockCalls           func(*fakes.FakeKubeProvider, *utilFakes.FakeNodegroupFilter, *mockprovider.MockProvider, *fake.Clientset)
 	refreshCluster      bool
 	updateClusterConfig func(*api.ClusterConfig)
 
-	expectedCalls      func(expectedCalls)
+	expectedCalls      func(*fakes.FakeKubeProvider, *utilFakes.FakeNodegroupFilter)
 	expectedErr        error
 	expectedRefreshErr string
 }
@@ -269,6 +268,7 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all private subnets from vpc-1, that the cluster was originally created on, have been deleted; to create private nodegroups within vpc-1 please manually set valid private subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:false and there's no public subnet within vpc", ngEntry{
 		mockCalls: func(m mockCalls) {
 			mockProviderWithVPCSubnets(m.mockProvider, &vpcSubnets{
@@ -277,6 +277,7 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all public subnets from vpc-1, that the cluster was originally created on, have been deleted; to create public nodegroups within vpc-1 please manually set valid public subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:true and there's no private subnet within az", ngEntry{
 		updateClusterConfig: func(c *api.ClusterConfig) {
 			c.NodeGroups[0].PrivateNetworking = true
@@ -290,9 +291,25 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all private subnets from us-west-2b, that the cluster was originally created on, have been deleted; to create private nodegroups within us-west-2b please manually set valid private subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:false and there's no private subnet within az", ngEntry{
 		updateClusterConfig: func(c *api.ClusterConfig) {
 			c.NodeGroups[0].AvailabilityZones = []string{"us-west-2a", "us-west-2b"}
+			c.VPC.Subnets = &api.ClusterSubnets{
+				Private: api.AZSubnetMapping{
+					"private-1": api.AZSubnetSpec{
+						ID: "subnet-private-1",
+					},
+					"private-2": api.AZSubnetSpec{
+						ID: "subnet-private-2",
+					},
+				},
+				Public: api.AZSubnetMapping{
+					"public-1": api.AZSubnetSpec{
+						ID: "subnet-public-2",
+					},
+				},
+			}
 		},
 		mockCalls: func(m mockCalls) {
 			mockProviderWithVPCSubnets(m.mockProvider, &vpcSubnets{

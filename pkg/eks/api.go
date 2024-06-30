@@ -139,28 +139,7 @@ func newHelper(
 		Status:      &ProviderStatus{},
 	}
 
-	stsOutput, err := c.checkAuth(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// c.Status.IAMRoleARN is later needed by the kubeProvider
-	c.Status.IAMRoleARN = *stsOutput.Arn
-	logger.Debug("role ARN for the current session is %q", c.Status.IAMRoleARN)
-
-	if clusterSpec != nil {
-		clusterSpec.Metadata.AccountID = *stsOutput.Account
-		clusterSpec.Metadata.Region = c.AWSProvider.Region()
-	}
-
-	kubeProvider := &KubernetesProvider{
-		WaitTimeout: spec.WaitTimeout,
-		RoleARN:     c.Status.IAMRoleARN,
-		Signer:      provider.STSPresigner(),
-	}
-	c.KubeProvider = kubeProvider
-
-	return c, nil
+	return provider, nil
 }
 
 func newAWSProvider(spec *api.ProviderConfig, configurationLoader AWSConfigurationLoader) (api.ClusterProvider, error) {
@@ -200,14 +179,9 @@ func newAWSProvider(spec *api.ProviderConfig, configurationLoader AWSConfigurati
 
 	provider.asg = autoscaling.NewFromConfig(cfg)
 	provider.cloudwatchlogs = cloudwatchlogs.NewFromConfig(cfg)
-	provider.cloudtrail = cloudtrail.NewFromConfig(cfg)
-
-	if endpoint, ok := os.LookupEnv("AWS_CLOUDTRAIL_ENDPOINT"); ok {
-		logger.Debug("Setting CloudTrail endpoint to %s", endpoint)
-		provider.cloudtrail = cloudtrail.NewFromConfig(cfg, func(o *cloudtrail.Options) {
-			o.BaseEndpoint = &endpoint
-		})
-	}
+	provider.cloudtrail = cloudtrail.NewFromConfig(cfg, func(o *cloudtrail.Options) {
+		o.BaseEndpoint = getBaseEndpoint(cloudtrail.ServiceID, "AWS_CLOUDTRAIL_ENDPOINT")
+	})
 
 	return provider, nil
 }

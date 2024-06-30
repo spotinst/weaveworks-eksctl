@@ -46,7 +46,6 @@ type CreateNodeGroupOptions struct {
 	SkipEgressRules            bool
 	DisableAccessEntryCreation bool
 	VPCImporter                vpc.Importer
-	SharedTags                 []types.Tag
 }
 
 // A NodeGroupStackManager describes and creates nodegroup stacks.
@@ -227,7 +226,6 @@ func (t *OceanManagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api
 		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
 		VPCImporter:                options.VPCImporter,
 		SkipEgressRules:            options.SkipEgressRules,
-		SharedTags:                 options.SharedTags,
 		DisableAccessEntry:         options.DisableAccessEntryCreation,
 		DisableAccessEntryResource: !createAccessEntryInStack,
 	})

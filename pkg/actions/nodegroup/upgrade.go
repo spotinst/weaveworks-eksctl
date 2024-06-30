@@ -337,15 +337,10 @@ func (m *Manager) requiresStackUpdate(ctx context.Context, nodeGroupName string)
 }
 
 func (m *Manager) getLatestReleaseVersion(ctx context.Context, kubernetesVersion string, nodeGroup *ekstypes.Nodegroup) (string, error) {
-	ssmParameterName, err := ami.MakeManagedSSMParameterName(kubernetesVersion, nodeGroup.AmiType)
-	if err != nil {
-		return "", err
-	}
-
+	ssmParameterName := ami.MakeManagedSSMParameterName(kubernetesVersion, nodeGroup.AmiType)
 	if ssmParameterName == "" {
 		return "", nil
 	}
-
 	ssmOutput, err := m.ctl.AWSProvider.SSM().GetParameter(ctx, &ssm.GetParameterInput{
 		Name: &ssmParameterName,
 	})
