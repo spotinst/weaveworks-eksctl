@@ -663,7 +663,7 @@ type FakeStackManager struct {
 	newTaskToDeleteUnownedNodeGroupReturnsOnCall map[int]struct {
 		result1 tasks.Task
 	}
-	NewTasksToCreateClusterStub        func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, *v1alpha5.AccessConfig, accessentry.CreatorInterface, ...tasks.Task) *tasks.TaskTree
+	NewTasksToCreateClusterStub        func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, *v1alpha5.AccessConfig, accessentry.CreatorInterface, ...tasks.Task) (*tasks.TaskTree, error)
 	newTasksToCreateClusterMutex       sync.RWMutex
 	newTasksToCreateClusterArgsForCall []struct {
 		arg1 context.Context
@@ -675,9 +675,11 @@ type FakeStackManager struct {
 	}
 	newTasksToCreateClusterReturns struct {
 		result1 *tasks.TaskTree
+		result2 error
 	}
 	newTasksToCreateClusterReturnsOnCall map[int]struct {
 		result1 *tasks.TaskTree
+		result2 error
 	}
 	NewTasksToCreateIAMServiceAccountsStub        func([]*v1alpha5.ClusterIAMServiceAccount, *iamoidc.OpenIDConnectManager, kubernetes.ClientSetGetter) *tasks.TaskTree
 	newTasksToCreateIAMServiceAccountsMutex       sync.RWMutex
@@ -3934,7 +3936,7 @@ func (fake *FakeStackManager) NewTaskToDeleteUnownedNodeGroupReturnsOnCall(i int
 	}{result1}
 }
 
-func (fake *FakeStackManager) NewTasksToCreateCluster(arg1 context.Context, arg2 []*v1alpha5.NodeGroup, arg3 []*v1alpha5.ManagedNodeGroup, arg4 *v1alpha5.AccessConfig, arg5 accessentry.CreatorInterface, arg6 ...tasks.Task) *tasks.TaskTree {
+func (fake *FakeStackManager) NewTasksToCreateCluster(arg1 context.Context, arg2 []*v1alpha5.NodeGroup, arg3 []*v1alpha5.ManagedNodeGroup, arg4 *v1alpha5.AccessConfig, arg5 accessentry.CreatorInterface, arg6 ...tasks.Task) (*tasks.TaskTree, error) {
 	var arg2Copy []*v1alpha5.NodeGroup
 	if arg2 != nil {
 		arg2Copy = make([]*v1alpha5.NodeGroup, len(arg2))
@@ -3963,9 +3965,9 @@ func (fake *FakeStackManager) NewTasksToCreateCluster(arg1 context.Context, arg2
 		return stub(arg1, arg2, arg3, arg4, arg5, arg6...)
 	}
 	if specificReturn {
-		return ret.result1
+		return ret.result1, ret.result2
 	}
-	return fakeReturns.result1
+	return fakeReturns.result1, fakeReturns.result2
 }
 
 func (fake *FakeStackManager) NewTasksToCreateClusterCallCount() int {
@@ -3974,7 +3976,7 @@ func (fake *FakeStackManager) NewTasksToCreateClusterCallCount() int {
 	return len(fake.newTasksToCreateClusterArgsForCall)
 }
 
-func (fake *FakeStackManager) NewTasksToCreateClusterCalls(stub func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, *v1alpha5.AccessConfig, accessentry.CreatorInterface, ...tasks.Task) *tasks.TaskTree) {
+func (fake *FakeStackManager) NewTasksToCreateClusterCalls(stub func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, *v1alpha5.AccessConfig, accessentry.CreatorInterface, ...tasks.Task) (*tasks.TaskTree, error)) {
 	fake.newTasksToCreateClusterMutex.Lock()
 	defer fake.newTasksToCreateClusterMutex.Unlock()
 	fake.NewTasksToCreateClusterStub = stub
@@ -3987,27 +3989,30 @@ func (fake *FakeStackManager) NewTasksToCreateClusterArgsForCall(i int) (context
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5, argsForCall.arg6
 }
 
-func (fake *FakeStackManager) NewTasksToCreateClusterReturns(result1 *tasks.TaskTree) {
+func (fake *FakeStackManager) NewTasksToCreateClusterReturns(result1 *tasks.TaskTree, result2 error) {
 	fake.newTasksToCreateClusterMutex.Lock()
 	defer fake.newTasksToCreateClusterMutex.Unlock()
 	fake.NewTasksToCreateClusterStub = nil
 	fake.newTasksToCreateClusterReturns = struct {
 		result1 *tasks.TaskTree
-	}{result1}
+		result2 error
+	}{result1, result2}
 }
 
-func (fake *FakeStackManager) NewTasksToCreateClusterReturnsOnCall(i int, result1 *tasks.TaskTree) {
+func (fake *FakeStackManager) NewTasksToCreateClusterReturnsOnCall(i int, result1 *tasks.TaskTree, result2 error) {
 	fake.newTasksToCreateClusterMutex.Lock()
 	defer fake.newTasksToCreateClusterMutex.Unlock()
 	fake.NewTasksToCreateClusterStub = nil
 	if fake.newTasksToCreateClusterReturnsOnCall == nil {
 		fake.newTasksToCreateClusterReturnsOnCall = make(map[int]struct {
 			result1 *tasks.TaskTree
+			result2 error
 		})
 	}
 	fake.newTasksToCreateClusterReturnsOnCall[i] = struct {
 		result1 *tasks.TaskTree
-	}{result1}
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeStackManager) NewTasksToCreateIAMServiceAccounts(arg1 []*v1alpha5.ClusterIAMServiceAccount, arg2 *iamoidc.OpenIDConnectManager, arg3 kubernetes.ClientSetGetter) *tasks.TaskTree {

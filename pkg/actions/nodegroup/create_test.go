@@ -3,8 +3,6 @@ package nodegroup_test
 import (
 	"context"
 	"fmt"
-	"github.com/weaveworks/eksctl/pkg/authconfigmap"
-	"github.com/weaveworks/eksctl/pkg/iam"
 	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,11 +21,14 @@ import (
 	core "k8s.io/client-go/testing"
 
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
+	ngfakes "github.com/weaveworks/eksctl/pkg/actions/nodegroup/fakes"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/authconfigmap"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
-	utilFakes "github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter/fakes"
+	utilfakes "github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter/fakes"
 	"github.com/weaveworks/eksctl/pkg/eks"
-	"github.com/weaveworks/eksctl/pkg/eks/fakes"
+	eksfakes "github.com/weaveworks/eksctl/pkg/eks/fakes"
+	"github.com/weaveworks/eksctl/pkg/iam"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	"github.com/weaveworks/eksctl/pkg/testutils"
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
@@ -38,11 +39,11 @@ import (
 type ngEntry struct {
 	version             string
 	opts                nodegroup.CreateOpts
-	mockCalls           func(*fakes.FakeKubeProvider, *utilFakes.FakeNodegroupFilter, *mockprovider.MockProvider, *fake.Clientset)
+	mockCalls           func(mockCalls)
 	refreshCluster      bool
 	updateClusterConfig func(*api.ClusterConfig)
 
-	expectedCalls      func(*fakes.FakeKubeProvider, *utilFakes.FakeNodegroupFilter)
+	expectedCalls      func(expectedCalls)
 	expectedErr        error
 	expectedRefreshErr string
 }

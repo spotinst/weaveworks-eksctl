@@ -462,7 +462,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				// authorize self-managed nodes to join the cluster via aws-auth configmap
 				// only if EKS access entries are disabled
 				if cfg.AccessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap {
-					if err := eks.UpdateAuthConfigMap(cfg.NodeGroups, clientSet); err != nil {
+					if err := eks.UpdateAuthConfigMap(ngCtx, cfg.NodeGroups, clientSet); err != nil {
 						return err
 					}
 				}

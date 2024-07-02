@@ -12,21 +12,25 @@ import (
 
 const (
 	// DefaultNamespace default namespace for Spot Ocean Controller
-	DefaultNamespace = "spot-system"
-	spotinstValue    = "spotinst"
-	account          = "account"
-	cluster          = "clusterIdentifier"
-	token            = "token"
-	repoURL          = "https://charts.spot.io"
-	repoName         = "spot"
-	helmChartName    = "ocean-kubernetes-controller"
-	releaseName      = "ocean-controller"
+	DefaultNamespace   = "spot-system"
+	spotinstValue      = "spotinst"
+	account            = "account"
+	cluster            = "clusterIdentifier"
+	token              = "token"
+	repoURL            = "https://charts.spot.io"
+	repoName           = "spot"
+	helmChartName      = "ocean-kubernetes-controller"
+	DefaultReleaseName = "ocean-controller"
+	metricsServer      = "metrics-server"
+	deployChart        = "deployChart"
 )
 
 // Options contains values which Spot Ocean Controller uses to configure the installation.
 type Options struct {
 	HelmInstaller providers.HelmInstaller
+	ReleaseName   string
 	Namespace     string
+	MetricsServer bool
 	ClusterConfig *api.ClusterConfig
 }
 
@@ -67,6 +71,9 @@ func (o *Installer) Install(ctx context.Context) error {
 			cluster: o.ClusterConfig.Metadata.Name,
 			token:   c.Token,
 		},
+		metricsServer: map[string]interface{}{
+			deployChart: o.MetricsServer,
+		},
 	}
 
 	registryClient, err := registry.NewClient(
@@ -81,8 +88,8 @@ func (o *Installer) Install(ctx context.Context) error {
 		RepoName:        repoName,
 		ChartName:       helmChartName,
 		CreateNamespace: true,
-		Namespace:       DefaultNamespace,
-		ReleaseName:     releaseName,
+		Namespace:       o.Namespace,
+		ReleaseName:     o.ReleaseName,
 		Values:          values,
 		RegistryClient:  registryClient,
 	}

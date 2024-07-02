@@ -47,6 +47,7 @@ type NodeGroupOptions struct {
 	ForceAddCNIPolicy  bool
 	VPCImporter        vpc.Importer
 	SkipEgressRules    bool
+	SharedTags         []types.Tag
 	DisableAccessEntry bool
 	// DisableAccessEntryResource disables creation of an access entry resource but still attaches the UsesAccessEntry tag.
 	DisableAccessEntryResource bool
@@ -145,9 +146,6 @@ func (n *NodeGroupResourceSet) AddAllResources(ctx context.Context) error {
 		}
 	}
 	n.addResourcesForSecurityGroups()
-	if !n.options.DisableAccessEntry {
-		n.addAccessEntry()
-	}
 
 	return n.addResourcesForNodeGroup(ctx)
 }
@@ -362,7 +360,11 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		}
 	}
 
-	asg := nodeGroupResource(launchTemplateName, vpcZoneIdentifier, tags, ng)
+	asg, err := n.newNodeGroupResource(launchTemplate, vpcZoneIdentifier, tags)
+
+	if asg == nil {
+		return fmt.Errorf("failed to build nodegroup resource: %v", err)
+	}
 	n.newResource("NodeGroup", asg)
 
 	return nil
@@ -826,6 +828,13 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 			}
 		}
 
+		// Shared tags (metadata.tags + eksctl's tags).
+		if len(n.options.SharedTags) > 0 {
+			for _, tag := range n.options.SharedTags {
+				tagMap[spotinst.StringValue(tag.Key)] = spotinst.StringValue(tag.Value)
+			}
+		}
+
 		if len(tagMap) > 0 {
 			tags := make([]*spot.Tag, 0, len(tagMap))
 			for k, v := range tagMap {
@@ -1035,6 +1044,13 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanVirtualNodeGroupResource(lau
 		if len(resourceTags) > 0 {
 			for _, tag := range resourceTags {
 				tagMap[tag["Key"]] = tag["Value"]
+			}
+		}
+
+		// Shared tags (metadata.tags + eksctl's tags).
+		if len(n.options.SharedTags) > 0 {
+			for _, tag := range n.options.SharedTags {
+				tagMap[spotinst.StringValue(tag.Key)] = spotinst.StringValue(tag.Value)
 			}
 		}
 

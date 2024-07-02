@@ -315,7 +315,7 @@ func (m *Manager) postNodeCreationTasks(ctx context.Context, clientSet kubernete
 	if (!m.accessEntry.IsEnabled() && !api.IsDisabled(options.UpdateAuthConfigMap)) ||
 		// if explicitly requested by the user
 		api.IsEnabled(options.UpdateAuthConfigMap) {
-		if err := eks.UpdateAuthConfigMap(m.cfg.NodeGroups, clientSet); err != nil {
+		if err := eks.UpdateAuthConfigMap(ctx, m.cfg.NodeGroups, clientSet); err != nil {
 			return err
 		}
 	}

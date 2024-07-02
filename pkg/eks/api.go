@@ -139,7 +139,28 @@ func newHelper(
 		Status:      &ProviderStatus{},
 	}
 
-	return provider, nil
+	stsOutput, err := c.checkAuth(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// c.Status.IAMRoleARN is later needed by the kubeProvider
+	c.Status.IAMRoleARN = *stsOutput.Arn
+	logger.Debug("role ARN for the current session is %q", c.Status.IAMRoleARN)
+
+	if clusterSpec != nil {
+		clusterSpec.Metadata.AccountID = *stsOutput.Account
+		clusterSpec.Metadata.Region = c.AWSProvider.Region()
+	}
+
+	kubeProvider := &KubernetesProvider{
+		WaitTimeout: spec.WaitTimeout,
+		RoleARN:     c.Status.IAMRoleARN,
+		Signer:      provider.STSPresigner(),
+	}
+	c.KubeProvider = kubeProvider
+
+	return c, nil
 }
 
 func newAWSProvider(spec *api.ProviderConfig, configurationLoader AWSConfigurationLoader) (api.ClusterProvider, error) {

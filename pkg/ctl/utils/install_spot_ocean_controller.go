@@ -19,15 +19,23 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 )
 
+type InstallSpotOceanControllerOptions struct {
+	metricsServer bool
+	namespace     string
+	releaseName   string
+}
+
 func installSpotOceanController(cmd *cmdutils.Cmd) {
 	cfg := api.NewClusterConfig()
 	cmd.ClusterConfig = cfg
+
+	var options InstallSpotOceanControllerOptions
 
 	cmd.SetDescription("install-spot-ocean-controller", "Install Spot Ocean controller", "")
 
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
-		return doInstallSpotOceanController(cmd)
+		return doInstallSpotOceanController(cmd, options)
 	}
 
 	cmd.FlagSetGroup.InFlagSet("General", func(fs *pflag.FlagSet) {
@@ -39,16 +47,21 @@ func installSpotOceanController(cmd *cmdutils.Cmd) {
 	})
 
 	cmdutils.AddCommonFlagsForAWS(cmd, &cmd.ProviderConfig, false)
+
+	cmd.FlagSetGroup.InFlagSet("Spot Ocean Controller", func(fs *pflag.FlagSet) {
+		cmdutils.AddSpotOceanInstallOceanControllerFlags(fs, &options.metricsServer, &options.namespace, &options.releaseName)
+	})
 }
 
-func doInstallSpotOceanController(cmd *cmdutils.Cmd) error {
+func doInstallSpotOceanController(cmd *cmdutils.Cmd, options InstallSpotOceanControllerOptions) error {
 	if err := cmdutils.NewMetadataLoader(cmd).Load(); err != nil {
 		return err
 	}
 
 	cfg := cmd.ClusterConfig
 
-	ctl, err := cmd.NewCtl()
+	ctx := context.TODO()
+	ctl, err := cmd.NewProviderForExistingCluster(ctx)
 	if err != nil {
 		return err
 	}
@@ -63,10 +76,10 @@ func doInstallSpotOceanController(cmd *cmdutils.Cmd) error {
 		return errors.Wrap(err, "generating kubeconfig")
 	}
 
-	restClientGetter := kubernetes.NewRESTClientGetter(ocean.DefaultNamespace, string(kubeConfigBytes))
+	restClientGetter := kubernetes.NewRESTClientGetter(options.namespace, string(kubeConfigBytes))
 
 	helmInstaller, err := helm.NewInstaller(helm.Options{
-		Namespace:        ocean.DefaultNamespace,
+		Namespace:        options.namespace,
 		RESTClientGetter: restClientGetter,
 	})
 	if err != nil {
@@ -75,7 +88,9 @@ func doInstallSpotOceanController(cmd *cmdutils.Cmd) error {
 
 	oceanInstaller := ocean.NewSpotOceanControllerInstaller(ocean.Options{
 		HelmInstaller: helmInstaller,
-		Namespace:     ocean.DefaultNamespace,
+		MetricsServer: options.metricsServer,
+		Namespace:     options.namespace,
+		ReleaseName:   options.releaseName,
 		ClusterConfig: cfg,
 	})
 

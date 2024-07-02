@@ -230,6 +230,8 @@ func (n *spotOceanControllerTask) Do(errCh chan error) error {
 		HelmInstaller: helmInstaller,
 		Namespace:     ocean.DefaultNamespace,
 		ClusterConfig: n.spec,
+		MetricsServer: true, // default is true as there is no metrics server on a new cluster
+		ReleaseName:   ocean.DefaultReleaseName,
 	})
 
 	if err := oceanInstaller.Install(context.Background()); err != nil {
@@ -480,7 +482,7 @@ func (c *ClusterProvider) ClusterTasksForNodeGroups(cfg *api.ClusterConfig, inst
 	// Spot Ocean.
 	{
 		for _, ng := range cfg.NodeGroups {
-			if ng.SpotOcean != nil {
+			if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {
 				tasks.Append(newSpotOceanControllerTask(c, cfg))
 				break
 			}

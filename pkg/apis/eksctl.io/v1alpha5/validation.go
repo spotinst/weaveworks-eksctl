@@ -12,6 +12,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
+	"github.com/hashicorp/go-version"
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
