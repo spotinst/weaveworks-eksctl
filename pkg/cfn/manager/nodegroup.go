@@ -152,6 +152,17 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
 	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
 
+	// Spot Ocean.
+	{
+		if ng.SpotOcean != nil {
+			if ng.Name == api.SpotOceanClusterNodeGroupName {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
+			} else {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
+			}
+		}
+	}
+
 	errCh := make(chan error)
 	if err := t.StackManager.CreateStack(ctx, name, resourceSet, ng.Tags, nil, errCh); err != nil {
 		return err
