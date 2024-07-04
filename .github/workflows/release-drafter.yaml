@@ -49,7 +49,7 @@ jobs:
             <blockquote>
 
             ${{ steps.draft.outputs.body }}
-
+            
             </blockquote>
             </details>
             <br />

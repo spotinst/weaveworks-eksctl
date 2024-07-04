@@ -198,6 +198,9 @@ type PodIdentityAssociation struct {
 }
 
 func (p PodIdentityAssociation) NameString() string {
+	if p.Namespace == "" {
+		return p.ServiceAccountName
+	}
 	return p.Namespace + "/" + p.ServiceAccountName
 }
 

@@ -40,6 +40,10 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
 	}
 
+	if len(accessConfig.AccessEntries) > 0 {
+		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
+	}
+
 	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) error {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
 

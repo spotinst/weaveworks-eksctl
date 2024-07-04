@@ -131,6 +131,24 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 		return errors.Wrap(err, "error creating bootstrapper")
 	}
 
+	if ng.Tags == nil {
+		ng.Tags = make(map[string]string)
+	}
+	ng.Tags[api.NodeGroupNameTag] = ng.Name
+	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
+	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
+
+	// Spot Ocean.
+	{
+		if ng.SpotOcean != nil {
+			if ng.Name == api.SpotOceanClusterNodeGroupName {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeCluster)
+			} else {
+				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
+			}
+		}
+	}
+
 	resourceSet := t.CreateNodeGroupResourceSet(builder.NodeGroupOptions{
 		ClusterConfig:              t.ClusterConfig,
 		NodeGroup:                  ng,
@@ -144,13 +162,6 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 	if err := resourceSet.AddAllResources(ctx); err != nil {
 		return err
 	}
-
-	if ng.Tags == nil {
-		ng.Tags = make(map[string]string)
-	}
-	ng.Tags[api.NodeGroupNameTag] = ng.Name
-	ng.Tags[api.OldNodeGroupNameTag] = ng.Name
-	ng.Tags[api.NodeGroupTypeTag] = string(api.NodeGroupTypeUnmanaged)
 
 	errCh := make(chan error)
 	if err := t.StackManager.CreateStack(ctx, name, resourceSet, ng.Tags, nil, errCh); err != nil {

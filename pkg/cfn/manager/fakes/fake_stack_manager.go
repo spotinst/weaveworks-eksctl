@@ -331,17 +331,6 @@ type FakeStackManager struct {
 		result1 *types.Stack
 		result2 error
 	}
-	GetIAMAddonNameStub        func(*types.Stack) string
-	getIAMAddonNameMutex       sync.RWMutex
-	getIAMAddonNameArgsForCall []struct {
-		arg1 *types.Stack
-	}
-	getIAMAddonNameReturns struct {
-		result1 string
-	}
-	getIAMAddonNameReturnsOnCall map[int]struct {
-		result1 string
-	}
 	GetIAMAddonsStacksStub        func(context.Context) ([]*types.Stack, error)
 	getIAMAddonsStacksMutex       sync.RWMutex
 	getIAMAddonsStacksArgsForCall []struct {
@@ -658,23 +647,6 @@ type FakeStackManager struct {
 	}
 	newManagedNodeGroupTaskReturnsOnCall map[int]struct {
 		result1 *tasks.TaskTree
-	}
-	NewNodeGroupTaskStub        func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, bool, vpc.Importer) (*tasks.TaskTree, error)
-	newNodeGroupTaskMutex       sync.RWMutex
-	newNodeGroupTaskArgsForCall []struct {
-		arg1 context.Context
-		arg2 []*v1alpha5.NodeGroup
-		arg3 []*v1alpha5.ManagedNodeGroup
-		arg4 bool
-		arg5 vpc.Importer
-	}
-	newNodeGroupTaskReturns struct {
-		result1 *tasks.TaskTree
-		result2 error
-	}
-	newNodeGroupTaskReturnsOnCall map[int]struct {
-		result1 *tasks.TaskTree
-		result2 error
 	}
 	NewTaskToDeleteUnownedNodeGroupStub        func(context.Context, string, string, manager.NodeGroupDeleter, *manager.DeleteWaitCondition) tasks.Task
 	newTaskToDeleteUnownedNodeGroupMutex       sync.RWMutex
@@ -2360,67 +2332,6 @@ func (fake *FakeStackManager) GetFargateStackReturnsOnCall(i int, result1 *types
 	}{result1, result2}
 }
 
-func (fake *FakeStackManager) GetIAMAddonName(arg1 *types.Stack) string {
-	fake.getIAMAddonNameMutex.Lock()
-	ret, specificReturn := fake.getIAMAddonNameReturnsOnCall[len(fake.getIAMAddonNameArgsForCall)]
-	fake.getIAMAddonNameArgsForCall = append(fake.getIAMAddonNameArgsForCall, struct {
-		arg1 *types.Stack
-	}{arg1})
-	stub := fake.GetIAMAddonNameStub
-	fakeReturns := fake.getIAMAddonNameReturns
-	fake.recordInvocation("GetIAMAddonName", []interface{}{arg1})
-	fake.getIAMAddonNameMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeStackManager) GetIAMAddonNameCallCount() int {
-	fake.getIAMAddonNameMutex.RLock()
-	defer fake.getIAMAddonNameMutex.RUnlock()
-	return len(fake.getIAMAddonNameArgsForCall)
-}
-
-func (fake *FakeStackManager) GetIAMAddonNameCalls(stub func(*types.Stack) string) {
-	fake.getIAMAddonNameMutex.Lock()
-	defer fake.getIAMAddonNameMutex.Unlock()
-	fake.GetIAMAddonNameStub = stub
-}
-
-func (fake *FakeStackManager) GetIAMAddonNameArgsForCall(i int) *types.Stack {
-	fake.getIAMAddonNameMutex.RLock()
-	defer fake.getIAMAddonNameMutex.RUnlock()
-	argsForCall := fake.getIAMAddonNameArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeStackManager) GetIAMAddonNameReturns(result1 string) {
-	fake.getIAMAddonNameMutex.Lock()
-	defer fake.getIAMAddonNameMutex.Unlock()
-	fake.GetIAMAddonNameStub = nil
-	fake.getIAMAddonNameReturns = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeStackManager) GetIAMAddonNameReturnsOnCall(i int, result1 string) {
-	fake.getIAMAddonNameMutex.Lock()
-	defer fake.getIAMAddonNameMutex.Unlock()
-	fake.GetIAMAddonNameStub = nil
-	if fake.getIAMAddonNameReturnsOnCall == nil {
-		fake.getIAMAddonNameReturnsOnCall = make(map[int]struct {
-			result1 string
-		})
-	}
-	fake.getIAMAddonNameReturnsOnCall[i] = struct {
-		result1 string
-	}{result1}
-}
-
 func (fake *FakeStackManager) GetIAMAddonsStacks(arg1 context.Context) ([]*types.Stack, error) {
 	fake.getIAMAddonsStacksMutex.Lock()
 	ret, specificReturn := fake.getIAMAddonsStacksReturnsOnCall[len(fake.getIAMAddonsStacksArgsForCall)]
@@ -3960,84 +3871,6 @@ func (fake *FakeStackManager) NewManagedNodeGroupTaskReturnsOnCall(i int, result
 	}{result1}
 }
 
-func (fake *FakeStackManager) NewNodeGroupTask(arg1 context.Context, arg2 []*v1alpha5.NodeGroup, arg3 []*v1alpha5.ManagedNodeGroup, arg4 bool, arg5 vpc.Importer) (*tasks.TaskTree, error) {
-	var arg2Copy []*v1alpha5.NodeGroup
-	if arg2 != nil {
-		arg2Copy = make([]*v1alpha5.NodeGroup, len(arg2))
-		copy(arg2Copy, arg2)
-	}
-	var arg3Copy []*v1alpha5.ManagedNodeGroup
-	if arg3 != nil {
-		arg3Copy = make([]*v1alpha5.ManagedNodeGroup, len(arg3))
-		copy(arg3Copy, arg3)
-	}
-	fake.newNodeGroupTaskMutex.Lock()
-	ret, specificReturn := fake.newNodeGroupTaskReturnsOnCall[len(fake.newNodeGroupTaskArgsForCall)]
-	fake.newNodeGroupTaskArgsForCall = append(fake.newNodeGroupTaskArgsForCall, struct {
-		arg1 context.Context
-		arg2 []*v1alpha5.NodeGroup
-		arg3 []*v1alpha5.ManagedNodeGroup
-		arg4 bool
-		arg5 vpc.Importer
-	}{arg1, arg2Copy, arg3Copy, arg4, arg5})
-	stub := fake.NewNodeGroupTaskStub
-	fakeReturns := fake.newNodeGroupTaskReturns
-	fake.recordInvocation("NewNodeGroupTask", []interface{}{arg1, arg2Copy, arg3Copy, arg4, arg5})
-	fake.newNodeGroupTaskMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2, arg3, arg4, arg5)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeStackManager) NewNodeGroupTaskCallCount() int {
-	fake.newNodeGroupTaskMutex.RLock()
-	defer fake.newNodeGroupTaskMutex.RUnlock()
-	return len(fake.newNodeGroupTaskArgsForCall)
-}
-
-func (fake *FakeStackManager) NewNodeGroupTaskCalls(stub func(context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, bool, vpc.Importer) (*tasks.TaskTree, error)) {
-	fake.newNodeGroupTaskMutex.Lock()
-	defer fake.newNodeGroupTaskMutex.Unlock()
-	fake.NewNodeGroupTaskStub = stub
-}
-
-func (fake *FakeStackManager) NewNodeGroupTaskArgsForCall(i int) (context.Context, []*v1alpha5.NodeGroup, []*v1alpha5.ManagedNodeGroup, bool, vpc.Importer) {
-	fake.newNodeGroupTaskMutex.RLock()
-	defer fake.newNodeGroupTaskMutex.RUnlock()
-	argsForCall := fake.newNodeGroupTaskArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
-}
-
-func (fake *FakeStackManager) NewNodeGroupTaskReturns(result1 *tasks.TaskTree, result2 error) {
-	fake.newNodeGroupTaskMutex.Lock()
-	defer fake.newNodeGroupTaskMutex.Unlock()
-	fake.NewNodeGroupTaskStub = nil
-	fake.newNodeGroupTaskReturns = struct {
-		result1 *tasks.TaskTree
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeStackManager) NewNodeGroupTaskReturnsOnCall(i int, result1 *tasks.TaskTree, result2 error) {
-	fake.newNodeGroupTaskMutex.Lock()
-	defer fake.newNodeGroupTaskMutex.Unlock()
-	fake.NewNodeGroupTaskStub = nil
-	if fake.newNodeGroupTaskReturnsOnCall == nil {
-		fake.newNodeGroupTaskReturnsOnCall = make(map[int]struct {
-			result1 *tasks.TaskTree
-			result2 error
-		})
-	}
-	fake.newNodeGroupTaskReturnsOnCall[i] = struct {
-		result1 *tasks.TaskTree
-		result2 error
-	}{result1, result2}
-}
-
 func (fake *FakeStackManager) NewTaskToDeleteUnownedNodeGroup(arg1 context.Context, arg2 string, arg3 string, arg4 manager.NodeGroupDeleter, arg5 *manager.DeleteWaitCondition) tasks.Task {
 	fake.newTaskToDeleteUnownedNodeGroupMutex.Lock()
 	ret, specificReturn := fake.newTaskToDeleteUnownedNodeGroupReturnsOnCall[len(fake.newTaskToDeleteUnownedNodeGroupArgsForCall)]
@@ -4171,7 +4004,7 @@ func (fake *FakeStackManager) NewTasksToCreateClusterReturnsOnCall(i int, result
 	defer fake.newTasksToCreateClusterMutex.Unlock()
 	fake.NewTasksToCreateClusterStub = nil
 	if fake.newTasksToCreateClusterReturnsOnCall == nil {
-		fake.newTasksToCreateClusterReturnsOnCall= make(map[int]struct {
+		fake.newTasksToCreateClusterReturnsOnCall = make(map[int]struct {
 			result1 *tasks.TaskTree
 			result2 error
 		})
@@ -5013,8 +4846,6 @@ func (fake *FakeStackManager) Invocations() map[string][][]interface{} {
 	defer fake.getClusterStackIfExistsMutex.RUnlock()
 	fake.getFargateStackMutex.RLock()
 	defer fake.getFargateStackMutex.RUnlock()
-	fake.getIAMAddonNameMutex.RLock()
-	defer fake.getIAMAddonNameMutex.RUnlock()
 	fake.getIAMAddonsStacksMutex.RLock()
 	defer fake.getIAMAddonsStacksMutex.RUnlock()
 	fake.getIAMServiceAccountsMutex.RLock()
@@ -5063,8 +4894,6 @@ func (fake *FakeStackManager) Invocations() map[string][][]interface{} {
 	defer fake.mustUpdateStackMutex.RUnlock()
 	fake.newManagedNodeGroupTaskMutex.RLock()
 	defer fake.newManagedNodeGroupTaskMutex.RUnlock()
-	fake.newNodeGroupTaskMutex.RLock()
-	defer fake.newNodeGroupTaskMutex.RUnlock()
 	fake.newTaskToDeleteUnownedNodeGroupMutex.RLock()
 	defer fake.newTaskToDeleteUnownedNodeGroupMutex.RUnlock()
 	fake.newTasksToCreateClusterMutex.RLock()
