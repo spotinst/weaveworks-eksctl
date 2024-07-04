@@ -131,20 +131,6 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 		return errors.Wrap(err, "error creating bootstrapper")
 	}
 
-	resourceSet := t.CreateNodeGroupResourceSet(builder.NodeGroupOptions{
-		ClusterConfig:              t.ClusterConfig,
-		NodeGroup:                  ng,
-		Bootstrapper:               bootstrapper,
-		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
-		VPCImporter:                options.VPCImporter,
-		SkipEgressRules:            options.SkipEgressRules,
-		DisableAccessEntry:         options.DisableAccessEntryCreation,
-		DisableAccessEntryResource: !createAccessEntryInStack,
-	})
-	if err := resourceSet.AddAllResources(ctx); err != nil {
-		return err
-	}
-
 	if ng.Tags == nil {
 		ng.Tags = make(map[string]string)
 	}
@@ -161,6 +147,20 @@ func (t *UnmanagedNodeGroupTask) createNodeGroup(ctx context.Context, ng *api.No
 				ng.Tags[api.SpotOceanResourceTypeTag] = string(api.SpotOceanResourceTypeVirtualNodeGroup)
 			}
 		}
+	}
+
+	resourceSet := t.CreateNodeGroupResourceSet(builder.NodeGroupOptions{
+		ClusterConfig:              t.ClusterConfig,
+		NodeGroup:                  ng,
+		Bootstrapper:               bootstrapper,
+		ForceAddCNIPolicy:          options.ForceAddCNIPolicy,
+		VPCImporter:                options.VPCImporter,
+		SkipEgressRules:            options.SkipEgressRules,
+		DisableAccessEntry:         options.DisableAccessEntryCreation,
+		DisableAccessEntryResource: !createAccessEntryInStack,
+	})
+	if err := resourceSet.AddAllResources(ctx); err != nil {
+		return err
 	}
 
 	errCh := make(chan error)
