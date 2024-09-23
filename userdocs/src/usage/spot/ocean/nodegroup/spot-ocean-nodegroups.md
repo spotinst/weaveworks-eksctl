@@ -43,14 +43,6 @@ nodeGroups:
       # from the desired capacity.
       spotPercentage: 100
 
-      # Allow Ocean to utilize any available reserved
-      # instances first before purchasing Spot instances.
-      utilizeReservedInstances: true
-
-      # Launch On-Demand instances in case of no Spot
-      # instances available.
-      fallbackToOnDemand: true
-
     autoScaler:
       # Spare resource capacity management enabling fast
       # assignment of Pods without waiting for new resources
