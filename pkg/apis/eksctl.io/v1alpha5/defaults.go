@@ -79,7 +79,7 @@ func SetClusterConfigDefaults(cfg *ClusterConfig) {
 // IAM SAs that need to be explicitly deleted.
 func IAMServiceAccountsWithImplicitServiceAccounts(cfg *ClusterConfig) []*ClusterIAMServiceAccount {
 	serviceAccounts := cfg.IAM.ServiceAccounts
-	if IsEnabled(cfg.IAM.WithOIDC) && !vpcCNIAddonSpecified(cfg) {
+	if IsEnabled(cfg.IAM.WithOIDC) && !vpcCNIAddonSpecified(cfg) && !cfg.AddonsConfig.DisableDefaultAddons {
 		var found bool
 		for _, sa := range cfg.IAM.ServiceAccounts {
 			found = found || (sa.Name == AWSNodeMeta.Name && sa.Namespace == AWSNodeMeta.Namespace)
@@ -134,7 +134,8 @@ func SetManagedNodeGroupDefaults(ng *ManagedNodeGroup, meta *ClusterMeta, contro
 	// When using custom AMIs, we want the user to explicitly specify AMI family.
 	// Thus, we only set up default AMI family when no custom AMI is being used.
 	if ng.AMIFamily == "" && ng.AMI == "" {
-		if isMinVer, _ := utils.IsMinVersion(Version1_30, meta.Version); isMinVer && !instanceutils.IsGPUInstanceType(ng.InstanceType) &&
+
+		if isMinVer, _ := utils.IsMinVersion(Version1_30, meta.Version); isMinVer &&
 			!instanceutils.IsARMGPUInstanceType(ng.InstanceType) {
 			ng.AMIFamily = NodeImageFamilyAmazonLinux2023
 		} else {

@@ -155,7 +155,7 @@ func (c *KubernetesProvider) WaitForControlPlane(meta *api.ClusterMeta, clientSe
 }
 
 // UpdateAuthConfigMap creates or adds a nodegroup IAM role in the auth ConfigMap for the given nodegroup.
-func UpdateAuthConfigMap(ctx context.Context, nodeGroups []*api.NodeGroup, clientSet kubernetes.Interface) error {
+func UpdateAuthConfigMap(nodeGroups []*api.NodeGroup, clientSet kubernetes.Interface) error {
 	for _, ng := range nodeGroups {
 		// skip ocean cluster
 		if ng.SpotOcean != nil && ng.Name == api.SpotOceanClusterNodeGroupName {

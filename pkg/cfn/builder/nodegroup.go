@@ -146,6 +146,9 @@ func (n *NodeGroupResourceSet) AddAllResources(ctx context.Context) error {
 		}
 	}
 	n.addResourcesForSecurityGroups()
+	if !n.options.DisableAccessEntry {
+		n.addAccessEntry()
+	}
 
 	return n.addResourcesForNodeGroup(ctx)
 }

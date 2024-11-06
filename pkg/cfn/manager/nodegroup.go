@@ -47,6 +47,7 @@ type CreateNodeGroupOptions struct {
 	DisableAccessEntryCreation bool
 	VPCImporter                vpc.Importer
 	SharedTags                 []types.Tag
+	Parallelism                int
 }
 
 // A NodeGroupStackManager describes and creates nodegroup stacks.
@@ -92,7 +93,7 @@ type OceanManagedNodeGroupTask struct {
 
 // Create creates a TaskTree for creating nodegroups.
 func (t *UnmanagedNodeGroupTask) Create(ctx context.Context, options CreateNodeGroupOptions) *tasks.TaskTree {
-	taskTree := &tasks.TaskTree{Parallel: true}
+	taskTree := &tasks.TaskTree{Parallel: true, Limit: options.Parallelism}
 
 	for _, ng := range t.NodeGroups {
 		ng := ng
@@ -285,6 +286,7 @@ func (t *OceanManagedNodeGroupTask) maybeCreateAccessEntry(ctx context.Context, 
 		return fmt.Errorf("creating access entry for ocean nodegroup %s: %w", ng.Name, err)
 	}
 	logger.Info("ocean nodegroup %s: created access entry for principal ARN %q", ng.Name, roleARN)
+
 	return nil
 }
 
