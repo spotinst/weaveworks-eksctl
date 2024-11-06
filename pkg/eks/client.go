@@ -166,13 +166,6 @@ func UpdateAuthConfigMap(nodeGroups []*api.NodeGroup, clientSet kubernetes.Inter
 		if err := authconfigmap.AddNodeGroup(clientSet, ng); err != nil {
 			return err
 		}
-
-		// wait for nodes to join
-		if ng.SpotOcean == nil {
-			if err := WaitForNodes(ctx, clientSet, ng); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }

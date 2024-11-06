@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/weaveworks/eksctl/pkg/spot"
+
 	"github.com/kris-nova/logger"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,22 +40,12 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
 	}
 
-	if len(accessConfig.AccessEntries) > 0 {
-		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
-	}
-
-	if len(accessConfig.AccessEntries) > 0 {
-		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
-	}
-
-	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) error {
+	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
-
 		nodeGroupTasks := &tasks.TaskTree{
 			Parallel:  true,
 			IsSubTask: true,
 		}
-
 		disableAccessEntryCreation := accessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap
 		if oceanManagedNodeGroupTasks, err := c.NewSpotOceanNodeGroupTask(ctx, vpcImporter); oceanManagedNodeGroupTasks.Len() > 0 && err == nil {
 			oceanManagedNodeGroupTasks.IsSubTask = true
@@ -61,7 +53,6 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 			nodeGroupTasks.Append(oceanManagedNodeGroupTasks)
 		}
 		if unmanagedNodeGroupTasks := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, false, false, disableAccessEntryCreation, vpcImporter, nodeGroupParallelism); unmanagedNodeGroupTasks.Len() > 0 {
-
 			unmanagedNodeGroupTasks.IsSubTask = true
 			nodeGroupTasks.Append(unmanagedNodeGroupTasks)
 		}
@@ -73,11 +64,7 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		if nodeGroupTasks.Len() > 0 {
 			taskTree.Append(nodeGroupTasks)
 		}
-
-		return nil
 	}
-
-	var appendErr error
 
 	if len(postClusterCreationTasks) > 0 {
 		postClusterCreationTaskTree := &tasks.TaskTree{
@@ -85,13 +72,12 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 			IsSubTask: true,
 		}
 		postClusterCreationTaskTree.Append(postClusterCreationTasks...)
-		appendErr = appendNodeGroupTasksTo(postClusterCreationTaskTree)
+		appendNodeGroupTasksTo(postClusterCreationTaskTree)
 		taskTree.Append(postClusterCreationTaskTree)
 	} else {
-		appendErr = appendNodeGroupTasksTo(&taskTree)
+		appendNodeGroupTasksTo(&taskTree)
 	}
-
-	return &taskTree, appendErr
+	return &taskTree
 }
 
 // NewSpotOceanNodeGroupTask defines tasks required to create Ocean Cluster.

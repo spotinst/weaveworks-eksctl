@@ -8,19 +8,24 @@ import (
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+
+	"github.com/weaveworks/eksctl/pkg/actions/iamidentitymapping"
+	"github.com/weaveworks/eksctl/pkg/actions/identityproviders"
 
 	"github.com/weaveworks/eksctl/pkg/windows"
 
 	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/weaveworks/eksctl/pkg/actions/iamidentitymapping"
-	"github.com/weaveworks/eksctl/pkg/actions/identityproviders"
 	"github.com/weaveworks/eksctl/pkg/actions/irsa"
 	"github.com/weaveworks/eksctl/pkg/addons"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"

@@ -57,11 +57,6 @@ type ClusterIAM struct {
 	// +optional
 	PodIdentityAssociations []PodIdentityAssociation `json:"podIdentityAssociations,omitempty"`
 
-	// pod identity associations to create in the cluster.
-	// See [Pod Identity Associations](TBD)
-	// +optional
-	PodIdentityAssociations []PodIdentityAssociation `json:"podIdentityAssociations,omitempty"`
-
 	// VPCResourceControllerPolicy attaches the IAM policy
 	// necessary to run the VPC controller in the control plane
 	// Defaults to `true`
