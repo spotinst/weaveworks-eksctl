@@ -1702,6 +1702,7 @@ type (
 		Headroom *SpotOceanHeadroom `json:"headrooms,omitempty"`
 		// +optional
 		ResourceLimits *SpotOceanClusterResourceLimits `json:"resourceLimits,omitempty"`
+		Down           *AutoScalerDown                 `json:"down,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupAutoScaler holds the auto scaler configuration used by Spot Ocean.
@@ -1730,6 +1731,16 @@ type (
 		MaxVCPU *int `json:"maxvCPU,omitempty"`
 		// +optional
 		MaxMemoryGiB *int `json:"maxMemoryGib,omitempty"`
+	}
+
+	AutoScalerDown struct {
+		EvaluationPeriods      *int                 `json:"evaluationPeriods,omitempty"`
+		MaxScaleDownPercentage *float64             `json:"maxScaleDownPercentage,omitempty"`
+		AggressiveScaleDown    *AggressiveScaleDown `json:"aggressiveScaleDown,omitempty"`
+	}
+
+	AggressiveScaleDown struct {
+		IsEnabled *bool `json:"isEnabled,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupResourceLimits holds the resource limits configuration used by Spot Ocean.
