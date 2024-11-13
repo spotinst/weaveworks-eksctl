@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/weaveworks/eksctl/pkg/spot"
 
 	"github.com/kris-nova/logger"
@@ -26,7 +25,8 @@ import (
 // NewTasksToCreateCluster defines all tasks required to create a cluster along
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
 func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroups []*api.NodeGroup,
-	managedNodeGroups []*api.ManagedNodeGroup, accessConfig *api.AccessConfig, accessEntryCreator accessentry.CreatorInterface, postClusterCreationTasks ...tasks.Task) (*tasks.TaskTree, error) {
+	managedNodeGroups []*api.ManagedNodeGroup, accessConfig *api.AccessConfig, accessEntryCreator accessentry.CreatorInterface, nodeGroupParallelism int, postClusterCreationTasks ...tasks.Task) *tasks.TaskTree {
+
 	taskTree := tasks.TaskTree{Parallel: false}
 
 	taskTree.Append(&createClusterTask{
@@ -40,29 +40,23 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
 	}
 
-	if len(accessConfig.AccessEntries) > 0 {
-		taskTree.Append(accessEntryCreator.CreateTasks(ctx, accessConfig.AccessEntries))
-	}
-
-	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) error {
+	appendNodeGroupTasksTo := func(taskTree *tasks.TaskTree) {
 		vpcImporter := vpc.NewStackConfigImporter(c.MakeClusterStackName())
-
 		nodeGroupTasks := &tasks.TaskTree{
 			Parallel:  true,
 			IsSubTask: true,
 		}
-
 		disableAccessEntryCreation := accessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap
 		if oceanManagedNodeGroupTasks, err := c.NewSpotOceanNodeGroupTask(ctx, vpcImporter); oceanManagedNodeGroupTasks.Len() > 0 && err == nil {
 			oceanManagedNodeGroupTasks.IsSubTask = true
 			nodeGroupTasks.Parallel = false
 			nodeGroupTasks.Append(oceanManagedNodeGroupTasks)
 		}
-		if unmanagedNodeGroupTasks := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, false, false, disableAccessEntryCreation, vpcImporter); unmanagedNodeGroupTasks.Len() > 0 {
+		if unmanagedNodeGroupTasks := c.NewUnmanagedNodeGroupTask(ctx, nodeGroups, false, false, disableAccessEntryCreation, vpcImporter, nodeGroupParallelism); unmanagedNodeGroupTasks.Len() > 0 {
 			unmanagedNodeGroupTasks.IsSubTask = true
 			nodeGroupTasks.Append(unmanagedNodeGroupTasks)
 		}
-		if managedNodeGroupTasks := c.NewManagedNodeGroupTask(ctx, managedNodeGroups, false, vpcImporter); managedNodeGroupTasks.Len() > 0 {
+		if managedNodeGroupTasks := c.NewManagedNodeGroupTask(ctx, managedNodeGroups, false, vpcImporter, nodeGroupParallelism); managedNodeGroupTasks.Len() > 0 {
 			managedNodeGroupTasks.IsSubTask = true
 			nodeGroupTasks.Append(managedNodeGroupTasks)
 		}
@@ -70,11 +64,7 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 		if nodeGroupTasks.Len() > 0 {
 			taskTree.Append(nodeGroupTasks)
 		}
-
-		return nil
 	}
-
-	var appendErr error
 
 	if len(postClusterCreationTasks) > 0 {
 		postClusterCreationTaskTree := &tasks.TaskTree{
@@ -82,13 +72,12 @@ func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroup
 			IsSubTask: true,
 		}
 		postClusterCreationTaskTree.Append(postClusterCreationTasks...)
-		appendErr = appendNodeGroupTasksTo(postClusterCreationTaskTree)
+		appendNodeGroupTasksTo(postClusterCreationTaskTree)
 		taskTree.Append(postClusterCreationTaskTree)
 	} else {
-		appendErr = appendNodeGroupTasksTo(&taskTree)
+		appendNodeGroupTasksTo(&taskTree)
 	}
-
-	return &taskTree, appendErr
+	return &taskTree
 }
 
 // NewSpotOceanNodeGroupTask defines tasks required to create Ocean Cluster.
@@ -126,7 +115,7 @@ func (c *StackCollection) NewSpotOceanNodeGroupTask(ctx context.Context, vpcImpo
 }
 
 // NewUnmanagedNodeGroupTask returns tasks for creating self-managed nodegroups.
-func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer) *tasks.TaskTree {
+func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer, parallelism int) *tasks.TaskTree {
 	task := &UnmanagedNodeGroupTask{
 		ClusterConfig: c.spec,
 		NodeGroups:    nodeGroups,
@@ -144,12 +133,13 @@ func (c *StackCollection) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGro
 		SkipEgressRules:            skipEgressRules,
 		DisableAccessEntryCreation: disableAccessEntryCreation,
 		VPCImporter:                vpcImporter,
+		Parallelism:                parallelism,
 	})
 }
 
 // NewManagedNodeGroupTask defines tasks required to create managed nodegroups
-func (c *StackCollection) NewManagedNodeGroupTask(ctx context.Context, nodeGroups []*api.ManagedNodeGroup, forceAddCNIPolicy bool, vpcImporter vpc.Importer) *tasks.TaskTree {
-	taskTree := &tasks.TaskTree{Parallel: true}
+func (c *StackCollection) NewManagedNodeGroupTask(ctx context.Context, nodeGroups []*api.ManagedNodeGroup, forceAddCNIPolicy bool, vpcImporter vpc.Importer, nodeGroupParallelism int) *tasks.TaskTree {
+	taskTree := &tasks.TaskTree{Parallel: true, Limit: nodeGroupParallelism}
 	for _, ng := range nodeGroups {
 		// Disable parallelisation if any tags propagation is done
 		// since nodegroup must be created to propagate tags to its ASGs.
@@ -213,7 +203,7 @@ func (c *StackCollection) NewTasksToCreateIAMServiceAccounts(serviceAccounts []*
 					objectMeta.SetAnnotations(sa.AsObjectMeta().Annotations)
 					objectMeta.SetLabels(sa.AsObjectMeta().Labels)
 					if err := kubernetes.MaybeCreateServiceAccountOrUpdateMetadata(clientSet, objectMeta); err != nil {
-						return errors.Wrapf(err, "failed to create service account %s/%s", objectMeta.GetNamespace(), objectMeta.GetName())
+						return fmt.Errorf("failed to create service account %s/%s: %w", objectMeta.GetNamespace(), objectMeta.GetName(), err)
 					}
 					return nil
 				},

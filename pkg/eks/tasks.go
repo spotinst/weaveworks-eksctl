@@ -28,14 +28,13 @@ import (
 
 	"github.com/weaveworks/eksctl/pkg/actions/irsa"
 	"github.com/weaveworks/eksctl/pkg/addons"
+	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/fargate"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
+	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	instanceutils "github.com/weaveworks/eksctl/pkg/utils/instance"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
-
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/kubernetes"
 )
 
 type clusterConfigTask struct {
@@ -279,10 +278,11 @@ func (t *restartDaemonsetTask) Do(errCh chan error) error {
 }
 
 // CreateExtraClusterConfigTasks returns all tasks for updating cluster configuration
-func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg *api.ClusterConfig) *tasks.TaskTree {
+func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg *api.ClusterConfig, preNodeGroupAddons *tasks.TaskTree, updateVPCCNITask *tasks.GenericTask) *tasks.TaskTree {
 	newTasks := &tasks.TaskTree{
 		Parallel:  false,
 		IsSubTask: true,
+		Tasks:     []tasks.Task{preNodeGroupAddons},
 	}
 
 	newTasks.Append(&tasks.GenericTask{
@@ -301,6 +301,13 @@ func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg
 			return c.RefreshClusterStatus(ctx, cfg)
 		},
 	})
+
+	if api.IsEnabled(cfg.IAM.WithOIDC) {
+		c.appendCreateTasksForIAMServiceAccounts(ctx, cfg, newTasks)
+		if updateVPCCNITask != nil {
+			newTasks.Append(updateVPCCNITask)
+		}
+	}
 
 	if cfg.HasClusterCloudWatchLogging() {
 		if logRetentionDays := cfg.CloudWatch.ClusterLogging.LogRetentionInDays; logRetentionDays != 0 {
@@ -332,10 +339,6 @@ func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg
 			manager:         &manager,
 			ctx:             ctx,
 		})
-	}
-
-	if api.IsEnabled(cfg.IAM.WithOIDC) {
-		c.appendCreateTasksForIAMServiceAccounts(ctx, cfg, newTasks)
 	}
 
 	if len(cfg.IdentityProviders) > 0 {
@@ -525,16 +528,10 @@ func (c *ClusterProvider) appendCreateTasksForIAMServiceAccounts(ctx context.Con
 	// given a clientSet getter and OpenIDConnectManager reference we can build out
 	// the list of tasks for each of the service accounts that need to be created
 	newTasks := c.NewStackManager(cfg).NewTasksToCreateIAMServiceAccounts(
-		api.IAMServiceAccountsWithImplicitServiceAccounts(cfg),
+		cfg.IAM.ServiceAccounts,
 		oidcPlaceholder,
 		clientSet,
 	)
 	newTasks.IsSubTask = true
 	tasks.Append(newTasks)
-	tasks.Append(&restartDaemonsetTask{
-		namespace:       "kube-system",
-		name:            "aws-node",
-		clusterProvider: c,
-		spec:            cfg,
-	})
 }

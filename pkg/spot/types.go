@@ -155,6 +155,7 @@ type (
 		ResourceLimits *ResourceLimits `json:"resourceLimits,omitempty"`
 		Headroom       *Headroom       `json:"headroom,omitempty"`  // cluster
 		Headrooms      []*Headroom     `json:"headrooms,omitempty"` // virtualnodegroup
+		Down           *AutoScalerDown `json:"down,omitempty"`
 	}
 
 	Headroom struct {
@@ -169,6 +170,16 @@ type (
 		MaxMemoryGiB     *int `json:"maxMemoryGib,omitempty"`
 		MinInstanceCount *int `json:"minInstanceCount,omitempty"`
 		MaxInstanceCount *int `json:"maxInstanceCount,omitempty"`
+	}
+
+	AutoScalerDown struct {
+		EvaluationPeriods      *int                 `json:"evaluationPeriods,omitempty"`
+		MaxScaleDownPercentage *float64             `json:"maxScaleDownPercentage,omitempty"`
+		AggressiveScaleDown    *AggressiveScaleDown `json:"aggressiveScaleDown,omitempty"`
+	}
+
+	AggressiveScaleDown struct {
+		IsEnabled *bool `json:"isEnabled,omitempty"`
 	}
 
 	Label struct {

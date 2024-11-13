@@ -940,6 +940,17 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanClusterResource(launchTempla
 						MaxMemoryGiB: l.MaxMemoryGiB,
 					}
 				}
+				if d := autoScaler.Down; d != nil {
+					cluster.AutoScaler.Down = &spot.AutoScalerDown{
+						EvaluationPeriods:      d.EvaluationPeriods,
+						MaxScaleDownPercentage: d.MaxScaleDownPercentage,
+					}
+					if d.AggressiveScaleDown != nil {
+						cluster.AutoScaler.Down.AggressiveScaleDown = &spot.AggressiveScaleDown{
+							IsEnabled: d.AggressiveScaleDown.IsEnabled,
+						}
+					}
+				}
 			}
 		}
 	}

@@ -43,13 +43,14 @@ const (
 
 	Version1_29 = "1.29"
 
-	// Version1_30 represents Kubernetes version 1.30.x.
 	Version1_30 = "1.30"
+
+	Version1_31 = "1.31"
 
 	// DefaultVersion (default)
 	DefaultVersion = Version1_30
 
-	LatestVersion = Version1_30
+	LatestVersion = Version1_31
 
 	DockershimDeprecationVersion = Version1_24
 )
@@ -98,8 +99,8 @@ const (
 
 // Not yet supported versions
 const (
-	// Version1_31 represents Kubernetes version 1.31.x
-	Version1_31 = "1.31"
+	// Version1_32 represents Kubernetes version 1.32.x
+	Version1_32 = "1.32"
 )
 
 const (
@@ -171,6 +172,9 @@ const (
 
 	// RegionAPSouthEast4 represents the Asia-Pacific South East Region Melbourne
 	RegionAPSouthEast4 = "ap-southeast-4"
+
+	// RegionAPSouthEast5 represents the Asia-Pacific South East Region Kuala Lumpur
+	RegionAPSouthEast5 = "ap-southeast-5"
 
 	// RegionAPSouth1 represents the Asia-Pacific South Region Mumbai
 	RegionAPSouth1 = "ap-south-1"
@@ -393,6 +397,10 @@ const (
 
 	// eksResourceAccountAPSouthEast4 defines the AWS EKS account ID that provides node resources in ap-southeast-4
 	eksResourceAccountAPSouthEast4 = "491585149902"
+
+	// eksResourceAccountAPSouthEast5 defines the AWS EKS account ID that provides node resources in ap-southeast-5
+	eksResourceAccountAPSouthEast5 = "151610086707"
+
 	// eksResourceAccountUSISOEast1 defines the AWS EKS account ID that provides node resources in us-iso-east-1
 	eksResourceAccountUSISOEast1 = "725322719131"
 
@@ -441,17 +449,6 @@ const (
 	IPV4Family = "IPv4"
 	// IPV6Family defines an IP family of v6 to be used when creating a new VPC and cluster.
 	IPV6Family = "IPv6"
-)
-
-// Values for core addons
-const (
-	minimumVPCCNIVersionForIPv6 = "1.10.0"
-	VPCCNIAddon                 = "vpc-cni"
-	KubeProxyAddon              = "kube-proxy"
-	CoreDNSAddon                = "coredns"
-	PodIdentityAgentAddon       = "eks-pod-identity-agent"
-	AWSEBSCSIDriverAddon        = "aws-ebs-csi-driver"
-	AWSEFSCSIDriverAddon        = "aws-efs-csi-driver"
 )
 
 // supported version of Karpenter
@@ -550,6 +547,7 @@ func SupportedRegions() []string {
 		RegionAPSouthEast2,
 		RegionAPSouthEast3,
 		RegionAPSouthEast4,
+		RegionAPSouthEast5,
 		RegionAPSouth1,
 		RegionAPSouth2,
 		RegionAPEast1,
@@ -610,6 +608,7 @@ func SupportedVersions() []string {
 		Version1_28,
 		Version1_29,
 		Version1_30,
+		Version1_31,
 	}
 }
 
@@ -696,6 +695,8 @@ func EKSResourceAccountID(region string) string {
 		return eksResourceAccountAPSouthEast3
 	case RegionAPSouthEast4:
 		return eksResourceAccountAPSouthEast4
+	case RegionAPSouthEast5:
+		return eksResourceAccountAPSouthEast5
 	case RegionILCentral1:
 		return eksResourceAccountILCentral1
 	case RegionUSISOEast1:
@@ -995,6 +996,9 @@ type ClusterConfig struct {
 	// Spot Ocean.
 	// +optional
 	SpotOcean *SpotOceanCluster `json:"spotOcean,omitempty"`
+
+	// ZonalShiftConfig specifies the zonal shift configuration.
+	ZonalShiftConfig *ZonalShiftConfig `json:"zonalShiftConfig,omitempty"`
 }
 
 // Outpost holds the Outpost configuration.
@@ -1020,6 +1024,12 @@ func (o *Outpost) SetInstanceType(instanceType string) {
 // HasPlacementGroup reports whether this Outpost has a placement group.
 func (o *Outpost) HasPlacementGroup() bool {
 	return o.ControlPlanePlacement != nil
+}
+
+// ZonalShiftConfig holds the zonal shift configuration.
+type ZonalShiftConfig struct {
+	// Enabled enables or disables zonal shift.
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // OutpostInfo describes the Outpost info.
@@ -1692,6 +1702,7 @@ type (
 		Headroom *SpotOceanHeadroom `json:"headrooms,omitempty"`
 		// +optional
 		ResourceLimits *SpotOceanClusterResourceLimits `json:"resourceLimits,omitempty"`
+		Down           *AutoScalerDown                 `json:"down,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupAutoScaler holds the auto scaler configuration used by Spot Ocean.
@@ -1720,6 +1731,16 @@ type (
 		MaxVCPU *int `json:"maxvCPU,omitempty"`
 		// +optional
 		MaxMemoryGiB *int `json:"maxMemoryGib,omitempty"`
+	}
+
+	AutoScalerDown struct {
+		EvaluationPeriods      *int                 `json:"evaluationPeriods,omitempty"`
+		MaxScaleDownPercentage *float64             `json:"maxScaleDownPercentage,omitempty"`
+		AggressiveScaleDown    *AggressiveScaleDown `json:"aggressiveScaleDown,omitempty"`
+	}
+
+	AggressiveScaleDown struct {
+		IsEnabled *bool `json:"isEnabled,omitempty"`
 	}
 
 	// SpotOceanVirtualNodeGroupResourceLimits holds the resource limits configuration used by Spot Ocean.

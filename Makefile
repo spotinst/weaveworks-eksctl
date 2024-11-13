@@ -160,6 +160,9 @@ generate-all: generate-always $(conditionally_generated_files) ## Re-generate al
 check-all-generated-files-up-to-date: generate-all ## Run the generate all command and verify there is no new diff
 	git diff --quiet -- $(conditionally_generated_files) || (git --no-pager diff $(conditionally_generated_files); echo "HINT: to fix this, run 'git commit $(conditionally_generated_files) --message \"Update generated files\"'"; exit 1)
 
+.PHONY: update-nvidia-device-plugin
+update-nvidia-device-plugin: ## fetch the latest static manifest
+	pkg/addons/assets/scripts/update_nvidia_device_plugin.sh
 
 .PHONY: update-aws-node
 update-aws-node: ## Re-download the aws-node manifests from AWS
@@ -169,9 +172,6 @@ update-aws-node: ## Re-download the aws-node manifests from AWS
 update-coredns: ## get latest coredns builds for each available eks version
 	@go run pkg/addons/default/scripts/update_coredns_assets.go
 
-.PHONY:
-update-coredns: ## get latest coredns builds for each available eks version
-	@go run pkg/addons/default/scripts/update_coredns_assets.go
 
 deep_copy_helper_input = $(shell $(call godeps_cmd,./pkg/apis/...) | sed 's|$(generated_code_deep_copy_helper)||' )
 $(generated_code_deep_copy_helper): $(deep_copy_helper_input) ## Generate Kubernetes API helpers

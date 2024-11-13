@@ -1,6 +1,7 @@
 package cmdutils
 
 import (
+	"io"
 	"time"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
@@ -24,6 +25,7 @@ type CreateClusterCmdParams struct {
 	CreateNGOptions
 	CreateManagedNGOptions
 	CreateSpotOceanNodeGroupOptions
+	ConfigReader io.Reader
 }
 
 // NodeGroupOptions holds options for creating nodegroups.
@@ -48,6 +50,7 @@ type CreateNGOptions struct {
 	InstallNeuronDevicePlugin bool
 	InstallNvidiaDevicePlugin bool
 	DryRun                    bool
+	NodeGroupParallelism      int
 }
 
 // CreateSpotOceanNodeGroupOptions holds options for creating a Spot Ocean nodegroup.
