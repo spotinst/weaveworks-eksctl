@@ -10,38 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
         with:
           fetch-depth: 0
       - name: Setup build environment
         uses: ./.github/actions/setup-build
       - name: Unit test
         run: |
-          PATH=$PATH:$(go env GOPATH)/bin make build
-          PATH=$PATH:$(go env GOPATH)/bin make unit-test-no-generate
+          make build
+          make unit-test-no-generate
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
         with:
           fetch-depth: 0
       - name: Setup build environment
         uses: ./.github/actions/setup-build
+      - name: Check go.mod and go.sum
+        run: make check-gomod
+      - name: Check schema.json
+        run: make check-schema
       - name: Lint
-        run: |
-          PATH=$PATH:$(go env GOPATH)/bin make lint
-  image:
-    name: Build and check image
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
-        with:
-          fetch-depth: 0
-      - name: Setup build environment
-        uses: ./.github/actions/setup-build
-      - name: build
-        run: |
-          PATH=$PATH:$(go env GOPATH)/bin make -f Makefile.docker check-build-image-manifest-up-to-date
+        run: make lint

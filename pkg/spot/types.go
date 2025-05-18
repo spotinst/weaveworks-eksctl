@@ -3,7 +3,7 @@ package spot
 import (
 	"encoding/json"
 
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 )
 
 type (

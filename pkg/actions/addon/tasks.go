@@ -18,46 +18,31 @@ import (
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
 )
 
-var knownAddons = map[string]struct {
-	IsDefault             bool
-	CreateBeforeNodeGroup bool
-}{
-	api.VPCCNIAddon: {
-		IsDefault:             true,
-		CreateBeforeNodeGroup: true,
-	},
-	api.KubeProxyAddon: {
-		IsDefault:             true,
-		CreateBeforeNodeGroup: true,
-	},
-	api.CoreDNSAddon: {
-		IsDefault:             true,
-		CreateBeforeNodeGroup: true,
-	},
-	api.PodIdentityAgentAddon: {
-		CreateBeforeNodeGroup: true,
-	},
-	api.AWSEBSCSIDriverAddon: {},
-	api.AWSEFSCSIDriverAddon: {},
-}
-
-func CreateAddonTasks(ctx context.Context, cfg *api.ClusterConfig, clusterProvider *eks.ClusterProvider, iamRoleCreator IAMRoleCreator, forceAll bool, timeout time.Duration) (*tasks.TaskTree, *tasks.TaskTree, *tasks.GenericTask, []string) {
+func CreateAddonTasks(ctx context.Context, cfg *api.ClusterConfig, clusterProvider *eks.ClusterProvider, iamRoleCreator IAMRoleCreator, podIdentityIAMUpdater PodIdentityIAMUpdater, forceAll bool, timeout time.Duration, region string) (*tasks.TaskTree, *tasks.TaskTree, *tasks.GenericTask, []string) {
 	var addons []*api.Addon
 	var autoDefaultAddonNames []string
 	if !cfg.AddonsConfig.DisableDefaultAddons {
 		addons = make([]*api.Addon, len(cfg.Addons))
 		copy(addons, cfg.Addons)
 
-		for addonName, addonInfo := range knownAddons {
-			if addonInfo.IsDefault && !slices.ContainsFunc(cfg.Addons, func(a *api.Addon) bool {
+		for addonName, addonInfo := range api.KnownAddons {
+			if addonInfo.IsDefault && !slices.Contains(addonInfo.ExcludedRegions, region) && !slices.ContainsFunc(cfg.Addons, func(a *api.Addon) bool {
 				return strings.EqualFold(a.Name, addonName)
 			}) {
-				addons = append(addons, &api.Addon{Name: addonName})
-				autoDefaultAddonNames = append(autoDefaultAddonNames, addonName)
+				if !cfg.IsAutoModeEnabled() || addonInfo.IsDefaultAutoMode {
+					addons = append(addons, &api.Addon{Name: addonName})
+					autoDefaultAddonNames = append(autoDefaultAddonNames, addonName)
+				}
+
 			}
 		}
 	} else {
 		addons = cfg.Addons
+		if cfg.IsAutoModeEnabled() && len(cfg.NodeGroups) == 0 && len(cfg.ManagedNodeGroups) == 0 {
+			logger.Info("default EKS addons are not required for a cluster using Auto Mode; " +
+				"if nodegroups are not required, consider setting `addonsConfig.disableDefaultAddons: true` during " +
+				"cluster creation, or deleting default addons using `eksctl delete addon`")
+		}
 	}
 
 	var (
@@ -66,7 +51,7 @@ func CreateAddonTasks(ctx context.Context, cfg *api.ClusterConfig, clusterProvid
 	)
 	var vpcCNIAddon *api.Addon
 	for _, addon := range addons {
-		addonInfo, ok := knownAddons[addon.Name]
+		addonInfo, ok := api.KnownAddons[addon.Name]
 		if ok && addonInfo.CreateBeforeNodeGroup {
 			preAddons = append(preAddons, addon)
 		} else {
@@ -108,7 +93,11 @@ func CreateAddonTasks(ctx context.Context, cfg *api.ClusterConfig, clusterProvid
 				if err != nil {
 					return err
 				}
-				return addonManager.Update(ctx, vpcCNIAddon, nil, clusterProvider.AWSProvider.WaitTimeout())
+				// VPC CNI is being created in a separate task, so we need to wait for it to be active before updating to use IRSA
+				if err := addonManager.waitForAddonToBeActive(ctx, &api.Addon{Name: api.VPCCNIAddon}, api.DefaultWaitTimeout); err != nil {
+					return fmt.Errorf("waiting for %q to become active: %w", api.VPCCNIAddon, err)
+				}
+				return addonManager.Update(ctx, vpcCNIAddon, podIdentityIAMUpdater, clusterProvider.AWSProvider.WaitTimeout())
 			},
 		}
 	}
@@ -239,7 +228,7 @@ func runAllTasks(taskTree *tasks.TaskTree) error {
 		for _, err := range errs {
 			allErrs = append(allErrs, err.Error())
 		}
-		return fmt.Errorf(strings.Join(allErrs, "\n"))
+		return fmt.Errorf("%s", strings.Join(allErrs, "\n"))
 	}
 	completedAction := func() string {
 		if taskTree.PlanMode {

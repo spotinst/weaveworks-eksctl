@@ -10,6 +10,26 @@ You can create a cluster in minutes with just one command – **`eksctl create c
 
 _Need help? Join [Eksctl Slack][slackjoin]._
 
+## New: EKS Auto Mode Support
+
+`eksctl` now supports EKS Auto Mode! EKS Auto Mode automates routine tasks for cluster compute, storage, and networking.
+
+* Learn how to [create an EKS Auto Mode Cluster with eksctl](https://docs.aws.amazon.com/eks/latest/userguide/automode-get-started-eksctl.html).
+* Review the [eksctl docs](https://github.com/eksctl-io/eksctl/blob/main/userdocs/src/usage/auto-mode.md) for EKS Auto Mode.
+
+Version 0.195.0 or greater is required.
+
+## New: EKS Hybrid Nodes Support
+
+`eksctl` now supports EKS Hybrid Nodes! Hybrid Nodes enables you to run on-premises and edge applications on customer-managed infrastructure with the same AWS EKS clusters, features, and tools you use in the AWS Cloud.
+
+* For more information, see [Amazon EKS Hybrid Nodes overview](https://docs.aws.amazon.com/eks/latest/userguide/hybrid-nodes-overview.html) in the EKS User Guide.
+* Review the [eksctl docs](https://github.com/eksctl-io/eksctl/blob/main/userdocs/src/usage/hybrid-nodes.md) for EKS Hybrid Nodes.
+
+Version 0.195.0 or greater is required.
+
+
+
 ## Installation
 
 `eksctl` is available to install from official releases as described below. We recommend that you install `eksctl` from only the official GitHub releases. You may opt to use a third-party installer, but please be advised that AWS does not maintain nor support these methods of installation. Use them at your own discretion.
@@ -53,7 +73,7 @@ curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_ch
 
 tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
 
-sudo mv /tmp/eksctl /usr/local/bin
+sudo install -m 0755 /tmp/eksctl /usr/local/bin && rm /tmp/eksctl
 ```
 
 ### For Windows

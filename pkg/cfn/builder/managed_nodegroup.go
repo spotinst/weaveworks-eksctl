@@ -2,14 +2,15 @@ package builder
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfneks "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/eks"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
-	"github.com/pkg/errors"
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfneks "github.com/weaveworks/goformation/v4/cloudformation/eks"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
 	corev1 "k8s.io/api/core/v1"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
@@ -45,6 +46,14 @@ func NewManagedNodeGroup(ec2API awsapi.EC2, cluster *api.ClusterConfig, nodeGrou
 		vpcImporter:           vpcImporter,
 		bootstrapper:          bootstrapper,
 	}
+}
+
+func convertToTypesValueMap(input map[string]string) map[string]*gfnt.Value {
+	output := make(map[string]*gfnt.Value)
+	for k, v := range input {
+		output[k] = gfnt.NewString(v)
+	}
+	return output
 }
 
 // AddAllResources adds all required CloudFormation resources
@@ -100,8 +109,8 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 		ScalingConfig: &scalingConfig,
 		Subnets:       subnets,
 		NodeRole:      nodeRole,
-		Labels:        m.nodeGroup.Labels,
-		Tags:          m.nodeGroup.Tags,
+		Labels:        convertToTypesValueMap(m.nodeGroup.Labels),
+		Tags:          convertToTypesValueMap(m.nodeGroup.Tags),
 		Taints:        taints,
 	}
 
@@ -116,9 +125,25 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 		managedResource.UpdateConfig = updateConfig
 	}
 
+	if m.nodeGroup.NodeRepairConfig != nil {
+		nodeRepairConfig := &gfneks.Nodegroup_NodeRepairConfig{}
+		if m.nodeGroup.NodeRepairConfig.Enabled != nil {
+			nodeRepairConfig.Enabled = gfnt.NewBoolean(*m.nodeGroup.NodeRepairConfig.Enabled)
+		}
+		managedResource.NodeRepairConfig = nodeRepairConfig
+	}
+
 	if m.nodeGroup.Spot {
 		// TODO use constant from SDK
 		managedResource.CapacityType = gfnt.NewString("SPOT")
+	}
+
+	isCapacityBlockEnabled := false
+	if m.nodeGroup.InstanceMarketOptions != nil &&
+		m.nodeGroup.InstanceMarketOptions.MarketType != nil &&
+		*m.nodeGroup.InstanceMarketOptions.MarketType == "capacity-block" {
+		isCapacityBlockEnabled = true
+		managedResource.CapacityType = gfnt.NewString("CAPACITY_BLOCK")
 	}
 
 	if m.nodeGroup.ReleaseVersion != "" {
@@ -128,7 +153,7 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 	instanceTypes := m.nodeGroup.InstanceTypeList()
 
 	makeAMIType := func() *gfnt.Value {
-		return gfnt.NewString(string(getAMIType(m.nodeGroup, selectManagedInstanceType(m.nodeGroup))))
+		return gfnt.NewString(string(api.GetAMIType(m.nodeGroup.AMIFamily, selectManagedInstanceType(m.nodeGroup), false /* not strict, allow fallback */)))
 	}
 
 	var launchTemplate *gfneks.Nodegroup_LaunchTemplateSpecification
@@ -153,12 +178,19 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 			if launchTemplateData.InstanceType == "" {
 				managedResource.AmiType = makeAMIType()
 			} else {
-				managedResource.AmiType = gfnt.NewString(string(getAMIType(m.nodeGroup, string(launchTemplateData.InstanceType))))
+				managedResource.AmiType = gfnt.NewString(string(api.GetAMIType(m.nodeGroup.AMIFamily, string(launchTemplateData.InstanceType), false /* not strict, allow fallback */)))
 			}
 		}
 
 		if launchTemplateData.InstanceType == "" {
-			managedResource.InstanceTypes = gfnt.NewStringSlice(instanceTypes...)
+			if isCapacityBlockEnabled {
+				if len(instanceTypes) > 1 {
+					return errors.New("when using capacity type CAPACITY_BLOCK please specify only one instance type")
+				}
+				launchTemplateData.InstanceType = ec2types.InstanceType(instanceTypes[0])
+			} else {
+				managedResource.InstanceTypes = gfnt.NewStringSlice(instanceTypes...)
+			}
 		}
 	} else {
 		launchTemplateData, err := m.makeLaunchTemplateData(ctx)
@@ -168,7 +200,15 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 		if launchTemplateData.ImageId == nil {
 			managedResource.AmiType = makeAMIType()
 		}
-		managedResource.InstanceTypes = gfnt.NewStringSlice(instanceTypes...)
+
+		if isCapacityBlockEnabled {
+			if len(instanceTypes) > 1 {
+				return errors.New("cannot specify multiple instance types when using capacity block")
+			}
+			launchTemplateData.InstanceType = gfnt.NewString(instanceTypes[0])
+		} else {
+			managedResource.InstanceTypes = gfnt.NewStringSlice(instanceTypes...)
+		}
 
 		ltRef := m.newResource("LaunchTemplate", &gfnec2.LaunchTemplate{
 			LaunchTemplateName: gfnt.MakeFnSubString(fmt.Sprintf("${%s}", gfnt.StackName)),
@@ -180,7 +220,11 @@ func (m *ManagedNodeGroupResourceSet) AddAllResources(ctx context.Context) error
 	}
 
 	managedResource.LaunchTemplate = launchTemplate
-	m.newResource(ManagedNodeGroupResourceName, managedResource)
+	if m.clusterConfig.IsCustomEksEndpoint() {
+		m.newResource(ManagedNodeGroupResourceName, addBetaManagedNodeGroupResources(managedResource, m.clusterConfig.Metadata.Name))
+	} else {
+		m.newResource(ManagedNodeGroupResourceName, managedResource)
+	}
 	return nil
 }
 
@@ -203,7 +247,7 @@ func mapTaints(taints []api.NodeGroupTaint) ([]gfneks.Nodegroup_Taint, error) {
 	for _, t := range taints {
 		effect := mapEffect(t.Effect)
 		if effect == "" {
-			return nil, errors.Errorf("unexpected taint effect: %v", t.Effect)
+			return nil, fmt.Errorf("unexpected taint effect: %v", t.Effect)
 		}
 		ret = append(ret, gfneks.Nodegroup_Taint{
 			Key:    gfnt.NewString(t.Key),
@@ -231,10 +275,10 @@ func validateLaunchTemplate(launchTemplateData *ec2types.ResponseLaunchTemplateD
 
 	if launchTemplateData.InstanceType == "" {
 		if len(ng.InstanceTypes) == 0 {
-			return errors.Errorf("instance type must be set in the launch template if %s.instanceTypes is not specified", mngFieldName)
+			return fmt.Errorf("instance type must be set in the launch template if %s.instanceTypes is not specified", mngFieldName)
 		}
 	} else if len(ng.InstanceTypes) > 0 {
-		return errors.Errorf("instance type must not be set in the launch template if %s.instanceTypes is specified", mngFieldName)
+		return fmt.Errorf("instance type must not be set in the launch template if %s.instanceTypes is specified", mngFieldName)
 	}
 
 	// Custom AMI
@@ -243,7 +287,7 @@ func validateLaunchTemplate(launchTemplateData *ec2types.ResponseLaunchTemplateD
 			return errors.New("node bootstrapping script (UserData) must be set when using a custom AMI")
 		}
 		notSupportedErr := func(fieldName string) error {
-			return errors.Errorf("cannot set %s.%s when launchTemplate.ImageId is set", mngFieldName, fieldName)
+			return fmt.Errorf("cannot set %s.%s when launchTemplate.ImageId is set", mngFieldName, fieldName)
 
 		}
 		if ng.AMI != "" {
@@ -259,69 +303,6 @@ func validateLaunchTemplate(launchTemplateData *ec2types.ResponseLaunchTemplateD
 	}
 
 	return nil
-}
-
-func getAMIType(ng *api.ManagedNodeGroup, instanceType string) ekstypes.AMITypes {
-	amiTypeMapping := map[string]struct {
-		X86x64    ekstypes.AMITypes
-		X86Nvidia ekstypes.AMITypes
-		X86Neuron ekstypes.AMITypes
-		ARM       ekstypes.AMITypes
-		ARMGPU    ekstypes.AMITypes
-	}{
-		api.NodeImageFamilyAmazonLinux2023: {
-			X86x64:    ekstypes.AMITypesAl2023X8664Standard,
-			X86Nvidia: ekstypes.AMITypesAl2023X8664Nvidia,
-			X86Neuron: ekstypes.AMITypesAl2023X8664Neuron,
-			ARM:       ekstypes.AMITypesAl2023Arm64Standard,
-		},
-		api.NodeImageFamilyAmazonLinux2: {
-			X86x64:    ekstypes.AMITypesAl2X8664,
-			X86Nvidia: ekstypes.AMITypesAl2X8664Gpu,
-			X86Neuron: ekstypes.AMITypesAl2X8664Gpu,
-			ARM:       ekstypes.AMITypesAl2Arm64,
-		},
-		api.NodeImageFamilyBottlerocket: {
-			X86x64:    ekstypes.AMITypesBottlerocketX8664,
-			X86Nvidia: ekstypes.AMITypesBottlerocketX8664Nvidia,
-			ARM:       ekstypes.AMITypesBottlerocketArm64,
-			ARMGPU:    ekstypes.AMITypesBottlerocketArm64Nvidia,
-		},
-		api.NodeImageFamilyWindowsServer2019FullContainer: {
-			X86x64:    ekstypes.AMITypesWindowsFull2019X8664,
-			X86Nvidia: ekstypes.AMITypesWindowsFull2019X8664,
-		},
-		api.NodeImageFamilyWindowsServer2019CoreContainer: {
-			X86x64:    ekstypes.AMITypesWindowsCore2019X8664,
-			X86Nvidia: ekstypes.AMITypesWindowsCore2019X8664,
-		},
-		api.NodeImageFamilyWindowsServer2022FullContainer: {
-			X86x64:    ekstypes.AMITypesWindowsFull2022X8664,
-			X86Nvidia: ekstypes.AMITypesWindowsFull2022X8664,
-		},
-		api.NodeImageFamilyWindowsServer2022CoreContainer: {
-			X86x64:    ekstypes.AMITypesWindowsCore2022X8664,
-			X86Nvidia: ekstypes.AMITypesWindowsCore2022X8664,
-		},
-	}
-
-	amiType, ok := amiTypeMapping[ng.AMIFamily]
-	if !ok {
-		return ekstypes.AMITypesCustom
-	}
-
-	switch {
-	case instanceutils.IsARMGPUInstanceType(instanceType):
-		return amiType.ARMGPU
-	case instanceutils.IsARMInstanceType(instanceType):
-		return amiType.ARM
-	case instanceutils.IsNvidiaInstanceType(instanceType):
-		return amiType.X86Nvidia
-	case instanceutils.IsNeuronInstanceType(instanceType):
-		return amiType.X86Neuron
-	default:
-		return amiType.X86x64
-	}
 }
 
 // RenderJSON implements the ResourceSet interface

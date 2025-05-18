@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"slices"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"golang.org/x/exp/slices"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/eks"
@@ -35,14 +35,14 @@ func ParseClusterConfig(clusterName, region, filename string) *api.ClusterConfig
 	return clusterConfig
 }
 
-func GetCurrentAndNextVersionsForUpgrade(testVersion string) (currentVersion, nextVersion string) {
-	supportedVersions := api.SupportedVersions()
+func GetCurrentAndNextVersionsForUpgrade(cvm eks.ClusterVersionsManagerInterface, testVersion string) (currentVersion, nextVersion string) {
+	supportedVersions := cvm.SupportedVersions()
 	if len(supportedVersions) < 2 {
 		Fail("Upgrade test requires at least two supported EKS versions")
 	}
 
 	// if latest version is used, fetch previous version to upgrade from
-	if testVersion == api.LatestVersion {
+	if testVersion == cvm.LatestVersion() {
 		previousVersionIndex := slices.Index(supportedVersions, testVersion) - 1
 		currentVersion = supportedVersions[previousVersionIndex]
 		nextVersion = testVersion

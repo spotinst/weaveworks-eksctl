@@ -1,8 +1,8 @@
 package builder
 
 import (
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
@@ -84,7 +84,7 @@ func makeBlockDeviceMapping(vm *api.VolumeMapping) *gfnec2.LaunchTemplate_BlockD
 		mapping.Ebs.KmsKeyId = gfnt.NewString(*vm.VolumeKmsKeyID)
 	}
 
-	if (*vm.VolumeType == api.NodeVolumeTypeIO1 || *vm.VolumeType == api.NodeVolumeTypeGP3) && vm.VolumeIOPS != nil {
+	if (*vm.VolumeType == api.NodeVolumeTypeIO1 || *vm.VolumeType == api.NodeVolumeTypeIO2 || *vm.VolumeType == api.NodeVolumeTypeGP3) && vm.VolumeIOPS != nil {
 		mapping.Ebs.Iops = gfnt.NewInteger(*vm.VolumeIOPS)
 	}
 

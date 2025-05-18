@@ -2,6 +2,7 @@ package nodegroup_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -14,7 +15,6 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -185,7 +185,53 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 				},
 			}, nil)
 		},
-		expectedErr: errors.Wrapf(errors.New("VPC configuration required for creating nodegroups on clusters not owned by eksctl: vpc.subnets, vpc.id, vpc.securityGroup"), "loading VPC spec for cluster %q", "my-cluster"),
+		expectedErr: errors.New(`loading VPC spec for cluster "my-cluster": VPC configuration required for creating nodegroups on clusters not owned by eksctl: vpc.subnets, vpc.id, vpc.securityGroup`),
+	}),
+
+	Entry("when cluster is unowned and vpc.securityGroup contains external egress rules, it fails validation", ngEntry{
+		updateClusterConfig: makeUnownedClusterConfig,
+		mockCalls: func(m mockCalls) {
+			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider, ec2types.SecurityGroupRule{
+				Description:         aws.String("Allow control plane to communicate with a custom nodegroup on a custom port"),
+				FromPort:            aws.Int32(8443),
+				ToPort:              aws.Int32(8443),
+				GroupId:             aws.String("sg-custom"),
+				IpProtocol:          aws.String("https"),
+				IsEgress:            aws.Bool(true),
+				SecurityGroupRuleId: aws.String("sgr-5"),
+			})
+
+		},
+		expectedErr: errors.New("vpc.securityGroup (sg-custom) has egress rules that were not attached by eksctl; vpc.securityGroup should not contain any non-default external egress rules on a cluster not created by eksctl (rule ID: sgr-5)"),
+	}),
+
+	Entry("when cluster is unowned and vpc.securityGroup contains a default egress rule, it passes validation but fails if DescribeImages fails", ngEntry{
+		updateClusterConfig: makeUnownedClusterConfig,
+		mockCalls: func(m mockCalls) {
+			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider, ec2types.SecurityGroupRule{
+				Description:         aws.String(""),
+				CidrIpv4:            aws.String("0.0.0.0/0"),
+				FromPort:            aws.Int32(-1),
+				ToPort:              aws.Int32(-1),
+				GroupId:             aws.String("sg-custom"),
+				IpProtocol:          aws.String("-1"),
+				IsEgress:            aws.Bool(true),
+				SecurityGroupRuleId: aws.String("sgr-5"),
+			})
+			m.mockProvider.MockEC2().On("DescribeImages", mock.Anything, mock.Anything).Return(nil, errors.New("DescribeImages error"))
+
+		},
+		expectedErr: errors.New("DescribeImages error"),
+	}),
+
+	Entry("when cluster is unowned and vpc.securityGroup contains no external egress rules, it passes validation but fails if DescribeImages fails", ngEntry{
+		updateClusterConfig: makeUnownedClusterConfig,
+		mockCalls: func(m mockCalls) {
+			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider)
+			m.mockProvider.MockEC2().On("DescribeImages", mock.Anything, mock.Anything).Return(nil, errors.New("DescribeImages error"))
+
+		},
+		expectedErr: errors.New("DescribeImages error"),
 	}),
 
 	Entry("when cluster is unowned and vpc.securityGroup contains external egress rules, it fails validation", ngEntry{
@@ -256,7 +302,8 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		expectedCalls: func(e expectedCalls) {
 			Expect(e.kubeProvider.NewRawClientCallCount()).To(Equal(1))
 		},
-		expectedErr: errors.Wrap(errors.New("shared node security group missing, to fix this run 'eksctl update cluster --name=my-cluster --region='"), "cluster compatibility check failed")}),
+		expectedErr: errors.New("cluster compatibility check failed: shared node security group missing, to fix this run 'eksctl update cluster --name=my-cluster --region='"),
+	}),
 
 	Entry("fails when nodegroup uses privateNetworking:true and there's no private subnet within vpc", ngEntry{
 		updateClusterConfig: func(c *api.ClusterConfig) {

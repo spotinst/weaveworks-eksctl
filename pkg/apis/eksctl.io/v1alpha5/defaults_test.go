@@ -302,7 +302,7 @@ var _ = Describe("ClusterConfig validation", func() {
 				testNodeGroup := NodeGroup{
 					NodeGroupBase: &NodeGroupBase{},
 				}
-				SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{Version: Version1_24}, false)
+				SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{Version: DockershimDeprecationVersion}, false)
 				Expect(*testNodeGroup.ContainerRuntime).To(Equal(ContainerRuntimeContainerD))
 			})
 		})
@@ -368,6 +368,14 @@ var _ = Describe("ClusterConfig validation", func() {
 
 		BeforeEach(func() {
 			cfg = NewClusterConfig()
+		})
+
+		Describe("RemoteNetworkConfig", func() {
+			It("should set default credentials provider to SSM", func() {
+				cfg.RemoteNetworkConfig = &RemoteNetworkConfig{}
+				SetClusterConfigDefaults(cfg)
+				Expect(*cfg.RemoteNetworkConfig.IAM.Provider).To(Equal(SSMProvider))
+			})
 		})
 
 		Describe("SetDefaultFargateProfile", func() {

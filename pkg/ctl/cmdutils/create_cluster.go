@@ -1,10 +1,9 @@
 package cmdutils
 
 import (
+	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"io"
 	"time"
-
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
 
 // CreateClusterCmdParams groups CLI options for the create cluster command.
@@ -22,9 +21,11 @@ type CreateClusterCmdParams struct {
 	WithoutNodeGroup      bool
 	Fargate               bool
 	DryRun                bool
+	EnableAutoMode        bool
 	CreateNGOptions
 	CreateManagedNGOptions
 	CreateSpotOceanNodeGroupOptions
+
 	ConfigReader io.Reader
 }
 
@@ -40,9 +41,10 @@ type NodeGroupOptions struct {
 
 // CreateManagedNGOptions holds options for creating a managed nodegroup
 type CreateManagedNGOptions struct {
-	Managed       bool
-	Spot          bool
-	InstanceTypes []string
+	Managed           bool
+	Spot              bool
+	NodeRepairEnabled bool
+	InstanceTypes     []string
 }
 
 // CreateNGOptions holds options for creating a nodegroup

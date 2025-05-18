@@ -215,14 +215,6 @@ var _ = Describe("create cluster", func() {
 				args:  []string{"cluster", "--invalid", "dummy"},
 				error: "unknown flag: --invalid",
 			}),
-			Entry("with enableSsm disabled", invalidParamsCase{
-				args:  []string{"--name=test", "--enable-ssm=false"},
-				error: "SSM agent is now built into EKS AMIs and cannot be disabled",
-			}),
-			Entry("with node zones without zones", invalidParamsCase{
-				args:  []string{"--zones=zone1,zone2", "--node-zones=zone3"},
-				error: "validation for --zones and --node-zones failed: node-zones [zone3] must be a subset of zones [zone1 zone2]; \"zone3\" was not found in zones",
-			}),
 		)
 	})
 
@@ -322,7 +314,7 @@ var _ = Describe("create cluster", func() {
 		Entry("[Cluster with NodeGroups] fails to install device plugins", createClusterEntry{
 			updateClusterConfig: func(c *api.ClusterConfig) {
 				nodeGroup := getDefaultNodeGroup()
-				nodeGroup.InstanceType = "g3.xlarge"
+				nodeGroup.InstanceType = "g4dn.xlarge"
 				c.NodeGroups = append(c.NodeGroups, nodeGroup)
 			},
 			updateClusterParams: func(params *cmdutils.CreateClusterCmdParams) {
@@ -881,12 +873,12 @@ var (
 			mp.MockEC2().On("DescribeInstanceTypeOfferings", mock.Anything, mock.Anything, mock.Anything).Return(&ec2.DescribeInstanceTypeOfferingsOutput{
 				InstanceTypeOfferings: []ec2types.InstanceTypeOffering{
 					{
-						InstanceType: "g3.xlarge",
+						InstanceType: "g4dn.xlarge",
 						Location:     aws.String("us-west-2-1b"),
 						LocationType: "availability-zone",
 					},
 					{
-						InstanceType: "g3.xlarge",
+						InstanceType: "g4dn.xlarge",
 						Location:     aws.String("us-west-2-1a"),
 						LocationType: "availability-zone",
 					},

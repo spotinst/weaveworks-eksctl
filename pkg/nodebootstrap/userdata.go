@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap/assets"
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap/utils"
 
@@ -48,7 +46,7 @@ func NewBootstrapper(clusterConfig *api.ClusterConfig, ng *api.NodeGroup) (Boots
 		return NewWindowsBootstrapper(clusterConfig, ng, clusterDNS), nil
 	}
 	switch ng.AMIFamily {
-	case api.NodeImageFamilyUbuntuPro2204, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu1804:
+	case api.NodeImageFamilyUbuntuPro2404, api.NodeImageFamilyUbuntu2404, api.NodeImageFamilyUbuntuPro2204, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntuPro2004, api.NodeImageFamilyUbuntu2004:
 		return NewUbuntuBootstrapper(clusterConfig, ng, clusterDNS), nil
 	case api.NodeImageFamilyBottlerocket:
 		return NewBottlerocketBootstrapper(clusterConfig, ng), nil
@@ -57,7 +55,7 @@ func NewBootstrapper(clusterConfig *api.ClusterConfig, ng *api.NodeGroup) (Boots
 	case api.NodeImageFamilyAmazonLinux2:
 		return NewAL2Bootstrapper(clusterConfig, ng, clusterDNS), nil
 	default:
-		return nil, errors.Errorf("unrecognized AMI family %q for creating bootstrapper", ng.AMIFamily)
+		return nil, fmt.Errorf("unrecognized AMI family %q for creating bootstrapper", ng.AMIFamily)
 
 	}
 }
@@ -80,7 +78,7 @@ func NewManagedBootstrapper(clusterConfig *api.ClusterConfig, ng *api.ManagedNod
 		return NewManagedAL2Bootstrapper(ng), nil
 	case api.NodeImageFamilyBottlerocket:
 		return NewManagedBottlerocketBootstrapper(clusterConfig, ng), nil
-	case api.NodeImageFamilyUbuntu1804, api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntuPro2204:
+	case api.NodeImageFamilyUbuntu2004, api.NodeImageFamilyUbuntuPro2004, api.NodeImageFamilyUbuntu2204, api.NodeImageFamilyUbuntuPro2204, api.NodeImageFamilyUbuntu2404, api.NodeImageFamilyUbuntuPro2404:
 		return NewUbuntuBootstrapper(clusterConfig, ng, clusterDNS), nil
 	}
 	return nil, nil
@@ -93,13 +91,33 @@ func GetClusterDNS(clusterConfig *api.ClusterConfig) (string, error) {
 		return "", nil
 	}
 
-	ip, _, err := net.ParseCIDR(networkConfig.ServiceIPv4CIDR)
-	if err != nil {
-		return "", errors.Wrapf(err, "unexpected error parsing kubernetesNetworkConfig.serviceIPv4CIDR: %q", networkConfig.ServiceIPv4CIDR)
+	var (
+		serviceCIDR  string
+		toClusterDNS func(net.IP) string
+	)
+
+	if networkConfig.ServiceIPv4CIDR != "" {
+		serviceCIDR = networkConfig.ServiceIPv4CIDR
+		toClusterDNS = func(parsedIP net.IP) string {
+			ip := parsedIP.To4()
+			ip[net.IPv4len-1] = 10
+			return ip.String()
+		}
 	}
-	ip = ip.To4()
-	ip[net.IPv4len-1] = 10
-	return ip.String(), nil
+	if networkConfig.ServiceIPv6CIDR != "" {
+		serviceCIDR = networkConfig.ServiceIPv6CIDR
+		toClusterDNS = func(parsedIP net.IP) string {
+			ip := parsedIP.To16()
+			ip[net.IPv6len-1] = 10
+			return ip.String()
+		}
+	}
+
+	parsedIP, _, err := net.ParseCIDR(serviceCIDR)
+	if err != nil {
+		return "", fmt.Errorf("unexpected error parsing KubernetesNetworkConfig service CIDR: %q: %w", serviceCIDR, err)
+	}
+	return toClusterDNS(parsedIP), nil
 }
 
 func linuxConfig(clusterConfig *api.ClusterConfig, bootScriptName, bootScriptContent, clusterDNS string, np api.NodePool, scripts ...script) (string, error) {
@@ -139,7 +157,7 @@ func linuxConfig(clusterConfig *api.ClusterConfig, bootScriptName, bootScriptCon
 
 	body, err := config.Encode()
 	if err != nil {
-		return "", errors.Wrap(err, "encoding user data")
+		return "", fmt.Errorf("encoding user data: %w", err)
 	}
 
 	return body, nil

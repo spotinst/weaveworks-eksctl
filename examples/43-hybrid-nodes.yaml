@@ -1,0 +1,15 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: hybrid-2
+  region: us-west-2
+  version: "1.31"
+
+remoteNetworkConfig:
+  iam:
+    provider: SSM
+    # caBundleCert: ceva
+  # vpcGatewayID: tgw-028fbe2348e6eed74
+  remoteNodeNetworks:
+    - cidrs: ["10.80.146.0/24"]

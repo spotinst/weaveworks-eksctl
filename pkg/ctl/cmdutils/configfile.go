@@ -2,16 +2,15 @@ package cmdutils
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -51,7 +50,7 @@ var (
 		"region",
 		"version",
 		"cluster",
-		"namespace",
+		"namepace",
 	}
 	defaultFlagsIncompatibleWithoutConfigFile = []string{
 		"only",
@@ -72,6 +71,7 @@ var (
 	commonNGFlagsIncompatibleWithConfigFile = []string{
 		"managed",
 		"spot",
+		"enable-node-repair",
 		"instance-types",
 		"nodes",
 		"nodes-min",
@@ -121,7 +121,7 @@ func (l *commonClusterConfigLoader) Load() error {
 
 	if l.ClusterConfigFile == "" {
 		if flagName, found := findChangedFlag(l.CobraCommand, sets.List(l.flagsIncompatibleWithoutConfigFile)); found {
-			return errors.Errorf("cannot use --%s unless a config file is specified via --config-file/-f", flagName)
+			return fmt.Errorf("cannot use --%s unless a config file is specified via --config-file/-f", flagName)
 		}
 		return l.validateWithoutConfigFile()
 	}
@@ -218,6 +218,7 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 		"vpc-cidr",
 		"vpc-nat-mode",
 		"vpc-from-kops-cluster",
+		"enable-auto-mode",
 	}
 
 	l.flagsIncompatibleWithConfigFile.Insert(append(clusterFlagsIncompatibleWithConfigFile, commonNGFlagsIncompatibleWithConfigFile...)...)
@@ -315,6 +316,18 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 				return err
 			}
 		}
+		if clusterConfig.IsAutoModeEnabled() {
+			if len(clusterConfig.NodeGroups) > 0 || len(clusterConfig.ManagedNodeGroups) > 0 {
+				return errors.New("creation of managed or self-managed nodegroups is not supported during cluster creation " +
+					"when Auto Mode is enabled; please create them post cluster creation using `eksctl create nodegroup`" +
+					" after creating core networking addons in the cluster")
+			} else if len(clusterConfig.FargateProfiles) == 0 && clusterConfig.RemoteNetworkConfig == nil &&
+				api.HasDefaultNonAutoAddon(clusterConfig.Addons) {
+				// Only an error if fargate profiles and hybrid nodes (remote network config) are not set/defined
+				return errors.New("core networking addons are not required on a cluster using Auto Mode; " +
+					"if you still wish to create them, use `eksctl create addon` post cluster creation")
+			}
+		}
 
 		if err := validateBareCluster(clusterConfig); err != nil {
 			return err
@@ -333,11 +346,9 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 		}
 
 		if shallCreatePodIdentityAssociations(clusterConfig) {
-			addonNames := []string{}
-			for _, addon := range clusterConfig.Addons {
-				addonNames = append(addonNames, addon.Name)
-			}
-			if !slices.Contains(addonNames, api.PodIdentityAgentAddon) {
+			if !clusterConfig.IsAutoModeEnabled() && !slices.ContainsFunc(clusterConfig.Addons, func(addon *api.Addon) bool {
+				return addon.Name == api.PodIdentityAgentAddon
+			}) {
 				suggestion := fmt.Sprintf("please add %q addon to the config file", api.PodIdentityAgentAddon)
 				return api.ErrPodIdentityAgentNotInstalled(suggestion)
 			}
@@ -363,6 +374,25 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 
 		if l.ClusterConfig.Status != nil {
 			return fmt.Errorf("status fields are read-only")
+		}
+
+		if params.EnableAutoMode {
+			incompatibleErr := func(flagName string) error {
+				return fmt.Errorf("cannot use --%s when Auto Mode is enabled", flagName)
+			}
+			if flagName, found := findChangedFlag(l.CobraCommand, commonNGFlagsIncompatibleWithConfigFile); found {
+				return incompatibleErr(flagName)
+			}
+			if params.Fargate {
+				return incompatibleErr("fargate")
+			}
+			if params.WithoutNodeGroup {
+				return errors.New("--without-nodegroup is the default behavior when Auto Mode is enabled")
+			}
+			params.WithoutNodeGroup = true
+			l.ClusterConfig.AutoModeConfig = &api.AutoModeConfig{
+				Enabled: api.Enabled(),
+			}
 		}
 
 		if err := validateZonesAndNodeZones(l.CobraCommand); err != nil {
@@ -459,9 +489,9 @@ func validateDryRunOptions(cmd *cobra.Command, incompatibleFlags []string) error
 	return nil
 }
 
-// validateBareCluster validates a cluster for unsupported fields if VPC CNI is disabled.
+// validateBareCluster validates a cluster for unsupported fields if VPC CNI and Auto Mode is disabled.
 func validateBareCluster(clusterConfig *api.ClusterConfig) error {
-	if !clusterConfig.AddonsConfig.DisableDefaultAddons || slices.ContainsFunc(clusterConfig.Addons, func(addon *api.Addon) bool {
+	if !clusterConfig.AddonsConfig.DisableDefaultAddons || clusterConfig.IsAutoModeEnabled() || slices.ContainsFunc(clusterConfig.Addons, func(addon *api.Addon) bool {
 		return addon.Name == api.VPCCNIAddon
 	}) {
 		return nil
@@ -469,8 +499,8 @@ func validateBareCluster(clusterConfig *api.ClusterConfig) error {
 	if clusterConfig.HasNodes() || clusterConfig.IsFargateEnabled() || clusterConfig.Karpenter != nil || clusterConfig.HasGitOpsFluxConfigured() ||
 		(clusterConfig.IAM != nil && ((len(clusterConfig.IAM.ServiceAccounts) > 0) || len(clusterConfig.IAM.PodIdentityAssociations) > 0)) {
 		return errors.New("fields nodeGroups, managedNodeGroups, fargateProfiles, karpenter, gitops, iam.serviceAccounts, " +
-			"and iam.podIdentityAssociations are not supported during cluster creation in a cluster without VPC CNI; please remove these fields " +
-			"and add them back after cluster creation is successful")
+			"and iam.podIdentityAssociations are not supported during cluster creation in a cluster without VPC CNI if Auto Mode is disabled; " +
+			"please remove these fields and add them back after cluster creation is successful")
 	}
 	return nil
 }
@@ -580,11 +610,17 @@ func makeManagedNodegroup(nodeGroup *api.NodeGroup, options CreateManagedNGOptio
 			AttachIDs: ngBase.SecurityGroups.AttachIDs,
 		}
 	}
-	return &api.ManagedNodeGroup{
+	mng := &api.ManagedNodeGroup{
 		NodeGroupBase: &ngBase,
 		Spot:          options.Spot,
 		InstanceTypes: options.InstanceTypes,
 	}
+	if options.NodeRepairEnabled {
+		mng.NodeRepairConfig = &api.NodeGroupNodeRepairConfig{
+			Enabled: &options.NodeRepairEnabled,
+		}
+	}
+	return mng
 }
 
 func validateUnsupportedCLIFeatures(ng *api.ManagedNodeGroup) error {
@@ -595,9 +631,9 @@ func validateManagedNGFlags(cmd *cobra.Command, managed bool) error {
 	if managed {
 		return nil
 	}
-	flagsValidOnlyWithMNG := []string{"spot", "instance-types"}
+	flagsValidOnlyWithMNG := []string{"spot", "enable-node-repair", "instance-types"}
 	if flagName, found := findChangedFlag(cmd, flagsValidOnlyWithMNG); found {
-		return errors.Errorf("--%s is only valid with managed nodegroups (--managed)", flagName)
+		return fmt.Errorf("--%s is only valid with managed nodegroups (--managed)", flagName)
 	}
 	return nil
 }
@@ -637,6 +673,9 @@ func normalizeNodeGroup(ng *api.NodeGroup, l *commonClusterConfigLoader) error {
 			}
 		}
 	}
+	if *ng.VolumeType == api.NodeVolumeTypeIO2 {
+		return fmt.Errorf("%s volume type is not supported via flag --node-volume-type, please use a config file", api.NodeVolumeTypeIO2)
+	}
 
 	normalizeBaseNodeGroup(ng, l.CobraCommand)
 	return nil
@@ -647,6 +686,9 @@ func normalizeBaseNodeGroup(np api.NodePool, cmd *cobra.Command) {
 	flags := cmd.Flags()
 	if !flags.Changed("instance-selector-gpus") {
 		ng.InstanceSelector.GPUs = nil
+	}
+	if !flags.Changed("instance-selector-neuron-devices") {
+		ng.InstanceSelector.NeuronDevices = nil
 	}
 	if !flags.Changed("enable-ssm") {
 		ng.SSH.EnableSSM = nil

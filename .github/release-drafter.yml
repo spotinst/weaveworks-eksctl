@@ -13,11 +13,12 @@ categories:
     labels:
       - 'kind/bug'
   - title: '🧰 Maintenance'
-    labels: 
+    labels:
+      - 'kind/maintenance'
       - 'area/tech-debt'
       - 'area/ci'
   - title: '📝 Documentation'
-    labels: 
+    labels:
       - 'area/docs'
       - 'kind/docs'
 change-template: '- $TITLE (#$NUMBER)'
@@ -40,6 +41,9 @@ exclude-contributors:
   - 'cPu1'
   - 'a-hilaly'
   - 'yuxiang-zhang'
+  - 'cheeseandcereal'
+  - 'dims'
+  - 'bryantbiggs'
   - 'eksctl-bot'
   - 'dependabot'
 replacers:

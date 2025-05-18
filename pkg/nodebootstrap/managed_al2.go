@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"strings"
 
 	nodeadm "github.com/awslabs/amazon-eks-ami/nodeadm/api/v1alpha1"
-	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/nodebootstrap/assets"
 )
 
 // ManagedAL2 is a bootstrapper for managed Amazon Linux 2 nodegroups
@@ -34,7 +31,7 @@ func NewManagedAL2Bootstrapper(ng *api.ManagedNodeGroup) *ManagedAL2 {
 func (m *ManagedAL2) UserData() (string, error) {
 	ng := m.ng
 
-	if strings.HasPrefix(ng.AMI, "ami-") {
+	if api.IsAMI(ng.AMI) {
 		return makeCustomAMIUserData(ng.NodeGroupBase, m.UserDataMimeBoundary)
 	}
 
@@ -52,10 +49,6 @@ func (m *ManagedAL2) UserData() (string, error) {
 		scripts = append(scripts, *ng.OverrideBootstrapCommand)
 	} else if ng.MaxPodsPerNode != 0 {
 		scripts = append(scripts, makeMaxPodsScript(ng.MaxPodsPerNode))
-	}
-
-	if api.IsEnabled(ng.EFAEnabled) {
-		cloudboot = append(cloudboot, assets.EfaManagedBoothook)
 	}
 
 	if len(scripts) == 0 && len(cloudboot) == 0 {
@@ -102,11 +95,11 @@ set -ex
 	return script
 }
 
-func createMimeMessage(writer io.Writer, scripts, cloudboots []string, nodeConfig *nodeadm.NodeConfig, mimeBoundary string) error {
+func createMimeMessage(writer io.Writer, scripts, cloudboots []string, nodeConfigs []*nodeadm.NodeConfig, mimeBoundary string) error {
 	mw := multipart.NewWriter(writer)
 	if mimeBoundary != "" {
 		if err := mw.SetBoundary(mimeBoundary); err != nil {
-			return errors.Wrap(err, "unexpected error setting MIME boundary")
+			return fmt.Errorf("unexpected error setting MIME boundary: %w", err)
 		}
 	}
 	fmt.Fprint(writer, "MIME-Version: 1.0\r\n")
@@ -139,8 +132,8 @@ func createMimeMessage(writer io.Writer, scripts, cloudboots []string, nodeConfi
 		}
 	}
 
-	if nodeConfig != nil {
-		yamlData, err := yaml.Marshal(nodeConfig)
+	for _, nc := range nodeConfigs {
+		yamlData, err := yaml.Marshal(nc)
 		if err != nil {
 			return fmt.Errorf("error marshalling node configuration: %w", err)
 		}

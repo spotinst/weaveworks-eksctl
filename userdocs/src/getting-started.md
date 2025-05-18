@@ -1,7 +1,7 @@
 # Getting started
 
 !!! tip "New for 2024"
-    `eksctl` now supports new region Kuala Lumpur (`ap-southeast-5`)
+    `eksctl` now supports new regions Kuala Lumpur (`ap-southeast-5`), `us-isof-south-1`, `us-isof-east-1` and `eu-isoe-west-1`
 
     EKS Add-ons now support receiving IAM permissions via [EKS Pod Identity Associations](/usage/pod-identity-associations/#eks-add-ons-support-for-pod-identity-associations)
 
@@ -102,7 +102,7 @@ able to use `kubectl`. You will need to make sure to use the same AWS API creden
 dependencies installed already.
 
 To learn more about how to create clusters and other features continue reading the
-[Creating and Managing Clusters section](usage/creating-and-managing-clusters).
+[Creating and Managing Clusters section](/usage/creating-and-managing-clusters).
 
 [ekskubectl]: https://docs.aws.amazon.com/eks/latest/userguide/configure-kubectl.html
 

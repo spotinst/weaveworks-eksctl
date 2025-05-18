@@ -5,7 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strconv"
+
+	"sigs.k8s.io/yaml"
 
 	nodeadmapi "github.com/awslabs/amazon-eks-ami/nodeadm/api"
 	nodeadm "github.com/awslabs/amazon-eks-ami/nodeadm/api/v1alpha1"
@@ -13,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/nodebootstrap/assets"
 	"github.com/weaveworks/eksctl/pkg/nodebootstrap/utils"
 )
 
@@ -22,25 +22,20 @@ type AL2023 struct {
 	nodePool   api.NodePool
 	clusterDNS string
 
-	scripts   []string
-	cloudboot []string
+	scripts     []string
+	cloudboot   []string
+	nodeConfigs []*nodeadm.NodeConfig
 
 	UserDataMimeBoundary string
 }
 
 func NewManagedAL2023Bootstrapper(cfg *api.ClusterConfig, mng *api.ManagedNodeGroup, clusterDNS string) *AL2023 {
 	al2023 := newAL2023Bootstrapper(cfg, mng, clusterDNS)
-	if api.IsEnabled(mng.EFAEnabled) {
-		al2023.cloudboot = append(al2023.cloudboot, assets.EfaManagedAL2023Boothook)
-	}
 	return al2023
 }
 
 func NewAL2023Bootstrapper(cfg *api.ClusterConfig, ng *api.NodeGroup, clusterDNS string) *AL2023 {
 	al2023 := newAL2023Bootstrapper(cfg, ng, clusterDNS)
-	if api.IsEnabled(ng.EFAEnabled) {
-		al2023.scripts = append(al2023.scripts, assets.EfaAl2023Sh)
-	}
 	return al2023
 }
 
@@ -49,27 +44,60 @@ func newAL2023Bootstrapper(cfg *api.ClusterConfig, np api.NodePool, clusterDNS s
 		cfg:        cfg,
 		nodePool:   np,
 		clusterDNS: clusterDNS,
-		scripts:    []string{assets.AL2023XTablesLock},
+		scripts:    []string{},
 	}
 }
 
 func (m *AL2023) UserData() (string, error) {
-	nodeConfig, err := m.createNodeConfig()
+	ng := m.nodePool.BaseNodeGroup()
+
+	minimalNodeConfig, err := m.createMinimalNodeConfig()
 	if err != nil {
-		return "", fmt.Errorf("generating node config: %w", err)
+		return "", fmt.Errorf("generating minimal node config: %w", err)
 	}
-	if len(m.scripts) == 0 && len(m.cloudboot) == 0 && nodeConfig == nil {
+	if minimalNodeConfig != nil {
+		m.nodeConfigs = append(m.nodeConfigs, minimalNodeConfig)
+	}
+
+	if ng.MaxPodsPerNode > 0 {
+		nodeConfig := &nodeadm.NodeConfig{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       nodeadmapi.KindNodeConfig,
+				APIVersion: nodeadm.GroupVersion.String(),
+			},
+		}
+		kubeletConfig, err := ToKubeletConfig(api.InlineDocument{"maxPods": ng.MaxPodsPerNode})
+		if err != nil {
+			return "", err
+		}
+		nodeConfig.Spec.Kubelet.Config = kubeletConfig
+		m.nodeConfigs = append(m.nodeConfigs, nodeConfig)
+	}
+
+	for _, command := range m.nodePool.BaseNodeGroup().PreBootstrapCommands {
+		m.scripts = append(m.scripts, "#!/bin/bash\n"+command)
+	}
+
+	if ng.OverrideBootstrapCommand != nil {
+		nodeConfig, err := stringToNodeConfig(*ng.OverrideBootstrapCommand)
+		if err != nil {
+			return "", err
+		}
+		m.nodeConfigs = append(m.nodeConfigs, nodeConfig)
+	}
+
+	if len(m.scripts) == 0 && len(m.cloudboot) == 0 && len(m.nodeConfigs) == 0 {
 		return "", nil
 	}
 
 	var buf bytes.Buffer
-	if err := createMimeMessage(&buf, m.scripts, m.cloudboot, nodeConfig, m.UserDataMimeBoundary); err != nil {
+	if err := createMimeMessage(&buf, m.scripts, m.cloudboot, m.nodeConfigs, m.UserDataMimeBoundary); err != nil {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
-func (m *AL2023) createNodeConfig() (*nodeadm.NodeConfig, error) {
+func (m *AL2023) createMinimalNodeConfig() (*nodeadm.NodeConfig, error) {
 	kubeletConfig := api.InlineDocument{}
 	switch nodeGroup := m.nodePool.(type) {
 	case *api.ManagedNodeGroup:
@@ -84,9 +112,6 @@ func (m *AL2023) createNodeConfig() (*nodeadm.NodeConfig, error) {
 
 	kubeletConfig["clusterDNS"] = []string{m.clusterDNS}
 	ng := m.nodePool.BaseNodeGroup()
-	if ng.MaxPodsPerNode > 0 {
-		kubeletConfig["maxPods"] = strconv.Itoa(ng.MaxPodsPerNode)
-	}
 	nodeKubeletConfig, err := ToKubeletConfig(kubeletConfig)
 	if err != nil {
 		return nil, err
@@ -101,6 +126,13 @@ func (m *AL2023) createNodeConfig() (*nodeadm.NodeConfig, error) {
 	}
 
 	clusterStatus := m.cfg.Status
+	var serviceCIDR string
+	if clusterStatus.KubernetesNetworkConfig.ServiceIPv6CIDR != "" {
+		serviceCIDR = clusterStatus.KubernetesNetworkConfig.ServiceIPv6CIDR
+	} else {
+		serviceCIDR = clusterStatus.KubernetesNetworkConfig.ServiceIPv4CIDR
+	}
+
 	return &nodeadm.NodeConfig{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       nodeadmapi.KindNodeConfig,
@@ -111,7 +143,7 @@ func (m *AL2023) createNodeConfig() (*nodeadm.NodeConfig, error) {
 				Name:                 m.cfg.Metadata.Name,
 				APIServerEndpoint:    clusterStatus.Endpoint,
 				CertificateAuthority: clusterStatus.CertificateAuthorityData,
-				CIDR:                 clusterStatus.KubernetesNetworkConfig.ServiceIPv4CIDR,
+				CIDR:                 serviceCIDR,
 			},
 			Kubelet: kubeletOptions,
 		},
@@ -129,4 +161,13 @@ func ToKubeletConfig(kubeletExtraConfig api.InlineDocument) (map[string]runtime.
 		kubeletConfig[k] = runtime.RawExtension{Raw: raw}
 	}
 	return kubeletConfig, nil
+}
+
+func stringToNodeConfig(overrideBootstrapCommand string) (*nodeadm.NodeConfig, error) {
+	var config nodeadm.NodeConfig
+	err := yaml.Unmarshal([]byte(overrideBootstrapCommand), &config)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshalling \"overrideBootstrapCommand\" into \"nodeadm.NodeConfig\": %w", err)
+	}
+	return &config, nil
 }

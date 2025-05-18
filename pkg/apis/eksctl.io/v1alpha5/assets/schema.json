@@ -285,6 +285,40 @@
       "description": "holds the addons config.",
       "x-intellij-html-description": "holds the addons config."
     },
+    "AutoModeConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "enables or disables Auto Mode.",
+          "x-intellij-html-description": "enables or disables Auto Mode."
+        },
+        "nodePools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "a list of node pools to create.",
+          "x-intellij-html-description": "a list of node pools to create."
+        },
+        "nodeRoleARN": {
+          "$ref": "#/definitions/ARN",
+          "description": "node role to use for nodes launched by Auto Mode.",
+          "x-intellij-html-description": "node role to use for nodes launched by Auto Mode."
+        },
+        "permissionsBoundaryARN": {
+          "$ref": "#/definitions/ARN",
+          "description": "permissions boundary to use when creating the Auto Mode node role.",
+          "x-intellij-html-description": "permissions boundary to use when creating the Auto Mode node role."
+        }
+      },
+      "preferredOrder": [
+        "enabled",
+        "nodeRoleARN",
+        "permissionsBoundaryARN",
+        "nodePools"
+      ],
+      "additionalProperties": false
+    },
     "CapacityReservation": {
       "properties": {
         "capacityReservationPreference": {
@@ -396,6 +430,11 @@
             "eksctl.io/v1alpha5"
           ]
         },
+        "autoModeConfig": {
+          "$ref": "#/definitions/AutoModeConfig",
+          "description": "holds the config for Auto Mode.",
+          "x-intellij-html-description": "holds the config for Auto Mode."
+        },
         "availabilityZones": {
           "items": {
             "type": "string"
@@ -484,11 +523,19 @@
           "description": "allows configuring a fully-private cluster in which no node has outbound internet access, and private access to AWS services is enabled via VPC endpoints",
           "x-intellij-html-description": "allows configuring a fully-private cluster in which no node has outbound internet access, and private access to AWS services is enabled via VPC endpoints"
         },
+        "remoteNetworkConfig": {
+          "$ref": "#/definitions/RemoteNetworkConfig"
+        },
         "secretsEncryption": {
           "$ref": "#/definitions/SecretsEncryption"
         },
         "vpc": {
           "$ref": "#/definitions/ClusterVPC"
+        },
+        "zonalShiftConfig": {
+          "$ref": "#/definitions/ZonalShiftConfig",
+          "description": "specifies the zonal shift configuration.",
+          "x-intellij-html-description": "specifies the zonal shift configuration."
         }
       },
       "preferredOrder": [
@@ -496,6 +543,8 @@
         "apiVersion",
         "metadata",
         "kubernetesNetworkConfig",
+        "autoModeConfig",
+        "remoteNetworkConfig",
         "iam",
         "iamIdentityMappings",
         "identityProviders",
@@ -513,7 +562,8 @@
         "secretsEncryption",
         "gitops",
         "karpenter",
-        "outpost"
+        "outpost",
+        "zonalShiftConfig"
       ],
       "additionalProperties": false,
       "description": "a simple config, to be replaced with Cluster API",
@@ -755,6 +805,11 @@
           "x-intellij-html-description": "arbitrary metadata ignored by <code>eksctl</code>.",
           "default": "{}"
         },
+        "forceUpdateVersion": {
+          "type": "boolean",
+          "description": "When updating cluster version, provide the force flag to override upgrade-blocking insights",
+          "x-intellij-html-description": "When updating cluster version, provide the force flag to override upgrade-blocking insights"
+        },
         "name": {
           "type": "string",
           "description": "of the cluster",
@@ -776,26 +831,15 @@
         },
         "version": {
           "type": "string",
-          "description": "Valid variants are: `\"1.23\"`, `\"1.24\"`, `\"1.25\"`, `\"1.26\"`, `\"1.27\"`, `\"1.28\"`, `\"1.29\"`, `\"1.30\"` (default), `\"1.31\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;1.23&quot;</code>, <code>&quot;1.24&quot;</code>, <code>&quot;1.25&quot;</code>, <code>&quot;1.26&quot;</code>, <code>&quot;1.27&quot;</code>, <code>&quot;1.28&quot;</code>, <code>&quot;1.29&quot;</code>, <code>&quot;1.30&quot;</code> (default), <code>&quot;1.31&quot;</code>.",
-          "default": "1.30",
-          "enum": [
-            "1.23",
-            "1.24",
-            "1.25",
-            "1.26",
-            "1.27",
-            "1.28",
-            "1.29",
-            "1.30",
-            "1.31"
-          ]
+          "description": "use `./eksctl utils describe-cluster-versions` to get the list of supported versions",
+          "x-intellij-html-description": "use <code>./eksctl utils describe-cluster-versions</code> to get the list of supported versions"
         }
       },
       "preferredOrder": [
         "name",
         "region",
         "version",
+        "forceUpdateVersion",
         "tags",
         "annotations"
       ],
@@ -1162,8 +1206,28 @@
       "x-intellij-html-description": "holds any arbitrary JSON/YAML documents, such as extra config parameters or IAM policies",
       "default": "{}"
     },
+    "InstanceMarketOptions": {
+      "properties": {
+        "marketType": {
+          "type": "string",
+          "description": "specifies the market type for the instances",
+          "x-intellij-html-description": "specifies the market type for the instances"
+        }
+      },
+      "preferredOrder": [
+        "marketType"
+      ],
+      "additionalProperties": false,
+      "description": "describes the market (purchasing) option for the instances",
+      "x-intellij-html-description": "describes the market (purchasing) option for the instances"
+    },
     "InstanceSelector": {
       "properties": {
+        "allow": {
+          "type": "string",
+          "description": "List of allowed instance types to select from w/ regex syntax (Example: m[3-5]\\\\.*)",
+          "x-intellij-html-description": "List of allowed instance types to select from w/ regex syntax (Example: m[3-5]\\.*)"
+        },
         "cpuArchitecture": {
           "type": "string",
           "description": "CPU Architecture of the EC2 instance type. Valid variants are: `\"x86_64\"` `\"amd64\"` `\"arm64\"`",
@@ -1173,6 +1237,11 @@
             "amd64",
             "arm64"
           ]
+        },
+        "deny": {
+          "type": "string",
+          "description": "List of instance types which should be excluded w/ regex syntax (Example: m[1-2]\\\\.*)",
+          "x-intellij-html-description": "List of instance types which should be excluded w/ regex syntax (Example: m[1-2]\\.*)"
         },
         "gpus": {
           "type": "integer",
@@ -1184,6 +1253,11 @@
           "description": "specifies the memory The unit defaults to GiB",
           "x-intellij-html-description": "specifies the memory The unit defaults to GiB"
         },
+        "neuron_devices": {
+          "type": "integer",
+          "description": "specifies the number of Neuron device Accelerators. It can be set to 0 to select non-Accelerator instance types.",
+          "x-intellij-html-description": "specifies the number of Neuron device Accelerators. It can be set to 0 to select non-Accelerator instance types."
+        },
         "vCPUs": {
           "type": "integer",
           "description": "specifies the number of vCPUs",
@@ -1194,7 +1268,10 @@
         "vCPUs",
         "memory",
         "gpus",
-        "cpuArchitecture"
+        "neuron_devices",
+        "cpuArchitecture",
+        "allow",
+        "deny"
       ],
       "additionalProperties": false,
       "description": "holds EC2 instance selector options",
@@ -1249,13 +1326,19 @@
         },
         "serviceIPv4CIDR": {
           "type": "string",
-          "description": "CIDR range from where `ClusterIP`s are assigned",
-          "x-intellij-html-description": "CIDR range from where <code>ClusterIP</code>s are assigned"
+          "description": "IPv4 CIDR range from where `ClusterIP`s are assigned",
+          "x-intellij-html-description": "IPv4 CIDR range from where <code>ClusterIP</code>s are assigned"
+        },
+        "serviceIPv6CIDR": {
+          "type": "string",
+          "description": "IPv6 CIDR range from where `ClusterIP`s are assigned",
+          "x-intellij-html-description": "IPv6 CIDR range from where <code>ClusterIP</code>s are assigned"
         }
       },
       "preferredOrder": [
         "ipFamily",
-        "serviceIPv4CIDR"
+        "serviceIPv4CIDR",
+        "serviceIPv6CIDR"
       ],
       "additionalProperties": false,
       "description": "contains cluster networking options",
@@ -1303,16 +1386,18 @@
         },
         "amiFamily": {
           "type": "string",
-          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
+          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2404\"`, `\"Ubuntu2404\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"UbuntuPro2004\"`, `\"Ubuntu2004\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2404&quot;</code>, <code>&quot;Ubuntu2404&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;UbuntuPro2004&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
           "default": "AmazonLinux2",
           "enum": [
             "AmazonLinux2",
             "AmazonLinux2023",
+            "UbuntuPro2404",
+            "Ubuntu2404",
             "UbuntuPro2204",
             "Ubuntu2204",
+            "UbuntuPro2004",
             "Ubuntu2004",
-            "Ubuntu1804",
             "Bottlerocket",
             "WindowsServer2019CoreContainer",
             "WindowsServer2019FullContainer",
@@ -1379,6 +1464,11 @@
         "iam": {
           "$ref": "#/definitions/NodeGroupIAM"
         },
+        "instanceMarketOptions": {
+          "$ref": "#/definitions/InstanceMarketOptions",
+          "description": "describes the market (purchasing) option for the instances",
+          "x-intellij-html-description": "describes the market (purchasing) option for the instances"
+        },
         "instanceName": {
           "type": "string"
         },
@@ -1424,6 +1514,11 @@
         },
         "name": {
           "type": "string"
+        },
+        "nodeRepairConfig": {
+          "$ref": "#/definitions/NodeGroupNodeRepairConfig",
+          "description": "configures the auto repair feature of the nodegroup",
+          "x-intellij-html-description": "configures the auto repair feature of the nodegroup"
         },
         "outpostARN": {
           "type": "string",
@@ -1531,13 +1626,14 @@
         },
         "volumeType": {
           "type": "string",
-          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
+          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"io2\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;io2&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
           "default": "gp3",
           "enum": [
             "gp2",
             "gp3",
             "io1",
+            "io2",
             "sc1",
             "st1"
           ]
@@ -1583,13 +1679,15 @@
         "bottlerocket",
         "enableDetailedMonitoring",
         "capacityReservation",
+        "instanceMarketOptions",
         "outpostARN",
         "instanceTypes",
         "spot",
         "taints",
         "updateConfig",
         "launchTemplate",
-        "releaseVersion"
+        "releaseVersion",
+        "nodeRepairConfig"
       ],
       "additionalProperties": false,
       "description": "represents an EKS-managed nodegroup",
@@ -1638,16 +1736,18 @@
         },
         "amiFamily": {
           "type": "string",
-          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"Ubuntu2004\"`, `\"Ubuntu1804\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Ubuntu1804&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
+          "description": "Valid variants are: `\"AmazonLinux2\"` (default), `\"AmazonLinux2023\"`, `\"UbuntuPro2404\"`, `\"Ubuntu2404\"`, `\"UbuntuPro2204\"`, `\"Ubuntu2204\"`, `\"UbuntuPro2004\"`, `\"Ubuntu2004\"`, `\"Bottlerocket\"`, `\"WindowsServer2019CoreContainer\"`, `\"WindowsServer2019FullContainer\"`, `\"WindowsServer2022CoreContainer\"`, `\"WindowsServer2022FullContainer\"`.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;AmazonLinux2&quot;</code> (default), <code>&quot;AmazonLinux2023&quot;</code>, <code>&quot;UbuntuPro2404&quot;</code>, <code>&quot;Ubuntu2404&quot;</code>, <code>&quot;UbuntuPro2204&quot;</code>, <code>&quot;Ubuntu2204&quot;</code>, <code>&quot;UbuntuPro2004&quot;</code>, <code>&quot;Ubuntu2004&quot;</code>, <code>&quot;Bottlerocket&quot;</code>, <code>&quot;WindowsServer2019CoreContainer&quot;</code>, <code>&quot;WindowsServer2019FullContainer&quot;</code>, <code>&quot;WindowsServer2022CoreContainer&quot;</code>, <code>&quot;WindowsServer2022FullContainer&quot;</code>.",
           "default": "AmazonLinux2",
           "enum": [
             "AmazonLinux2",
             "AmazonLinux2023",
+            "UbuntuPro2404",
+            "Ubuntu2404",
             "UbuntuPro2204",
             "Ubuntu2204",
+            "UbuntuPro2004",
             "Ubuntu2004",
-            "Ubuntu1804",
             "Bottlerocket",
             "WindowsServer2019CoreContainer",
             "WindowsServer2019FullContainer",
@@ -1740,8 +1840,18 @@
           "description": "Enable EC2 detailed monitoring",
           "x-intellij-html-description": "Enable EC2 detailed monitoring"
         },
+        "enclaveEnabled": {
+          "type": "boolean",
+          "description": "determines if the EC2 instance will be Nitro enclave enabled",
+          "x-intellij-html-description": "determines if the EC2 instance will be Nitro enclave enabled"
+        },
         "iam": {
           "$ref": "#/definitions/NodeGroupIAM"
+        },
+        "instanceMarketOptions": {
+          "$ref": "#/definitions/InstanceMarketOptions",
+          "description": "describes the market (purchasing) option for the instances",
+          "x-intellij-html-description": "describes the market (purchasing) option for the instances"
         },
         "instanceName": {
           "type": "string"
@@ -1897,13 +2007,14 @@
         },
         "volumeType": {
           "type": "string",
-          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
+          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"io2\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;io2&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
           "default": "gp3",
           "enum": [
             "gp2",
             "gp3",
             "io1",
+            "io2",
             "sc1",
             "st1"
           ]
@@ -1949,6 +2060,7 @@
         "bottlerocket",
         "enableDetailedMonitoring",
         "capacityReservation",
+        "instanceMarketOptions",
         "outpostARN",
         "instancesDistribution",
         "asgMetricsCollection",
@@ -1961,7 +2073,8 @@
         "kubeletExtraConfig",
         "containerRuntime",
         "maxInstanceLifetime",
-        "localZones"
+        "localZones",
+        "enclaveEnabled"
       ],
       "additionalProperties": false,
       "description": "holds configuration attributes that are specific to an unmanaged nodegroup",
@@ -2160,6 +2273,21 @@
       "additionalProperties": false,
       "description": "holds the configuration for [spot instances](/usage/spot-instances/)",
       "x-intellij-html-description": "holds the configuration for <a href=\"/usage/spot-instances/\">spot instances</a>"
+    },
+    "NodeGroupNodeRepairConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enables the auto repair feature for the nodegroup",
+          "x-intellij-html-description": "Enables the auto repair feature for the nodegroup"
+        }
+      },
+      "preferredOrder": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "description": "contains the auto repair configuration for the nodegroup",
+      "x-intellij-html-description": "contains the auto repair configuration for the nodegroup"
     },
     "NodeGroupSGs": {
       "properties": {
@@ -2466,6 +2594,82 @@
       "description": "defines the configuration for a fully-private cluster.",
       "x-intellij-html-description": "defines the configuration for a fully-private cluster."
     },
+    "RemoteNetwork": {
+      "properties": {
+        "cidrs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "preferredOrder": [
+        "cidrs"
+      ],
+      "additionalProperties": false,
+      "description": "RemoteNetwork",
+      "x-intellij-html-description": "RemoteNetwork"
+    },
+    "RemoteNetworkConfig": {
+      "required": [
+        "vpcGatewayID",
+        "remoteNodeNetworks"
+      ],
+      "properties": {
+        "iam": {
+          "$ref": "#/definitions/RemoteNodesIAM"
+        },
+        "remoteNodeNetworks": {
+          "items": {
+            "$ref": "#/definitions/RemoteNetwork"
+          },
+          "type": "array"
+        },
+        "remotePodNetworks": {
+          "items": {
+            "$ref": "#/definitions/RemoteNetwork"
+          },
+          "type": "array"
+        },
+        "vpcGatewayID": {
+          "$ref": "#/definitions/VPCGateway"
+        }
+      },
+      "preferredOrder": [
+        "iam",
+        "vpcGatewayID",
+        "remoteNodeNetworks",
+        "remotePodNetworks"
+      ],
+      "additionalProperties": false,
+      "description": "RemoteNetworkConfig",
+      "x-intellij-html-description": "RemoteNetworkConfig"
+    },
+    "RemoteNodesIAM": {
+      "properties": {
+        "caBundleCert": {
+          "type": "string",
+          "description": "the CA bundle certificate used by IRA trust anchor. Can't be set if Provider is SSM.",
+          "x-intellij-html-description": "the CA bundle certificate used by IRA trust anchor. Can't be set if Provider is SSM."
+        },
+        "provider": {
+          "type": "string",
+          "description": "the AWS service responsible for provisioning IAM credentials to remote nodes. Valid options are `SSM` (System Manager), default, and `IRA` (IAM Roles anywhere). Required IRA config (i.e. TrustAnchor, AnywhereProfile) will be created by eksctl behind the scenes.",
+          "x-intellij-html-description": "the AWS service responsible for provisioning IAM credentials to remote nodes. Valid options are <code>SSM</code> (System Manager), default, and <code>IRA</code> (IAM Roles anywhere). Required IRA config (i.e. TrustAnchor, AnywhereProfile) will be created by eksctl behind the scenes."
+        },
+        "roleARN": {
+          "type": "string",
+          "description": "the IAM Role ARN to be added to aws-auth configmap for remote nodes. If not set, eksctl creates the role behind the scenes, adds an entry into the configmap and sets up any other SSM/IRA config. If set, eksctl will only add the configmap entry, while creating any required SSM/IRA config falls under user's responsibility.",
+          "x-intellij-html-description": "the IAM Role ARN to be added to aws-auth configmap for remote nodes. If not set, eksctl creates the role behind the scenes, adds an entry into the configmap and sets up any other SSM/IRA config. If set, eksctl will only add the configmap entry, while creating any required SSM/IRA config falls under user's responsibility."
+        }
+      },
+      "preferredOrder": [
+        "provider",
+        "roleARN",
+        "caBundleCert"
+      ],
+      "additionalProperties": false
+    },
     "SecretsEncryption": {
       "required": [
         "keyARN"
@@ -2481,6 +2685,11 @@
       "additionalProperties": false,
       "description": "defines the configuration for KMS encryption provider",
       "x-intellij-html-description": "defines the configuration for KMS encryption provider"
+    },
+    "VPCGateway": {
+      "type": "string",
+      "description": "VPCGatewayID the ID of the gateway that facilitates external connectivity from customer's VPC to their remote network(s). Valid options are Transit Gateway and Virtual Private Gateway.",
+      "x-intellij-html-description": "VPCGatewayID the ID of the gateway that facilitates external connectivity from customer's VPC to their remote network(s). Valid options are Transit Gateway and Virtual Private Gateway."
     },
     "VolumeMapping": {
       "properties": {
@@ -2510,13 +2719,14 @@
         },
         "volumeType": {
           "type": "string",
-          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
-          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
+          "description": "Valid variants are: `\"gp2\"` is General Purpose SSD, `\"gp3\"` is General Purpose SSD which can be optimised for high throughput (default), `\"io1\"` is Provisioned IOPS SSD, `\"io2\"` is Provisioned IOPS SSD, `\"sc1\"` is Cold HDD, `\"st1\"` is Throughput Optimized HDD.",
+          "x-intellij-html-description": "Valid variants are: <code>&quot;gp2&quot;</code> is General Purpose SSD, <code>&quot;gp3&quot;</code> is General Purpose SSD which can be optimised for high throughput (default), <code>&quot;io1&quot;</code> is Provisioned IOPS SSD, <code>&quot;io2&quot;</code> is Provisioned IOPS SSD, <code>&quot;sc1&quot;</code> is Cold HDD, <code>&quot;st1&quot;</code> is Throughput Optimized HDD.",
           "default": "gp3",
           "enum": [
             "gp2",
             "gp3",
             "io1",
+            "io2",
             "sc1",
             "st1"
           ]
@@ -2593,6 +2803,21 @@
       "additionalProperties": false,
       "description": "for attaching common IAM policies",
       "x-intellij-html-description": "for attaching common IAM policies"
+    },
+    "ZonalShiftConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "enables or disables zonal shift.",
+          "x-intellij-html-description": "enables or disables zonal shift."
+        }
+      },
+      "preferredOrder": [
+        "enabled"
+      ],
+      "additionalProperties": false,
+      "description": "holds the zonal shift configuration.",
+      "x-intellij-html-description": "holds the zonal shift configuration."
     },
     "github.com|aws|aws-sdk-go-v2|aws|arn.ARN": {
       "description": "captures the individual fields of an Amazon Resource Name. See http://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html for more information.",

@@ -16,7 +16,7 @@ import (
 	cfn "github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 
-	"github.com/xgfone/netaddr"
+	netaddr "github.com/xgfone/go-netaddr"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -56,7 +56,7 @@ var _ = BeforeSuite(func() {
 
 	clusterConfig = api.NewClusterConfig()
 	clusterConfig.Metadata.Name = params.ClusterName
-	clusterConfig.Metadata.Version = api.LatestVersion
+	clusterConfig.Metadata.Version = api.DefaultVersion
 	clusterConfig.Metadata.Region = params.Region
 	clusterConfig.KubernetesNetworkConfig.IPFamily = "iPv6"
 	clusterConfig.VPC.NAT = nil

@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	rawClient = getRawClient(context.Background(), params.ClusterName)
 	serverVersion, err := rawClient.ServerVersion()
 	Expect(err).NotTo(HaveOccurred())
-	Expect(serverVersion).To(HavePrefix(api.LatestVersion))
+	Expect(serverVersion).To(HavePrefix(api.DefaultVersion))
 
 })
 
@@ -445,7 +445,7 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 		cmd := params.EksctlUtilsCmd.
 			WithArgs(
 				"describe-addon-versions",
-				"--kubernetes-version", api.LatestVersion,
+				"--kubernetes-version", api.DefaultVersion,
 			)
 		Expect(cmd).To(RunSuccessfullyWithOutputStringLines(
 			ContainElement(ContainSubstring("vpc-cni")),
@@ -459,7 +459,7 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 		By(fmt.Sprintf("listing available addon versions for %s", addonWithSchema))
 		output, err := eksAPI.DescribeAddonVersions(context.Background(), &awseks.DescribeAddonVersionsInput{
 			AddonName:         aws.String(addonWithSchema),
-			KubernetesVersion: aws.String(api.LatestVersion),
+			KubernetesVersion: aws.String(api.DefaultVersion),
 		})
 		Expect(err).NotTo(HaveOccurred(), "error describing addon versions")
 		By(fmt.Sprintf("fetching the configuration schema for %s", addonWithSchema))
@@ -482,7 +482,7 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 		cmd := params.EksctlUtilsCmd.
 			WithArgs(
 				"describe-addon-versions",
-				"--kubernetes-version", api.LatestVersion,
+				"--kubernetes-version", api.DefaultVersion,
 				"--types", "networking",
 				"--owners", "aws",
 				"--publishers", "eks",
@@ -498,7 +498,7 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 		cmd := params.EksctlUtilsCmd.
 			WithArgs(
 				"describe-addon-versions",
-				"--kubernetes-version", api.LatestVersion,
+				"--kubernetes-version", api.DefaultVersion,
 				"--types", "networking, storage",
 			)
 		Expect(cmd).To(RunSuccessfullyWithOutputStringLines(
@@ -619,13 +619,6 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 			assertAddonHasPodIDs(api.AWSEBSCSIDriverAddon, 1)
 			assertStackExists(makePodIDStackName(api.AWSEBSCSIDriverAddon, ebsCSIControllerSA))
 			assertStackNotExists(makeIRSAStackName(api.AWSEBSCSIDriverAddon))
-
-			By("falling back to IRSA when `autoApplyPodIdentityAssociations: true` but addon doesn't support podIDs")
-			clusterConfig.Addons = []*api.Addon{{Name: api.AWSEFSCSIDriverAddon}}
-			Expect(makeCreateAddonCMD()).To(RunSuccessfully())
-			assertAddonHasPodIDs(api.AWSEFSCSIDriverAddon, 0)
-			assertStackNotExists(makePodIDStackName(api.AWSEFSCSIDriverAddon, efsCSIControllerSA))
-			assertStackExists(makeIRSAStackName(api.AWSEFSCSIDriverAddon))
 		})
 
 		It("should remove IAM permissions when deleting addons", func() {
@@ -654,11 +647,6 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 				)).
 				To(RunSuccessfully())
 			assertPodIDPresence("kube-system", ebsCSIControllerSA, false)
-
-			By("deleting IRSA when deleting addons")
-			Expect(makeDeleteAddonCMD(api.AWSEFSCSIDriverAddon)).To(RunSuccessfully())
-			assertPodIDPresence("kube-system", efsCSIControllerSA, false)
-			assertStackDeleted(makeIRSAStackName(api.AWSEFSCSIDriverAddon))
 		})
 
 		It("should update IAM permissions when updating or migrating addons", func() {
@@ -819,6 +807,10 @@ var _ = Describe("(Integration) [EKS Addons test]", func() {
 					Status: "DEGRADED",
 				},
 				addonStatus{
+					Name:   "metrics-server",
+					Status: "DEGRADED",
+				},
+				addonStatus{
 					Name:   "kube-proxy",
 					Status: "ACTIVE",
 				},
@@ -868,7 +860,7 @@ func getRawClient(ctx context.Context, clusterName string) *kubewrapper.RawClien
 func getInitialClusterConfig() *api.ClusterConfig {
 	clusterConfig := api.NewClusterConfig()
 	clusterConfig.Metadata.Name = params.ClusterName
-	clusterConfig.Metadata.Version = api.LatestVersion
+	clusterConfig.Metadata.Version = api.DefaultVersion
 	clusterConfig.Metadata.Region = params.Region
 	clusterConfig.IAM.WithOIDC = api.Enabled()
 	clusterConfig.Addons = []*api.Addon{

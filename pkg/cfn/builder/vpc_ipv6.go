@@ -6,9 +6,9 @@ import (
 
 	"github.com/weaveworks/eksctl/pkg/awsapi"
 
-	"github.com/weaveworks/goformation/v4/cloudformation/cloudformation"
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	"github.com/weaveworks/eksctl/pkg/goformation/cloudformation/cloudformation"
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
@@ -154,8 +154,9 @@ func (v *IPv6VPCResourceSet) CreateTemplate(ctx context.Context) (*gfnt.Value, *
 	addSubnetOutput(publicSubnetResourceRefs, v.clusterConfig.VPC.Subnets.Public, outputs.ClusterSubnetsPublic)
 
 	return vpcResourceRef, &SubnetDetails{
-		Private: privateSubnets,
-		Public:  publicSubnets,
+		Private:  privateSubnets,
+		Public:   publicSubnets,
+		autoMode: v.clusterConfig.IsAutoModeEnabled(),
 	}, nil
 }
 

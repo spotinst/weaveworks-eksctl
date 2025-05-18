@@ -12,7 +12,7 @@ or [environment variables][awsenv]. For more information read [AWS documentation
 
 You will also need [AWS IAM Authenticator for Kubernetes](https://github.com/kubernetes-sigs/aws-iam-authenticator) command (either `aws-iam-authenticator` or `aws eks get-token` (available in version 1.16.156 or greater of AWS CLI) in your `PATH`.
 
-The IAM account used for EKS cluster creation should have these minimal access levels. 
+The IAM account used for EKS cluster creation should have these minimal access levels.
 
 | AWS Service      | Access Level                                           |
 |------------------|--------------------------------------------------------|
@@ -38,18 +38,18 @@ curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_ch
 
 tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
 
-sudo mv /tmp/eksctl /usr/local/bin
+sudo install -m 0755 /tmp/eksctl /usr/local/bin && rm /tmp/eksctl
 ```
 
 ### For Windows
 
 #### Direct download (latest release): [AMD64/x86_64](https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_windows_amd64.zip) - [ARMv6](https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_windows_armv6.zip) - [ARMv7](https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_windows_armv7.zip) - [ARM64](https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_windows_arm64.zip)
-Make sure to unzip the archive to a folder in the `PATH` variable. 
+Make sure to unzip the archive to a folder in the `PATH` variable.
 
-Optionally, verify the checksum: 
+Optionally, verify the checksum:
 
 1. Download the checksum file: [latest](https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_checksums.txt)
-2. Use Command Prompt to manually compare `CertUtil`'s output to the checksum file downloaded. 
+2. Use Command Prompt to manually compare `CertUtil`'s output to the checksum file downloaded.
   ```cmd
   REM Replace amd64 with armv6, armv7 or arm64
   CertUtil -hashfile eksctl_Windows_amd64.zip SHA256
@@ -60,7 +60,7 @@ Optionally, verify the checksum:
  (Get-FileHash -Algorithm SHA256 .\eksctl_Windows_amd64.zip).Hash -eq ((Get-Content .\eksctl_checksums.txt) -match 'eksctl_Windows_amd64.zip' -split ' ')[0]
  ```
 
-#### Using Git Bash: 
+#### Using Git Bash:
 ```sh
 # for ARM systems, set ARCH to: `arm64`, `armv6` or `armv7`
 ARCH=amd64
@@ -80,7 +80,7 @@ The `eksctl` executable is placed in `$HOME/bin`, which is in `$PATH` from Git B
 
 ### Docker
 
-For every release and RC a container image is pushed to ECR repository `public.ecr.aws/eksctl/eksctl`. Learn more about the usage on [ECR Public Gallery - eksctl](https://gallery.ecr.aws/eksctl/eksctl). For example, 
+For every release and RC a container image is pushed to ECR repository `public.ecr.aws/eksctl/eksctl`. Learn more about the usage on [ECR Public Gallery - eksctl](https://gallery.ecr.aws/eksctl/eksctl). For example,
 ```bash
 docker run --rm -it public.ecr.aws/eksctl/eksctl version
 ```

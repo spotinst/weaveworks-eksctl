@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
-	"github.com/weaveworks/goformation/v4/cloudformation/cloudformation"
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	"github.com/weaveworks/eksctl/pkg/goformation/cloudformation/cloudformation"
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 )
@@ -32,6 +31,11 @@ func (m *ManagedNodeGroupResourceSet) makeLaunchTemplateData(ctx context.Context
 			launchTemplateData.CapacityReservationSpecification.CapacityReservationTarget = &gfnec2.LaunchTemplate_CapacityReservationTarget{
 				CapacityReservationId:               valueOrNil(mng.CapacityReservation.CapacityReservationTarget.CapacityReservationID),
 				CapacityReservationResourceGroupArn: valueOrNil(mng.CapacityReservation.CapacityReservationTarget.CapacityReservationResourceGroupARN),
+			}
+		}
+		if mng.InstanceMarketOptions != nil {
+			launchTemplateData.InstanceMarketOptions = &gfnec2.LaunchTemplate_InstanceMarketOptions{
+				MarketType: valueOrNil(mng.InstanceMarketOptions.MarketType),
 			}
 		}
 	}
@@ -75,9 +79,11 @@ func (m *ManagedNodeGroupResourceSet) makeLaunchTemplateData(ctx context.Context
 		efaSG := m.addEFASecurityGroup(m.vpcImporter.VPC(), m.clusterConfig.Metadata.Name, desc)
 		securityGroupIDs = append(securityGroupIDs, efaSG)
 		if err := buildNetworkInterfaces(ctx, launchTemplateData, mng.InstanceTypeList(), true, securityGroupIDs, m.ec2API); err != nil {
-			return nil, errors.Wrap(err, "couldn't build network interfaces for launch template data")
+			return nil, fmt.Errorf("couldn't build network interfaces for launch template data: %w", err)
 		}
-		if mng.Placement == nil {
+		// A reservation should already be created with a placement group
+		// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/cr-cpg.html
+		if mng.Placement == nil && mng.CapacityReservation == nil {
 			groupName := m.newResource("NodeGroupPlacementGroup", &gfnec2.PlacementGroup{
 				Strategy: gfnt.NewString("cluster"),
 			})

@@ -9,6 +9,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
+	gfn "github.com/awslabs/goformation/v4"
+	gfncfn "github.com/awslabs/goformation/v4/cloudformation"
 	"github.com/kris-nova/logger"
 	"github.com/spotinst/spotinst-sdk-go/service/ocean"
 	oceanaws "github.com/spotinst/spotinst-sdk-go/service/ocean/providers/aws"
@@ -20,8 +22,6 @@ import (
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
 	"github.com/weaveworks/eksctl/pkg/version"
-	gfn "github.com/weaveworks/goformation/v4"
-	gfncfn "github.com/weaveworks/goformation/v4/cloudformation"
 )
 
 // NewOceanVirtualNodeGroup returns a new NodeGroup object for the Ocean Virtual NodeGroup.
