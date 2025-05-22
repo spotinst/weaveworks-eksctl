@@ -215,6 +215,7 @@ func (m *Migrator) MigrateToPodIdentity(ctx context.Context, options PodIdentity
 }
 
 func IsPodIdentityAgentInstalled(ctx context.Context, eksAPI awsapi.EKS, clusterName string) (bool, error) {
+
 	if autoMode, _ := IsAutoModeEnabled(ctx, eksAPI, clusterName); autoMode {
 		return true, nil
 	}

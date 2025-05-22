@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kris-nova/logger"
+
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 )
 

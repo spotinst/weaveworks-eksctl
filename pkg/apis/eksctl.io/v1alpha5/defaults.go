@@ -66,6 +66,7 @@ func SetClusterConfigDefaults(cfg *ClusterConfig) {
 		defaultNodePools := slices.Clone(AutoModeKnownNodePools)
 		cfg.AutoModeConfig.NodePools = &defaultNodePools
 	}
+
 	if cfg.PrivateCluster == nil {
 		cfg.PrivateCluster = &PrivateCluster{}
 	}

@@ -245,6 +245,7 @@ var _ = Describe("AMI Auto Resolution", func() {
 					func(version string) {
 						resolver := NewSSMResolver(p.MockSSM())
 						resolvedAmi, err = resolver.Resolve(context.Background(), region, version, instanceType, imageFamily)
+
 						Expect(err).To(HaveOccurred())
 						Expect(err).To(MatchError("Ubuntu2004 requires EKS version greater or equal than 1.21 and lower than 1.29"))
 					},

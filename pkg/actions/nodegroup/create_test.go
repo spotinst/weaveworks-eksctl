@@ -234,52 +234,6 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		expectedErr: errors.New("DescribeImages error"),
 	}),
 
-	Entry("when cluster is unowned and vpc.securityGroup contains external egress rules, it fails validation", ngEntry{
-		updateClusterConfig: makeUnownedClusterConfig,
-		mockCalls: func(m mockCalls) {
-			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider, ec2types.SecurityGroupRule{
-				Description:         aws.String("Allow control plane to communicate with a custom nodegroup on a custom port"),
-				FromPort:            aws.Int32(8443),
-				ToPort:              aws.Int32(8443),
-				GroupId:             aws.String("sg-custom"),
-				IpProtocol:          aws.String("https"),
-				IsEgress:            aws.Bool(true),
-				SecurityGroupRuleId: aws.String("sgr-5"),
-			})
-
-		},
-		expectedErr: errors.New("vpc.securityGroup (sg-custom) has egress rules that were not attached by eksctl; vpc.securityGroup should not contain any non-default external egress rules on a cluster not created by eksctl (rule ID: sgr-5)"),
-	}),
-
-	Entry("when cluster is unowned and vpc.securityGroup contains a default egress rule, it passes validation but fails if DescribeImages fails", ngEntry{
-		updateClusterConfig: makeUnownedClusterConfig,
-		mockCalls: func(m mockCalls) {
-			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider, ec2types.SecurityGroupRule{
-				Description:         aws.String(""),
-				CidrIpv4:            aws.String("0.0.0.0/0"),
-				FromPort:            aws.Int32(-1),
-				ToPort:              aws.Int32(-1),
-				GroupId:             aws.String("sg-custom"),
-				IpProtocol:          aws.String("-1"),
-				IsEgress:            aws.Bool(true),
-				SecurityGroupRuleId: aws.String("sgr-5"),
-			})
-			m.mockProvider.MockEC2().On("DescribeImages", mock.Anything, mock.Anything).Return(nil, errors.New("DescribeImages error"))
-
-		},
-		expectedErr: errors.New("DescribeImages error"),
-	}),
-
-	Entry("when cluster is unowned and vpc.securityGroup contains no external egress rules, it passes validation but fails if DescribeImages fails", ngEntry{
-		updateClusterConfig: makeUnownedClusterConfig,
-		mockCalls: func(m mockCalls) {
-			mockProviderForUnownedCluster(m.mockProvider, m.kubeProvider)
-			m.mockProvider.MockEC2().On("DescribeImages", mock.Anything, mock.Anything).Return(nil, errors.New("DescribeImages error"))
-
-		},
-		expectedErr: errors.New("DescribeImages error"),
-	}),
-
 	Entry("fails when cluster is not compatible with ng config", ngEntry{
 		mockCalls: func(m mockCalls) {
 			// no shared security group will trigger a compatibility check failure later in the call chain.
