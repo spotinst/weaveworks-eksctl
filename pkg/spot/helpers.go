@@ -9,8 +9,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
-	gfn "github.com/awslabs/goformation/v4"
-	gfncfn "github.com/awslabs/goformation/v4/cloudformation"
 	"github.com/kris-nova/logger"
 	"github.com/spotinst/spotinst-sdk-go/service/ocean"
 	oceanaws "github.com/spotinst/spotinst-sdk-go/service/ocean/providers/aws"
@@ -21,6 +19,8 @@ import (
 	"github.com/spotinst/spotinst-sdk-go/spotinst/session"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
+	gfn "github.com/weaveworks/eksctl/pkg/goformation"
+	gfncfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation"
 	"github.com/weaveworks/eksctl/pkg/version"
 )
 

@@ -223,7 +223,7 @@ func (n *spotOceanControllerTask) Do(errCh chan error) error {
 		HelmInstaller: helmInstaller,
 		Namespace:     ocean.DefaultNamespace,
 		ClusterConfig: n.spec,
-		MetricsServer: true, // default is true as there is no metrics server on a new cluster
+		MetricsServer: false, // since Release v0.201.0 support create cluster default addon metrics-server
 		ReleaseName:   ocean.DefaultReleaseName,
 	})
 

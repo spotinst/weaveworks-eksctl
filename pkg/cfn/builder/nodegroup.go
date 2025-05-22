@@ -146,9 +146,6 @@ func (n *NodeGroupResourceSet) AddAllResources(ctx context.Context) error {
 		}
 	}
 	n.addResourcesForSecurityGroups()
-	if !n.options.DisableAccessEntry {
-		n.addAccessEntry()
-	}
 
 	return n.addResourcesForNodeGroup(ctx)
 }
@@ -369,7 +366,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 		}
 	}
 
-	asg := nodeGroupResource(launchTemplateName, vpcZoneIdentifier, tags, ng)
+	asg := n.newNodeGroupResource(launchTemplate, vpcZoneIdentifier, tags, ng)
 	n.newResource("NodeGroup", asg)
 
 	return nil
@@ -564,13 +561,17 @@ func makeMetadataOptions(ng *api.NodeGroupBase) *gfnec2.LaunchTemplate_MetadataO
 }
 
 func (n *NodeGroupResourceSet) newNodeGroupResource(launchTemplate *gfnec2.LaunchTemplate,
-	vpcZoneIdentifier interface{}, tags []map[string]string) (*awsCloudFormationResource, error) {
+	vpcZoneIdentifier interface{}, tags []map[string]string, ng *api.NodeGroup) *awsCloudFormationResource {
 
 	if n.options.NodeGroup.SpotOcean != nil {
-		return n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
+		rc, err := n.newNodeGroupSpotOceanResource(launchTemplate, vpcZoneIdentifier, tags)
+		if err != nil {
+			logger.Info("ocean: building newNodeGroupResource  err:%w", err)
+		}
+		return rc
 	}
 
-	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, n.options.NodeGroup), nil
+	return nodeGroupResource(launchTemplate.LaunchTemplateName, vpcZoneIdentifier, tags, ng)
 }
 
 func nodeGroupResource(launchTemplateName *gfnt.Value, vpcZoneIdentifier interface{}, tags []map[string]string, ng *api.NodeGroup) *awsCloudFormationResource {
@@ -754,6 +755,7 @@ func (n *NodeGroupResourceSet) newNodeGroupSpotOceanResource(launchTemplate *gfn
 		if err != nil {
 			return nil, err
 		}
+		logger.Debug("ocean: building nodegroup %s", b)
 		if err := json.Unmarshal(b, &out); err != nil {
 			return nil, err
 		}

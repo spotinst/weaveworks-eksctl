@@ -67,8 +67,6 @@ packages:
           dir: "{{.InterfaceDir}}/mocks"
           outpkg: mocks
 
-<<<<<<< HEAD
-=======
   github.com/weaveworks/eksctl/pkg/actions/cluster:
     config:
       filename: "{{ .InterfaceName | snakecase }}.go"

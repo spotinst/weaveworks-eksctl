@@ -185,8 +185,6 @@ update-aws-node: ## Re-download the aws-node manifests from AWS
 update-coredns: ## get latest coredns builds for each available eks version
 	@go run pkg/addons/default/scripts/update_coredns_assets.go
 
-<<<<<<< HEAD
-=======
 .PHONY:
 update-ec2-info: ## get latest info on ec2 instance types
 	@go run cmd/ec2geninfo/main.go

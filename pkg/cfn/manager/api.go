@@ -233,6 +233,7 @@ func (c *StackCollection) createStackRequest(ctx context.Context, stackName stri
 	}
 
 	if err := c.DoCreateStackRequest(ctx, stack, TemplateBody(templateBody), tags, parameters, resourceSet.WithIAM(), resourceSet.WithNamedIAM()); err != nil {
+		logger.Debug("deploying stack %q \n %s", stackName, templateBody)
 		return nil, err
 	}
 
