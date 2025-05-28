@@ -1,13 +1,13 @@
 package cmdutils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -167,7 +167,7 @@ func AddRegionFlag(fs *pflag.FlagSet, p *api.ProviderConfig) {
 
 // AddVersionFlag adds common --version flag
 func AddVersionFlag(fs *pflag.FlagSet, meta *api.ClusterMeta, extraUsageInfo string) {
-	usage := fmt.Sprintf("Kubernetes version (valid options: %s)", strings.Join(api.SupportedVersions(), ", "))
+	usage := "Kubernetes version"
 	if extraUsageInfo != "" {
 		usage = fmt.Sprintf("%s [%s]", usage, extraUsageInfo)
 	}

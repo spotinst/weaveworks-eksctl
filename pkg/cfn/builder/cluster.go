@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
-	"github.com/pkg/errors"
+
 	"github.com/tidwall/gjson"
-	gfn "github.com/weaveworks/goformation/v4/cloudformation"
-	gfncfn "github.com/weaveworks/goformation/v4/cloudformation/cloudformation"
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfneks "github.com/weaveworks/goformation/v4/cloudformation/eks"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+
+	gfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation"
+	gfncfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/cloudformation"
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfneks "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/eks"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/awsapi"
@@ -28,10 +29,11 @@ type ClusterResourceSet struct {
 	region         string
 	vpcResourceSet VPCResourceSet
 	securityGroups *gfnt.Value
+	stsAPI         awsapi.STS
 }
 
 // NewClusterResourceSet returns a resource set for the new cluster.
-func NewClusterResourceSet(ec2API awsapi.EC2, region string, spec *api.ClusterConfig, existingStack *gjson.Result, extendForOutposts bool) *ClusterResourceSet {
+func NewClusterResourceSet(ec2API awsapi.EC2, stsAPI awsapi.STS, region string, spec *api.ClusterConfig, existingStack *gjson.Result, extendForOutposts bool) *ClusterResourceSet {
 	var usesExistingVPC bool
 	if existingStack != nil {
 		unsetExistingResources(existingStack, spec)
@@ -58,6 +60,7 @@ func NewClusterResourceSet(ec2API awsapi.EC2, region string, spec *api.ClusterCo
 		rs:             rs,
 		spec:           spec,
 		ec2API:         ec2API,
+		stsAPI:         stsAPI,
 		region:         region,
 		vpcResourceSet: vpcResourceSet,
 	}
@@ -71,7 +74,7 @@ func (c *ClusterResourceSet) AddAllResources(ctx context.Context) error {
 
 	vpcID, subnetDetails, err := c.vpcResourceSet.CreateTemplate(ctx)
 	if err != nil {
-		return errors.Wrap(err, "error adding VPC resources")
+		return fmt.Errorf("error adding VPC resources: %w", err)
 	}
 
 	clusterSG := c.addResourcesForSecurityGroups(vpcID)
@@ -80,12 +83,17 @@ func (c *ClusterResourceSet) AddAllResources(ctx context.Context) error {
 		vpcEndpointResourceSet := NewVPCEndpointResourceSet(c.ec2API, c.region, c.rs, c.spec, vpcID, subnetDetails.Private, clusterSG.ClusterSharedNode)
 
 		if err := vpcEndpointResourceSet.AddResources(ctx); err != nil {
-			return errors.Wrap(err, "error adding resources for VPC endpoints")
+			return fmt.Errorf("error adding resources for VPC endpoints: %w", err)
 		}
 	}
 
 	c.addResourcesForIAM()
-	c.addResourcesForControlPlane(subnetDetails)
+	if err := c.addResourcesForControlPlane(subnetDetails); err != nil {
+		return err
+	}
+	if c.spec.HasRemoteNetworkingConfigured() {
+		c.addAccessEntryForRemoteNodes()
+	}
 
 	if len(c.spec.FargateProfiles) > 0 {
 		c.addResourcesForFargate()
@@ -126,6 +134,19 @@ func (c *ClusterResourceSet) addResourcesForSecurityGroups(vpcID *gfnt.Value) *c
 			GroupDescription: gfnt.NewString("Communication between the control plane and worker nodegroups"),
 			VpcId:            vpcID,
 		})
+
+		if c.spec.HasRemoteNetworkingConfigured() {
+			for i, remoteNetworkCIRD := range c.spec.RemoteNetworkConfig.ToRemoteNetworksPool() {
+				c.newResource(fmt.Sprintf("IngressControlPlaneRemoteNetworks%d", i), &gfnec2.SecurityGroupIngress{
+					GroupId:     refControlPlaneSG,
+					CidrIp:      gfnt.NewString(remoteNetworkCIRD),
+					Description: gfnt.NewString(fmt.Sprintf("Allow nodes/pods from remote network (%s) to communicate to controlplane", remoteNetworkCIRD)),
+					IpProtocol:  gfnt.NewString("tcp"),
+					FromPort:    sgPortHTTPS,
+					ToPort:      sgPortHTTPS,
+				})
+			}
+		}
 
 		if len(c.spec.VPC.ExtraCIDRs) > 0 {
 			for i, cidr := range c.spec.VPC.ExtraCIDRs {
@@ -265,7 +286,7 @@ func (c *ClusterResourceSet) newResource(name string, resource gfn.Resource) *gf
 	return c.rs.newResource(name, resource)
 }
 
-func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDetails) {
+func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDetails) error {
 	clusterVPC := &gfneks.Cluster_ResourcesVpcConfig{
 		EndpointPublicAccess:  gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PublicAccess),
 		EndpointPrivateAccess: gfnt.NewBoolean(*c.spec.VPC.ClusterEndpoints.PrivateAccess),
@@ -310,6 +331,39 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 		Version: gfnt.NewString(c.spec.Metadata.Version),
 	}
 
+	if cc := c.spec.AutoModeConfig; cc != nil && api.IsEnabled(cc.Enabled) {
+		computeConfig := &gfneks.Cluster_ComputeConfig{
+			Enabled: gfnt.NewBoolean(true),
+		}
+		cluster.ComputeConfig = computeConfig
+		if cc.NodeRoleARN.IsZero() {
+			if cc.HasNodePools() {
+				autoModeRefs, err := AddAutoModeResources(c.rs.template, cc.PermissionsBoundaryARN)
+				if err != nil {
+					return fmt.Errorf("error building cluster compute roles: %w", err)
+				}
+				computeConfig.NodeRoleArn = autoModeRefs.NodeRole
+				c.rs.withIAM = true
+			}
+		} else {
+			computeConfig.NodeRoleArn = gfnt.NewString(cc.NodeRoleARN.String())
+		}
+		if cc.HasNodePools() {
+			computeConfig.NodePools = gfnt.NewStringSlice(*cc.NodePools...)
+		}
+
+		cluster.KubernetesNetworkConfig = &gfneks.Cluster_KubernetesNetworkConfig{
+			ElasticLoadBalancing: &gfneks.Cluster_ElasticLoadBalancing{
+				Enabled: gfnt.NewBoolean(true),
+			},
+		}
+		cluster.StorageConfig = &gfneks.Cluster_StorageConfig{
+			BlockStorage: &gfneks.Cluster_BlockStorage{
+				Enabled: gfnt.NewBoolean(true),
+			},
+		}
+	}
+
 	if c.spec.IsControlPlaneOnOutposts() {
 		cluster.OutpostConfig = &gfneks.Cluster_OutpostConfig{
 			OutpostArns:              gfnt.NewStringSlice(c.spec.Outpost.ControlPlaneOutpostARN),
@@ -322,12 +376,14 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 		}
 	}
 
-	kubernetesNetworkConfig := &gfneks.Cluster_KubernetesNetworkConfig{}
+	kubernetesNetworkConfig := cluster.KubernetesNetworkConfig
+	if kubernetesNetworkConfig == nil {
+		kubernetesNetworkConfig = &gfneks.Cluster_KubernetesNetworkConfig{}
+	}
 	if knc := c.spec.KubernetesNetworkConfig; knc != nil {
 		if knc.ServiceIPv4CIDR != "" {
 			kubernetesNetworkConfig.ServiceIpv4Cidr = gfnt.NewString(knc.ServiceIPv4CIDR)
 		}
-
 		ipFamily := knc.IPFamily
 		if ipFamily == "" {
 			ipFamily = api.IPV4Family
@@ -336,12 +392,33 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 	}
 	cluster.KubernetesNetworkConfig = kubernetesNetworkConfig
 	if c.spec.ZonalShiftConfig != nil && api.IsEnabled(c.spec.ZonalShiftConfig.Enabled) {
-		cluster.ZonalShiftConfig = &gfneks.Cluster_ZonalShift{
+		cluster.ZonalShiftConfig = &gfneks.Cluster_ZonalShiftConfig{
 			Enabled: gfnt.NewBoolean(true),
 		}
 	}
 
-	c.newResource("ControlPlane", &cluster)
+	if c.spec.HasRemoteNetworkingConfigured() {
+		cluster.RemoteNetworkConfig = &gfneks.Cluster_RemoteNetworkConfig{}
+		for _, remoteNetwork := range c.spec.RemoteNetworkConfig.RemotePodNetworks {
+			cluster.RemoteNetworkConfig.RemotePodNetworks = append(cluster.RemoteNetworkConfig.RemotePodNetworks, gfneks.Cluster_RemotePodNetwork{
+				Cidrs: gfnt.NewStringSlice(remoteNetwork.CIDRs...),
+			})
+		}
+		for _, remoteNetwork := range c.spec.RemoteNetworkConfig.RemoteNodeNetworks {
+			cluster.RemoteNetworkConfig.RemoteNodeNetworks = append(cluster.RemoteNetworkConfig.RemoteNodeNetworks, gfneks.Cluster_RemoteNodeNetwork{
+				Cidrs: gfnt.NewStringSlice(remoteNetwork.CIDRs...),
+			})
+		}
+	}
+
+	if c.spec.IsCustomEksEndpoint() {
+		err := addBetaResources(c.stsAPI, c.spec.Metadata.Name, c.rs.template, &cluster)
+		if err != nil {
+			return fmt.Errorf("unable to add beta resources: %w", err)
+		}
+	} else {
+		c.newResource("ControlPlane", &cluster)
+	}
 
 	if c.spec.Status == nil {
 		c.spec.Status = &api.ClusterStatus{}
@@ -350,7 +427,7 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 	c.rs.defineOutputFromAtt(outputs.ClusterCertificateAuthorityData, "ControlPlane", "CertificateAuthorityData", false, func(v string) error {
 		caData, err := base64.StdEncoding.DecodeString(v)
 		if err != nil {
-			return errors.Wrap(err, "decoding certificate authority data")
+			return fmt.Errorf("decoding certificate authority data: %w", err)
 		}
 		c.spec.Status.CertificateAuthorityData = caData
 		return nil
@@ -372,6 +449,27 @@ func (c *ClusterResourceSet) addResourcesForControlPlane(subnetDetails *SubnetDe
 		true, func(s string) error {
 			return nil
 		})
+	return nil
+}
+
+func (c *ClusterResourceSet) addAccessEntryForRemoteNodes() {
+	getRemoteNodesRoleName := func() string {
+		switch strings.ToLower(*c.spec.RemoteNetworkConfig.IAM.Provider) {
+		case api.SSMProvider:
+			return SSMRole
+		case api.IRAProvider:
+			return IRARole
+		default:
+			// Validations should ensure this is never reached
+			return ""
+		}
+	}
+	c.newResource("RemoteNodesAccessEntry", &gfneks.AccessEntry{
+		PrincipalArn:               gfnt.MakeFnGetAttString(getRemoteNodesRoleName(), "Arn"),
+		ClusterName:                gfnt.NewString(c.spec.Metadata.Name),
+		Type:                       gfnt.NewString(string(api.AccessEntryTypeHybridLinux)),
+		AWSCloudFormationDependsOn: []string{"ControlPlane"},
+	})
 }
 
 func makeCFNTags(clusterConfig *api.ClusterConfig) []gfncfn.Tag {

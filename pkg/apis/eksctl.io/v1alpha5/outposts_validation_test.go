@@ -21,7 +21,7 @@ var _ = Describe("Outposts validation", func() {
 
 	DescribeTable("unsupported ClusterConfig features", func(oe outpostsEntry) {
 		clusterConfig := api.NewClusterConfig()
-		clusterConfig.Metadata.Version = api.LatestVersion
+		clusterConfig.Metadata.Version = api.Version1_31
 		clusterConfig.Outpost = &api.Outpost{
 			ControlPlaneOutpostARN: "arn:aws:outposts:us-west-2:1234:outpost/op-1234",
 		}
@@ -188,7 +188,7 @@ var _ = Describe("Outposts validation", func() {
 
 	DescribeTable("support for node AMI families", func(amiFamily string, shouldFail bool) {
 		clusterConfig := api.NewClusterConfig()
-		clusterConfig.Metadata.Version = api.LatestVersion
+		clusterConfig.Metadata.Version = api.Version1_31
 		clusterConfig.Outpost = &api.Outpost{
 			ControlPlaneOutpostARN: "arn:aws:outposts:us-west-2:1234:outpost/op-1234",
 		}
@@ -206,10 +206,12 @@ var _ = Describe("Outposts validation", func() {
 	},
 		Entry("AmazonLinux2", api.NodeImageFamilyAmazonLinux2, false),
 		Entry("Bottlerocket", api.NodeImageFamilyBottlerocket, true),
-		Entry("Ubuntu1804", api.NodeImageFamilyUbuntu1804, true),
 		Entry("Ubuntu2004", api.NodeImageFamilyUbuntu2004, true),
+		Entry("UbuntuPro2004", api.NodeImageFamilyUbuntuPro2004, true),
 		Entry("Ubuntu2204", api.NodeImageFamilyUbuntu2204, true),
 		Entry("UbuntuPro2204", api.NodeImageFamilyUbuntuPro2204, true),
+		Entry("Ubuntu2404", api.NodeImageFamilyUbuntuPro2204, true),
+		Entry("UbuntuPro2404", api.NodeImageFamilyUbuntuPro2204, true),
 		Entry("Windows2019Core", api.NodeImageFamilyWindowsServer2019CoreContainer, true),
 		Entry("Windows2019Full", api.NodeImageFamilyWindowsServer2019FullContainer, true),
 		Entry("Windows2022Core", api.NodeImageFamilyWindowsServer2022CoreContainer, true),
@@ -312,6 +314,7 @@ var _ = Describe("Outposts validation", func() {
 	},
 		Entry(api.NodeVolumeTypeGP3, api.NodeVolumeTypeGP3, true),
 		Entry(api.NodeVolumeTypeIO1, api.NodeVolumeTypeIO1, true),
+		Entry(api.NodeVolumeTypeIO2, api.NodeVolumeTypeIO2, true),
 		Entry(api.NodeVolumeTypeSC1, api.NodeVolumeTypeSC1, true),
 		Entry(api.NodeVolumeTypeST1, api.NodeVolumeTypeST1, true),
 		Entry(api.NodeVolumeTypeGP2, api.NodeVolumeTypeGP2, false),

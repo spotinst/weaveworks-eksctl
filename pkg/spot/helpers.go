@@ -19,9 +19,9 @@ import (
 	"github.com/spotinst/spotinst-sdk-go/spotinst/session"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/outputs"
+	gfn "github.com/weaveworks/eksctl/pkg/goformation"
+	gfncfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation"
 	"github.com/weaveworks/eksctl/pkg/version"
-	gfn "github.com/weaveworks/goformation/v4"
-	gfncfn "github.com/weaveworks/goformation/v4/cloudformation"
 )
 
 // NewOceanVirtualNodeGroup returns a new NodeGroup object for the Ocean Virtual NodeGroup.

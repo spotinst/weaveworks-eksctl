@@ -2,30 +2,23 @@ package eks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/weaveworks/eksctl/pkg/spot/ocean"
 	"github.com/weaveworks/eksctl/pkg/spot/ocean/providers/helm"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 
-	"github.com/weaveworks/eksctl/pkg/actions/iamidentitymapping"
-	"github.com/weaveworks/eksctl/pkg/actions/identityproviders"
-
-	"github.com/weaveworks/eksctl/pkg/windows"
-
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/weaveworks/eksctl/pkg/actions/iamidentitymapping"
+	"github.com/weaveworks/eksctl/pkg/actions/identityproviders"
 	"github.com/weaveworks/eksctl/pkg/actions/irsa"
 	"github.com/weaveworks/eksctl/pkg/addons"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
@@ -35,6 +28,7 @@ import (
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	instanceutils "github.com/weaveworks/eksctl/pkg/utils/instance"
 	"github.com/weaveworks/eksctl/pkg/utils/tasks"
+	"github.com/weaveworks/eksctl/pkg/windows"
 )
 
 type clusterConfigTask struct {
@@ -112,7 +106,7 @@ func (v *VPCControllerTask) Do(errCh chan error) error {
 	// TODO PlanMode doesn't work as intended
 	vpcController := addons.NewVPCController(rawClient, irsa, v.ClusterConfig.Status, v.ClusterProvider.AWSProvider.Region(), v.PlanMode)
 	if err := vpcController.Deploy(v.Context); err != nil {
-		return errors.Wrap(err, "error installing VPC controller")
+		return fmt.Errorf("error installing VPC controller: %w", err)
 	}
 	return nil
 }
@@ -135,7 +129,7 @@ func (n *devicePluginTask) Do(errCh chan error) error {
 	}
 	devicePlugin := n.mkPlugin(rawClient, n.clusterProvider.AWSProvider.Region(), false, n.spec)
 	if err := devicePlugin.Deploy(); err != nil {
-		return errors.Wrap(err, "error installing device plugin")
+		return fmt.Errorf("error installing device plugin: %w", err)
 	}
 	logger.Info(n.logMessage)
 	return nil
@@ -212,7 +206,7 @@ func (n *spotOceanControllerTask) Do(errCh chan error) error {
 	config := kubeconfig.NewForKubectl(n.spec, GetUsername(n.clusterProvider.Status.IAMRoleARN), "", n.clusterProvider.AWSProvider.Profile().Name)
 	kubeConfigBytes, err := runtime.Encode(clientcmdlatest.Codec, config)
 	if err != nil {
-		return errors.Wrap(err, "generating kubeconfig")
+		return fmt.Errorf("generating kubeconfigr: %w", err)
 	}
 
 	restClientGetter := kubernetes.NewRESTClientGetter(ocean.DefaultNamespace, string(kubeConfigBytes))
@@ -229,7 +223,7 @@ func (n *spotOceanControllerTask) Do(errCh chan error) error {
 		HelmInstaller: helmInstaller,
 		Namespace:     ocean.DefaultNamespace,
 		ClusterConfig: n.spec,
-		MetricsServer: true, // default is true as there is no metrics server on a new cluster
+		MetricsServer: false, // since Release v0.201.0 support create cluster default addon metrics-server
 		ReleaseName:   ocean.DefaultReleaseName,
 	})
 
@@ -240,57 +234,22 @@ func (n *spotOceanControllerTask) Do(errCh chan error) error {
 	return nil
 }
 
-type restartDaemonsetTask struct {
-	name            string
-	namespace       string
-	clusterProvider *ClusterProvider
-	spec            *api.ClusterConfig
-}
-
-func (t *restartDaemonsetTask) Describe() string {
-	return fmt.Sprintf(`restart daemonset "%s/%s"`, t.namespace, t.name)
-}
-
-func (t *restartDaemonsetTask) Do(errCh chan error) error {
-	defer close(errCh)
-	clientSet, err := t.clusterProvider.NewStdClientSet(t.spec)
-	if err != nil {
-		return err
-	}
-	ds := clientSet.AppsV1().DaemonSets(t.namespace)
-	dep, err := ds.Get(context.TODO(), t.name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	if dep.Spec.Template.Annotations == nil {
-		dep.Spec.Template.Annotations = make(map[string]string)
-	}
-	dep.Spec.Template.Annotations["eksctl.io/restartedAt"] = time.Now().Format(time.RFC3339)
-	bytes, err := runtime.Encode(unstructured.UnstructuredJSONScheme, dep)
-	if err != nil {
-		return errors.Wrapf(err, "failed to marshal %q deployment", t.name)
-	}
-	if _, err := ds.Patch(context.TODO(), t.name, types.MergePatchType, bytes, metav1.PatchOptions{}); err != nil {
-		return errors.Wrap(err, "failed to patch deployment")
-	}
-	logger.Info(`daemonset "%s/%s" restarted`, t.namespace, t.name)
-	return nil
-}
-
 // CreateExtraClusterConfigTasks returns all tasks for updating cluster configuration
 func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg *api.ClusterConfig, preNodeGroupAddons *tasks.TaskTree, updateVPCCNITask *tasks.GenericTask) *tasks.TaskTree {
 	newTasks := &tasks.TaskTree{
 		Parallel:  false,
 		IsSubTask: true,
-		Tasks:     []tasks.Task{preNodeGroupAddons},
 	}
-
+	if preNodeGroupAddons != nil {
+		newTasks.Append(preNodeGroupAddons)
+	}
 	newTasks.Append(&tasks.GenericTask{
 		Description: "wait for control plane to become ready",
 		Doer: func() error {
 			clientSet, err := c.NewRawClient(cfg)
 			if err != nil {
-				if _, ok := err.(*kubernetes.APIServerUnreachableError); ok {
+				var unreachableErr *kubernetes.APIServerUnreachableError
+				if errors.As(err, &unreachableErr) {
 					logger.Warning("API server is unreachable")
 				} else {
 					return fmt.Errorf("error creating Clientset: %w", err)
@@ -301,6 +260,10 @@ func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg
 			return c.RefreshClusterStatus(ctx, cfg)
 		},
 	})
+	if cfg.IsAutoModeEnabled() && cfg.VPC != nil && cfg.VPC.ID != "" {
+		logger.Info("subnets supplied in subnets.private and subnets.public will be used for nodes launched by Auto Mode; please create a new NodeClass " +
+			"resource if you do not want to use cluster subnets")
+	}
 
 	if api.IsEnabled(cfg.IAM.WithOIDC) {
 		c.appendCreateTasksForIAMServiceAccounts(ctx, cfg, newTasks)
@@ -321,7 +284,7 @@ func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg
 						RetentionInDays: aws.Int32(int32(logRetentionDays)),
 					})
 					if err != nil {
-						return errors.Wrap(err, "error updating log retention settings")
+						return fmt.Errorf("error updating log retention settings: %w", err)
 					}
 					logger.Info("set log retention to %d days for CloudWatch logging", logRetentionDays)
 					return nil
@@ -351,16 +314,16 @@ func (c *ClusterProvider) CreateExtraClusterConfigTasks(ctx context.Context, cfg
 			Doer: func() error {
 				clientSet, err := c.NewStdClientSet(cfg)
 				if err != nil {
-					return errors.Wrap(err, "error creating Clientset")
+					return fmt.Errorf("error creating Clientset: %w", err)
 				}
 
 				rawClient, err := c.NewRawClient(cfg)
 				if err != nil {
-					return errors.Wrap(err, "error creating rawClient")
+					return fmt.Errorf("error creating rawClient: %w", err)
 				}
 				m, err := iamidentitymapping.New(cfg, clientSet, rawClient, cfg.Metadata.Region)
 				if err != nil {
-					return errors.Wrap(err, "error initialising iamidentitymapping")
+					return fmt.Errorf("error initialising iamidentitymapping: %w", err)
 				}
 
 				for _, mapping := range cfg.IAMIdentityMappings {
@@ -433,19 +396,21 @@ func (c *ClusterProvider) ClusterTasksForNodeGroups(cfg *api.ClusterConfig, inst
 	for _, ng := range cfg.NodeGroups {
 		clusterRequiresNeuronDevicePlugin = clusterRequiresNeuronDevicePlugin ||
 			api.HasInstanceType(ng, instanceutils.IsNeuronInstanceType)
-		// Only AL2 requires the NVIDIA device plugin
+		// Only AL2/AL2023 requires the NVIDIA device plugin
 		clusterRequiresNvidiaDevicePlugin = clusterRequiresNvidiaDevicePlugin ||
 			(api.HasInstanceType(ng, instanceutils.IsNvidiaInstanceType) &&
-				ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2)
+				(ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2 ||
+					ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2023))
 		efaEnabled = efaEnabled || api.IsEnabled(ng.EFAEnabled)
 	}
 	for _, ng := range cfg.ManagedNodeGroups {
 		clusterRequiresNeuronDevicePlugin = clusterRequiresNeuronDevicePlugin ||
 			api.HasInstanceTypeManaged(ng, instanceutils.IsNeuronInstanceType)
-		// Only AL2 requires the NVIDIA device plugin
+		// Only AL2/AL2023 requires the NVIDIA device plugin
 		clusterRequiresNvidiaDevicePlugin = clusterRequiresNvidiaDevicePlugin ||
 			(api.HasInstanceTypeManaged(ng, instanceutils.IsNvidiaInstanceType) &&
-				ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2)
+				(ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2 ||
+					ng.GetAMIFamily() == api.NodeImageFamilyAmazonLinux2023))
 		efaEnabled = efaEnabled || api.IsEnabled(ng.EFAEnabled)
 	}
 	if clusterRequiresNeuronDevicePlugin {

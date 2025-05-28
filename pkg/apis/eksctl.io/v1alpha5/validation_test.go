@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -131,7 +132,7 @@ var _ = Describe("ClusterConfig validation", func() {
 
 		It("should reject docker runtime if version is 1.24 or greater", func() {
 			cfg := api.NewClusterConfig()
-			cfg.Metadata.Version = api.Version1_24
+			cfg.Metadata.Version = api.DockershimDeprecationVersion
 			ng0 := cfg.NewNodeGroup()
 			ng0.Name = "node-group"
 			ng0.ContainerRuntime = aws.String(api.ContainerRuntimeDockerD)
@@ -139,7 +140,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).NotTo(HaveOccurred())
 			err = api.ValidateNodeGroup(0, ng0, cfg)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("only %s is supported for container runtime, starting with EKS version %s", api.ContainerRuntimeContainerD, api.Version1_24))))
+			Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("only %s is supported for container runtime, starting with EKS version %s", api.ContainerRuntimeContainerD, api.DockershimDeprecationVersion))))
 		})
 
 		It("containerd cannot be set together with overrideBootstrapCommand", func() {
@@ -306,10 +307,34 @@ var _ = Describe("ClusterConfig validation", func() {
 				})
 			})
 
+			When("VolumeType is io2", func() {
+				BeforeEach(func() {
+					*ng0.VolumeType = api.NodeVolumeTypeIO2
+				})
+
+				It("does not fail", func() {
+					Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(Succeed())
+				})
+
+				When(fmt.Sprintf("the value of volumeIOPS is < %d", api.MinIO2Iops), func() {
+					It("returns an error", func() {
+						ng0.VolumeIOPS = aws.Int(api.MinIO2Iops - 1)
+						Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError("value for nodeGroups[0].volumeIOPS must be within range 100-256000"))
+					})
+				})
+
+				When(fmt.Sprintf("the value of volumeIOPS is > %d", api.MaxIO2Iops), func() {
+					It("returns an error", func() {
+						ng0.VolumeIOPS = aws.Int(api.MaxIO2Iops + 1)
+						Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError("value for nodeGroups[0].volumeIOPS must be within range 100-256000"))
+					})
+				})
+			})
+
 			When("VolumeType is one for which IOPS is not supported", func() {
 				It("returns an error", func() {
 					*ng0.VolumeType = api.NodeVolumeTypeGP2
-					Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError("nodeGroups[0].volumeIOPS is only supported for io1 and gp3 volume types"))
+					Expect(api.ValidateNodeGroup(0, ng0, cfg)).To(MatchError("nodeGroups[0].volumeIOPS is only supported for io1, io2 and gp3 volume types"))
 				})
 			})
 		})
@@ -945,6 +970,102 @@ var _ = Describe("ClusterConfig validation", func() {
 			})
 		})
 	})
+
+	type remoteNetworkConfigEntry struct {
+		overrideConfig func(*api.ClusterConfig)
+		expectedErr    string
+	}
+	DescribeTable("RemoteNetworkConfig", func(e remoteNetworkConfigEntry) {
+		cfg := api.NewClusterConfig()
+		api.SetClusterConfigDefaults(cfg)
+		api.SetClusterEndpointAccessDefaults(cfg.VPC)
+		gatewayID := api.VPCGateway("tgw-1234")
+		cfg.RemoteNetworkConfig = &api.RemoteNetworkConfig{
+			RemoteNodeNetworks: []*api.RemoteNetwork{{CIDRs: []string{"192.168.0.1"}}},
+			VPCGatewayID:       &gatewayID,
+		}
+		e.overrideConfig(cfg)
+		Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring(e.expectedErr)))
+	},
+
+		Entry("public cluster endpoint access is disabled", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.VPC.ClusterEndpoints = &api.ClusterEndpoints{
+					PublicAccess: api.Disabled(),
+				}
+				cc.RemoteNetworkConfig.IAM = &api.RemoteNodesIAM{
+					Provider: aws.String("BLOB"),
+				}
+			},
+		}),
+		Entry("fully private EKS cluster", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.PrivateCluster = &api.PrivateCluster{
+					Enabled: true,
+				}
+				cc.RemoteNetworkConfig.IAM = &api.RemoteNodesIAM{
+					Provider: aws.String("BLOB"),
+				}
+			},
+		}),
+		Entry("IPv6 family", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.KubernetesNetworkConfig.IPFamily = api.IPV6Family
+				// setup other pre-requisites for IPv6
+				cc.IAM.WithOIDC = aws.Bool(true)
+				cc.Addons = []*api.Addon{
+					{Name: api.VPCCNIAddon},
+					{Name: api.CoreDNSAddon},
+					{Name: api.KubeProxyAddon},
+				}
+			},
+			expectedErr: "remoteNetworkConfig is not supported on EKS cluster configured with IPv6 address family",
+		}),
+		Entry("authenticationMode is ConfigMap", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.AccessConfig = &api.AccessConfig{
+					AuthenticationMode: ekstypes.AuthenticationModeConfigMap,
+				}
+			},
+			expectedErr: fmt.Sprintf("remoteNetworkConfig requires authenticationMode to be either %q or %q", ekstypes.AuthenticationModeApiAndConfigMap, ekstypes.AuthenticationModeApi),
+		}),
+		Entry("remoteNodeNetworks is empty", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.RemoteNetworkConfig = &api.RemoteNetworkConfig{}
+			},
+			expectedErr: "remoteNetworkConfig.remoteNodeNetworks must be set and non-empty",
+		}),
+		Entry("both vpcGatewayID and pre-existing VPC are set", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.VPC.ID = "vpc-1234"
+			},
+			expectedErr: "remoteNetworkConfig.vpcGatewayID is not supported when using pre-existing VPC",
+		}),
+		Entry("unsupported vpcGateway type", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				gatewayID := api.VPCGateway("igw-1234")
+				cc.RemoteNetworkConfig.VPCGatewayID = &gatewayID
+			},
+			expectedErr: "invalid value \"igw-1234\" provided for remoteNetworkConfig.vpcGatewayID",
+		}),
+		Entry("unsupported credentials provider", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.RemoteNetworkConfig.IAM = &api.RemoteNodesIAM{
+					Provider: aws.String("BLOB"),
+				}
+			},
+			expectedErr: "invalid value \"BLOB\" provided for remoteNetworkConfig.iam.provider",
+		}),
+		Entry("CABundle cert is missing when using IRA", remoteNetworkConfigEntry{
+			overrideConfig: func(cc *api.ClusterConfig) {
+				cc.RemoteNetworkConfig.IAM = &api.RemoteNodesIAM{
+					Provider: aws.String("IRA"),
+				}
+			},
+			expectedErr: "remoteNetworkConfig.iam.caBundleCert is required when using IAMRolesAnywhere credentials provider",
+		}),
+	)
+
 	Describe("network config", func() {
 		var (
 			cfg *api.ClusterConfig
@@ -1060,6 +1181,85 @@ var _ = Describe("ClusterConfig validation", func() {
 					})
 				})
 
+				When("ipFamily is set to IPV6, OIDC is disabled", func() {
+					JustBeforeEach(func() {
+						cfg.VPC.NAT = nil
+						cfg.IAM = &api.ClusterIAM{
+							WithOIDC: api.Disabled(),
+						}
+						cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.KubeProxyAddon}, &api.Addon{Name: api.CoreDNSAddon})
+					})
+					When("Pod identity addon is missing", func() {
+						It("returns an error", func() {
+							cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.VPCCNIAddon})
+							err = api.ValidateClusterConfig(cfg)
+							Expect(err).To(MatchError(ContainSubstring("either pod identity or oidc needs to be enabled if IPv6 is set; set either one or use EKS Auto Mode")))
+						})
+					})
+
+					When("Pod identity addon is present", func() {
+						JustBeforeEach(func() {
+							cfg.Addons = append(cfg.Addons,
+								&api.Addon{Name: api.PodIdentityAgentAddon})
+						})
+
+						When("Use default pod identity associations is set", func() {
+							It("accepts the setting", func() {
+								cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.VPCCNIAddon})
+								cfg.AddonsConfig.AutoApplyPodIdentityAssociations = true
+
+								err = api.ValidateClusterConfig(cfg)
+								Expect(err).ToNot(HaveOccurred())
+							})
+						})
+
+						When("Use default pod identity association is set on the vpc-cni addon", func() {
+							It("accepts the setting", func() {
+								cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.VPCCNIAddon, UseDefaultPodIdentityAssociations: true})
+
+								err = api.ValidateClusterConfig(cfg)
+								Expect(err).ToNot(HaveOccurred())
+							})
+						})
+
+						When("The vpc-cni addon has a pod identity association configured", func() {
+							It("accepts the setting", func() {
+								cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.VPCCNIAddon,
+									PodIdentityAssociations: &[]api.PodIdentityAssociation{{
+										Namespace:          "test-namespace",
+										ServiceAccountName: "fakeserviceaccount",
+										RoleARN:            "fakerolearn",
+									}}})
+
+								err = api.ValidateClusterConfig(cfg)
+								Expect(err).ToNot(HaveOccurred())
+							})
+						})
+
+						When("The vpc-cni addon is missing a pod identity configuration", func() {
+							It("returns an error", func() {
+								cfg.Addons = append(cfg.Addons, &api.Addon{Name: api.VPCCNIAddon})
+								err = api.ValidateClusterConfig(cfg)
+								Expect(err).To(MatchError(ContainSubstring("Set one of: addonsConfig.autoApplyPodIdentityAssociations, useDefaultPodIdentityAssociations on the vpc-cni addon, apply a custom pod identity on the vpc-cni addon")))
+							})
+						})
+					})
+				})
+
+				When("ipFamily is set to IPv6, no managed addons are provided, but auto-mode is used", func() {
+					It("accepts the setting", func() {
+						cfg.VPC.NAT = nil
+						cfg.IAM = &api.ClusterIAM{
+							WithOIDC: api.Enabled(),
+						}
+						cfg.AutoModeConfig = &api.AutoModeConfig{
+							Enabled: aws.Bool(true),
+						}
+						err = api.ValidateClusterConfig(cfg)
+						Expect(err).To(BeNil())
+					})
+				})
+
 				When("the vpc-cni version is configured", func() {
 					When("the version of the vpc-cni is too low", func() {
 						It("returns an error", func() {
@@ -1156,6 +1356,22 @@ var _ = Describe("ClusterConfig validation", func() {
 						)
 						err = api.ValidateClusterConfig(cfg)
 						Expect(err).To(MatchError(ContainSubstring("oidc needs to be enabled if IPv6 is set")))
+					})
+				})
+
+				When("iam is not set, but auto-mode is used", func() {
+					It("accepts the setting", func() {
+						cfg.VPC.NAT = nil
+						cfg.Addons = append(cfg.Addons,
+							&api.Addon{Name: api.KubeProxyAddon},
+							&api.Addon{Name: api.CoreDNSAddon},
+							&api.Addon{Name: api.VPCCNIAddon},
+						)
+						cfg.AutoModeConfig = &api.AutoModeConfig{
+							Enabled: aws.Bool(true),
+						}
+						err = api.ValidateClusterConfig(cfg)
+						Expect(err).To(BeNil())
 					})
 				})
 
@@ -1300,7 +1516,7 @@ var _ = Describe("ClusterConfig validation", func() {
 		Context("extraIPv6CIDRs", func() {
 			It("validates cidrs", func() {
 				cfg.KubernetesNetworkConfig.IPFamily = api.IPV6Family
-				cfg.Metadata.Version = api.LatestVersion
+				cfg.Metadata.Version = api.Version1_31
 				cfg.Addons = append(cfg.Addons,
 					&api.Addon{Name: api.KubeProxyAddon},
 					&api.Addon{Name: api.CoreDNSAddon},
@@ -1318,7 +1534,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			When("extraIPv6CIDRs has an invalid cidr", func() {
 				It("returns an error", func() {
 					cfg.VPC.ExtraIPv6CIDRs = []string{"not-a-cidr"}
-					cfg.Metadata.Version = api.LatestVersion
+					cfg.Metadata.Version = api.Version1_31
 					cfg.Addons = append(cfg.Addons,
 						&api.Addon{Name: api.KubeProxyAddon},
 						&api.Addon{Name: api.CoreDNSAddon},
@@ -1340,7 +1556,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			When("when ipv4 is configured", func() {
 				It("returns an error", func() {
 					cfg.KubernetesNetworkConfig.IPFamily = api.IPV4Family
-					cfg.Metadata.Version = api.LatestVersion
+					cfg.Metadata.Version = api.Version1_31
 					cfg.Addons = append(cfg.Addons,
 						&api.Addon{Name: api.KubeProxyAddon},
 						&api.Addon{Name: api.CoreDNSAddon},
@@ -1577,18 +1793,18 @@ var _ = Describe("ClusterConfig validation", func() {
 
 			It("fails in case of arm-gpu distribution instance type", func() {
 				ng.InstanceType = "mixed"
-				ng.InstancesDistribution.InstanceTypes = []string{"g5g.medium"}
+				ng.InstancesDistribution.InstanceTypes = []string{"g5g.2xlarge"}
 				ng.AMIFamily = api.NodeImageFamilyAmazonLinux2
 				err := api.ValidateNodeGroup(0, ng, cfg)
-				Expect(err).To(MatchError("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
+				Expect(err).To(MatchError("g5g.2xlarge instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
 			})
 
 			It("ARM-based GPU instance type fails for AmazonLinux2", func() {
-				ng.InstanceType = "g5g.medium"
+				ng.InstanceType = "g5g.2xlarge"
 				ng.InstancesDistribution.InstanceTypes = nil
 				ng.AMIFamily = api.NodeImageFamilyAmazonLinux2
 				err := api.ValidateNodeGroup(0, ng, cfg)
-				Expect(err).To(MatchError("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
+				Expect(err).To(MatchError("g5g.2xlarge instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
 			})
 
 			It("fails when instance distribution is enabled and instanceType set", func() {
@@ -2038,11 +2254,11 @@ var _ = Describe("ClusterConfig validation", func() {
 			err := api.ValidateManagedNodeGroup(0, mng)
 			Expect(err).NotTo(HaveOccurred())
 
-			mng.AMIFamily = api.NodeImageFamilyUbuntu1804
+			mng.AMIFamily = api.NodeImageFamilyUbuntu2004
 			err = api.ValidateManagedNodeGroup(0, mng)
 			Expect(err).NotTo(HaveOccurred())
 
-			mng.AMIFamily = api.NodeImageFamilyUbuntu2004
+			mng.AMIFamily = api.NodeImageFamilyUbuntuPro2004
 			err = api.ValidateManagedNodeGroup(0, mng)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -2051,6 +2267,14 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			mng.AMIFamily = api.NodeImageFamilyUbuntuPro2204
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntu2404
+			err = api.ValidateManagedNodeGroup(0, mng)
+			Expect(err).NotTo(HaveOccurred())
+
+			mng.AMIFamily = api.NodeImageFamilyUbuntuPro2404
 			err = api.ValidateManagedNodeGroup(0, mng)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -2078,49 +2302,6 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).To(MatchError("AMI Family WindowsServer20H2CoreContainer is deprecated. For more information, head to the Amazon documentation on Windows AMIs (https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-windows-ami.html)"))
 		})
 	})
-
-	Describe("AmazonLinux2023 node groups", func() {
-		It("returns an error when setting maxPodsPerNode for managed nodegroups", func() {
-			ng := api.NewManagedNodeGroup()
-			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
-			ng.MaxPodsPerNode = 5
-			err := api.ValidateManagedNodeGroup(0, ng)
-			Expect(err).To(MatchError(ContainSubstring("eksctl does not support configuring maxPodsPerNode EKS-managed nodes")))
-		})
-		It("returns an error when setting preBootstrapCommands for self-managed nodegroups", func() {
-			cfg := api.NewClusterConfig()
-			ng := cfg.NewNodeGroup()
-			ng.Name = "node-group"
-			ng.AMI = "ami-1234"
-			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
-			ng.PreBootstrapCommands = []string{"echo 'rubarb'"}
-			Expect(api.ValidateNodeGroup(0, ng, cfg)).To(MatchError(ContainSubstring(fmt.Sprintf("preBootstrapCommands is not supported for %s nodegroups", api.NodeImageFamilyAmazonLinux2023))))
-		})
-		It("returns an error when setting overrideBootstrapCommand for self-managed nodegroups", func() {
-			cfg := api.NewClusterConfig()
-			ng := cfg.NewNodeGroup()
-			ng.Name = "node-group"
-			ng.AMI = "ami-1234"
-			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
-			ng.OverrideBootstrapCommand = aws.String("echo 'rubarb'")
-			Expect(api.ValidateNodeGroup(0, ng, cfg)).To(MatchError(ContainSubstring(fmt.Sprintf("overrideBootstrapCommand is not supported for %s nodegroups", api.NodeImageFamilyAmazonLinux2023))))
-		})
-		It("returns an error when setting preBootstrapCommands for EKS-managed nodegroups", func() {
-			ng := api.NewManagedNodeGroup()
-			ng.Name = "node-group"
-			ng.AMI = "ami-1234"
-			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
-			ng.PreBootstrapCommands = []string{"echo 'rubarb'"}
-			Expect(api.ValidateManagedNodeGroup(0, ng)).To(MatchError(ContainSubstring(fmt.Sprintf("preBootstrapCommands is not supported for %s nodegroups", api.NodeImageFamilyAmazonLinux2023))))
-		})
-		It("returns an error when setting overrideBootstrapCommand for EKS-managed nodegroups", func() {
-			ng := api.NewManagedNodeGroup()
-			ng.Name = "node-group"
-			ng.AMI = "ami-1234"
-			ng.AMIFamily = api.NodeImageFamilyAmazonLinux2023
-			ng.OverrideBootstrapCommand = aws.String("echo 'rubarb'")
-			Expect(api.ValidateManagedNodeGroup(0, ng)).To(MatchError(ContainSubstring(fmt.Sprintf("overrideBootstrapCommand is not supported for %s nodegroups", api.NodeImageFamilyAmazonLinux2023))))
-		})
 
 	Describe("Windows node groups", func() {
 		It("returns an error with unsupported fields", func() {
@@ -2485,6 +2666,52 @@ var _ = Describe("ClusterConfig validation", func() {
 						},
 					}
 					Expect(api.ValidateNodeGroup(0, ng, cfg)).To(MatchError(ContainSubstring("only one of CapacityReservationID or CapacityReservationResourceGroupARN may be specified at a time")))
+				})
+			})
+		})
+	})
+
+	Describe("Instance Market Options validation", func() {
+		var (
+			cfg *api.ClusterConfig
+			ng  *api.NodeGroup
+		)
+
+		BeforeEach(func() {
+			cfg = api.NewClusterConfig()
+			ng = cfg.NewNodeGroup()
+			ng.Name = "ng"
+		})
+
+		When("InstanceMarketOptions is set", func() {
+			When("it is set to 'capacity-block'", func() {
+				It("does not fail", func() {
+					ng.CapacityReservation = &api.CapacityReservation{
+						CapacityReservationTarget: &api.CapacityReservationTarget{
+							CapacityReservationID: aws.String("id"),
+						},
+					}
+					ng.InstanceMarketOptions = &api.InstanceMarketOptions{MarketType: aws.String("capacity-block")}
+					Expect(api.ValidateNodeGroup(0, ng, cfg)).To(Succeed())
+				})
+			})
+
+			When("it is set to 'capacity-block' but Capacity Reservation not set", func() {
+				It("does fail", func() {
+					ng.InstanceMarketOptions = &api.InstanceMarketOptions{MarketType: aws.String("capacity-block")}
+					Expect(api.ValidateNodeGroup(0, ng, cfg)).To(MatchError(ContainSubstring(`instanceMarketOptions cannot be set without capacityReservation`)))
+				})
+			})
+
+			When("it is set to 'foobar'", func() {
+				It("does fail", func() {
+					ng.CapacityReservation = &api.CapacityReservation{
+						CapacityReservationTarget: &api.CapacityReservationTarget{
+							CapacityReservationID: aws.String("id"),
+						},
+					}
+					ng.InstanceMarketOptions = &api.InstanceMarketOptions{MarketType: aws.String("foobar")}
+					Expect(api.ValidateNodeGroup(0, ng, cfg)).To(MatchError(ContainSubstring(`only accepted value is "capacity-block"; got "foobar"`)))
 				})
 			})
 		})

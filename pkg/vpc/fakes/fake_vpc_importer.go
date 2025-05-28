@@ -4,8 +4,8 @@ package fakes
 import (
 	"sync"
 
+	"github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 	"github.com/weaveworks/eksctl/pkg/vpc"
-	"github.com/weaveworks/goformation/v4/cloudformation/types"
 )
 
 type FakeImporter struct {

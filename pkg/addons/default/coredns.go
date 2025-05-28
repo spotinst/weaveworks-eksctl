@@ -3,11 +3,12 @@ package defaultaddons
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/weaveworks/eksctl/pkg/addons"
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/fargate/coredns"
 	"github.com/weaveworks/eksctl/pkg/kubernetes"
 
@@ -42,7 +42,7 @@ func UpdateCoreDNS(ctx context.Context, input AddonInput, plan bool) (bool, erro
 			logger.Warning("%q service was not found", KubeDNS)
 			return false, nil
 		}
-		return false, errors.Wrapf(err, "getting %q service", KubeDNS)
+		return false, fmt.Errorf("getting %q service: %w", KubeDNS, err)
 	}
 
 	kubeDNSDeployment, err := input.RawClient.ClientSet().AppsV1().Deployments(metav1.NamespaceSystem).Get(ctx, CoreDNS, metav1.GetOptions{})
@@ -51,7 +51,7 @@ func UpdateCoreDNS(ctx context.Context, input AddonInput, plan bool) (bool, erro
 			logger.Warning("%q was not found", CoreDNS)
 			return false, nil
 		}
-		return false, errors.Wrapf(err, "getting %q", CoreDNS)
+		return false, fmt.Errorf("getting %q: %w", CoreDNS, err)
 	}
 
 	// if Deployment is present, go through our list of assets
@@ -127,14 +127,26 @@ func loadAssetCoreDNS(controlPlaneVersion string) (*metav1.List, error) {
 		return nil, errors.New("CoreDNS is not supported on Kubernetes 1.10")
 	}
 
-	for _, version := range api.SupportedVersions() {
-		if strings.HasPrefix(controlPlaneVersion, version+".") {
-			manifest, err := coreDNSDir.ReadFile(fmt.Sprintf("assets/%s-%s.json", CoreDNS, version))
-			if err != nil {
-				return nil, err
-			}
-			return newList(manifest)
-		}
+	version, err := resolveK8sVersionPrefix(controlPlaneVersion)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("unsupported Kubernetes version")
+
+	manifest, err := coreDNSDir.ReadFile(fmt.Sprintf("assets/%s-%s.json", CoreDNS, version))
+	if err != nil {
+		return nil, err
+	}
+
+	return newList(manifest)
+}
+
+func resolveK8sVersionPrefix(controlPlaneVersion string) (string, error) {
+	// Regular expression to match Kubernetes version prefixes
+	re := regexp.MustCompile(`^(\d+\.\d+)`)
+	// Find the first match
+	matches := re.FindStringSubmatch(controlPlaneVersion)
+	if len(matches) > 1 {
+		return matches[1], nil
+	}
+	return "", fmt.Errorf("could not resolve Kubernetes version from control plane version %q", controlPlaneVersion)
 }

@@ -18,484 +18,706 @@ type IAM interface {
 	// functional options.
 	Options() iam.Options
 	// Adds a new client ID (also known as audience) to the list of client IDs already
-	// registered for the specified IAM OpenID Connect (OIDC) provider resource. This
-	// operation is idempotent; it does not fail or return an error if you add an
+	// registered for the specified IAM OpenID Connect (OIDC) provider resource.
+	//
+	// This operation is idempotent; it does not fail or return an error if you add an
 	// existing client ID to the provider.
-	AddClientIDToOpenIDConnectProvider(ctx context.Context, params *AddClientIDToOpenIDConnectProviderInput, optFns ...func(*Options)) (*AddClientIDToOpenIDConnectProviderOutput, error)
+	AddClientIDToOpenIDConnectProvider(ctx context.Context, params *iam.AddClientIDToOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.AddClientIDToOpenIDConnectProviderOutput, error)
 	// Adds the specified IAM role to the specified instance profile. An instance
 	// profile can contain only one role, and this quota cannot be increased. You can
 	// remove the existing role and then add a different role to an instance profile.
 	// You must then wait for the change to appear across all of Amazon Web Services
-	// because of eventual consistency (https://en.wikipedia.org/wiki/Eventual_consistency)
-	// . To force the change, you must disassociate the instance profile (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DisassociateIamInstanceProfile.html)
-	// and then associate the instance profile (https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AssociateIamInstanceProfile.html)
-	// , or you can stop your instance and then restart it. The caller of this
-	// operation must be granted the PassRole permission on the IAM role by a
-	// permissions policy. For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide. For more information about instance profiles, see Using
-	// instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide.
-	AddRoleToInstanceProfile(ctx context.Context, params *AddRoleToInstanceProfileInput, optFns ...func(*Options)) (*AddRoleToInstanceProfileOutput, error)
+	// because of [eventual consistency]. To force the change, you must [disassociate the instance profile] and then [associate the instance profile], or you can stop your
+	// instance and then restart it.
+	//
+	// The caller of this operation must be granted the PassRole permission on the IAM
+	// role by a permissions policy.
+	//
+	// When using the [iam:AssociatedResourceArn] condition in a policy to restrict the [PassRole] IAM action, special
+	// considerations apply if the policy is intended to define access for the
+	// AddRoleToInstanceProfile action. In this case, you cannot specify a Region or
+	// instance ID in the EC2 instance ARN. The ARN value must be
+	// arn:aws:ec2:*:CallerAccountId:instance/* . Using any other ARN value may lead to
+	// unexpected evaluation results.
+	//
+	// For more information about roles, see [IAM roles] in the IAM User Guide. For more
+	// information about instance profiles, see [Using instance profiles]in the IAM User Guide.
+	//
+	// [disassociate the instance profile]: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DisassociateIamInstanceProfile.html
+	// [associate the instance profile]: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AssociateIamInstanceProfile.html
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	// [PassRole]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html
+	// [iam:AssociatedResourceArn]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#available-keys-for-iam
+	// [eventual consistency]: https://en.wikipedia.org/wiki/Eventual_consistency
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	AddRoleToInstanceProfile(ctx context.Context, params *iam.AddRoleToInstanceProfileInput, optFns ...func(*Options)) (*iam.AddRoleToInstanceProfileOutput, error)
 	// Adds the specified user to the specified group.
-	AddUserToGroup(ctx context.Context, params *AddUserToGroupInput, optFns ...func(*Options)) (*AddUserToGroupOutput, error)
-	// Attaches the specified managed policy to the specified IAM group. You use this
-	// operation to attach a managed policy to a group. To embed an inline policy in a
-	// group, use PutGroupPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutGroupPolicy.html)
-	// . As a best practice, you can validate your IAM policies. To learn more, see
-	// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
-	// in the IAM User Guide. For more information about policies, see Managed
-	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	AttachGroupPolicy(ctx context.Context, params *AttachGroupPolicyInput, optFns ...func(*Options)) (*AttachGroupPolicyOutput, error)
+	AddUserToGroup(ctx context.Context, params *iam.AddUserToGroupInput, optFns ...func(*Options)) (*iam.AddUserToGroupOutput, error)
+	// Attaches the specified managed policy to the specified IAM group.
+	//
+	// You use this operation to attach a managed policy to a group. To embed an
+	// inline policy in a group, use [PutGroupPolicy]PutGroupPolicy .
+	//
+	// As a best practice, you can validate your IAM policies. To learn more, see [Validating IAM policies] in
+	// the IAM User Guide.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [PutGroupPolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutGroupPolicy.html
+	// [Validating IAM policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	AttachGroupPolicy(ctx context.Context, params *iam.AttachGroupPolicyInput, optFns ...func(*Options)) (*iam.AttachGroupPolicyOutput, error)
 	// Attaches the specified managed policy to the specified IAM role. When you
 	// attach a managed policy to a role, the managed policy becomes part of the role's
-	// permission (access) policy. You cannot use a managed policy as the role's trust
-	// policy. The role's trust policy is created at the same time as the role, using
-	// CreateRole (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html)
-	// . You can update a role's trust policy using UpdateAssumerolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html)
-	// . Use this operation to attach a managed policy to a role. To embed an inline
-	// policy in a role, use PutRolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutRolePolicy.html)
-	// . For more information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. As a best practice, you can validate your IAM policies.
-	// To learn more, see Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
+	// permission (access) policy.
+	//
+	// You cannot use a managed policy as the role's trust policy. The role's trust
+	// policy is created at the same time as the role, using [CreateRole]CreateRole . You can
+	// update a role's trust policy using [UpdateAssumerolePolicy]UpdateAssumerolePolicy .
+	//
+	// Use this operation to attach a managed policy to a role. To embed an inline
+	// policy in a role, use [PutRolePolicy]PutRolePolicy . For more information about policies, see [Managed policies and inline policies]
 	// in the IAM User Guide.
-	AttachRolePolicy(ctx context.Context, params *AttachRolePolicyInput, optFns ...func(*Options)) (*AttachRolePolicyOutput, error)
-	// Attaches the specified managed policy to the specified user. You use this
-	// operation to attach a managed policy to a user. To embed an inline policy in a
-	// user, use PutUserPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutUserPolicy.html)
-	// . As a best practice, you can validate your IAM policies. To learn more, see
-	// Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
-	// in the IAM User Guide. For more information about policies, see Managed
-	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	AttachUserPolicy(ctx context.Context, params *AttachUserPolicyInput, optFns ...func(*Options)) (*AttachUserPolicyOutput, error)
+	//
+	// As a best practice, you can validate your IAM policies. To learn more, see [Validating IAM policies] in
+	// the IAM User Guide.
+	//
+	// [Validating IAM policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html
+	// [UpdateAssumerolePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html
+	// [PutRolePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutRolePolicy.html
+	// [CreateRole]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	AttachRolePolicy(ctx context.Context, params *iam.AttachRolePolicyInput, optFns ...func(*Options)) (*iam.AttachRolePolicyOutput, error)
+	// Attaches the specified managed policy to the specified user.
+	//
+	// You use this operation to attach a managed policy to a user. To embed an inline
+	// policy in a user, use [PutUserPolicy]PutUserPolicy .
+	//
+	// As a best practice, you can validate your IAM policies. To learn more, see [Validating IAM policies] in
+	// the IAM User Guide.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Validating IAM policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html
+	// [PutUserPolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_PutUserPolicy.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	AttachUserPolicy(ctx context.Context, params *iam.AttachUserPolicyInput, optFns ...func(*Options)) (*iam.AttachUserPolicyOutput, error)
 	// Changes the password of the IAM user who is calling this operation. This
 	// operation can be performed using the CLI, the Amazon Web Services API, or the My
 	// Security Credentials page in the Amazon Web Services Management Console. The
 	// Amazon Web Services account root user password is not affected by this
-	// operation. Use UpdateLoginProfile to use the CLI, the Amazon Web Services API,
-	// or the Users page in the IAM console to change the password for any IAM user.
-	// For more information about modifying passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
-	// in the IAM User Guide.
-	ChangePassword(ctx context.Context, params *ChangePasswordInput, optFns ...func(*Options)) (*ChangePasswordOutput, error)
-	// Creates a new Amazon Web Services secret access key and corresponding Amazon
+	// operation.
+	//
+	// Use UpdateLoginProfile to use the CLI, the Amazon Web Services API, or the Users page in the IAM
+	// console to change the password for any IAM user. For more information about
+	// modifying passwords, see [Managing passwords]in the IAM User Guide.
+	//
+	// [Managing passwords]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html
+	ChangePassword(ctx context.Context, params *iam.ChangePasswordInput, optFns ...func(*Options)) (*iam.ChangePasswordOutput, error)
+	//	Creates a new Amazon Web Services secret access key and corresponding Amazon
+	//
 	// Web Services access key ID for the specified user. The default status for new
-	// keys is Active . If you do not specify a user name, IAM determines the user name
-	// implicitly based on the Amazon Web Services access key ID signing the request.
-	// This operation works for access keys under the Amazon Web Services account.
+	// keys is Active .
+	//
+	// If you do not specify a user name, IAM determines the user name implicitly
+	// based on the Amazon Web Services access key ID signing the request. This
+	// operation works for access keys under the Amazon Web Services account.
 	// Consequently, you can use this operation to manage Amazon Web Services account
 	// root user credentials. This is true even if the Amazon Web Services account has
-	// no associated users. For information about quotas on the number of keys you can
-	// create, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. To ensure the security of your Amazon Web Services
-	// account, the secret access key is accessible only during key and user creation.
-	// You must save the key (for example, in a text file) if you want to be able to
-	// access it again. If a secret key is lost, you can delete the access keys for the
-	// associated user and then create new keys.
-	CreateAccessKey(ctx context.Context, params *CreateAccessKeyInput, optFns ...func(*Options)) (*CreateAccessKeyOutput, error)
+	// no associated users.
+	//
+	// For information about quotas on the number of keys you can create, see [IAM and STS quotas] in the
+	// IAM User Guide.
+	//
+	// To ensure the security of your Amazon Web Services account, the secret access
+	// key is accessible only during key and user creation. You must save the key (for
+	// example, in a text file) if you want to be able to access it again. If a secret
+	// key is lost, you can delete the access keys for the associated user and then
+	// create new keys.
+	//
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	CreateAccessKey(ctx context.Context, params *iam.CreateAccessKeyInput, optFns ...func(*Options)) (*iam.CreateAccessKeyOutput, error)
 	// Creates an alias for your Amazon Web Services account. For information about
-	// using an Amazon Web Services account alias, see Creating, deleting, and listing
-	// an Amazon Web Services account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
-	// in the Amazon Web Services Sign-In User Guide.
-	CreateAccountAlias(ctx context.Context, params *CreateAccountAliasInput, optFns ...func(*Options)) (*CreateAccountAliasOutput, error)
-	// Creates a new group. For information about the number of groups you can create,
-	// see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide.
-	CreateGroup(ctx context.Context, params *CreateGroupInput, optFns ...func(*Options)) (*CreateGroupOutput, error)
-	// Creates a new instance profile. For information about instance profiles, see
-	// Using roles for applications on Amazon EC2 (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html)
-	// in the IAM User Guide, and Instance profiles (https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#ec2-instance-profile)
-	// in the Amazon EC2 User Guide. For information about the number of instance
-	// profiles you can create, see IAM object quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide.
-	CreateInstanceProfile(ctx context.Context, params *CreateInstanceProfileInput, optFns ...func(*Options)) (*CreateInstanceProfileOutput, error)
+	// using an Amazon Web Services account alias, see [Creating, deleting, and listing an Amazon Web Services account alias]in the Amazon Web Services
+	// Sign-In User Guide.
+	//
+	// [Creating, deleting, and listing an Amazon Web Services account alias]: https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html
+	CreateAccountAlias(ctx context.Context, params *iam.CreateAccountAliasInput, optFns ...func(*Options)) (*iam.CreateAccountAliasOutput, error)
+	// Creates a new group.
+	//
+	// For information about the number of groups you can create, see [IAM and STS quotas] in the IAM User
+	// Guide.
+	//
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	CreateGroup(ctx context.Context, params *iam.CreateGroupInput, optFns ...func(*Options)) (*iam.CreateGroupOutput, error)
+	//	Creates a new instance profile. For information about instance profiles, see [Using roles for applications on Amazon EC2]
+	//
+	// in the IAM User Guide, and [Instance profiles]in the Amazon EC2 User Guide.
+	//
+	// For information about the number of instance profiles you can create, see [IAM object quotas] in
+	// the IAM User Guide.
+	//
+	// [Instance profiles]: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#ec2-instance-profile
+	// [IAM object quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	//
+	// [Using roles for applications on Amazon EC2]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html
+	CreateInstanceProfile(ctx context.Context, params *iam.CreateInstanceProfileInput, optFns ...func(*Options)) (*iam.CreateInstanceProfileOutput, error)
 	// Creates a password for the specified IAM user. A password allows an IAM user to
 	// access Amazon Web Services services through the Amazon Web Services Management
-	// Console. You can use the CLI, the Amazon Web Services API, or the Users page in
-	// the IAM console to create a password for any IAM user. Use ChangePassword to
-	// update your own existing password in the My Security Credentials page in the
-	// Amazon Web Services Management Console. For more information about managing
-	// passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
-	// in the IAM User Guide.
-	CreateLoginProfile(ctx context.Context, params *CreateLoginProfileInput, optFns ...func(*Options)) (*CreateLoginProfileOutput, error)
-	// Creates an IAM entity to describe an identity provider (IdP) that supports
-	// OpenID Connect (OIDC) (http://openid.net/connect/) . The OIDC provider that you
-	// create with this operation can be used as a principal in a role's trust policy.
-	// Such a policy establishes a trust relationship between Amazon Web Services and
-	// the OIDC provider. If you are using an OIDC identity provider from Google,
-	// Facebook, or Amazon Cognito, you don't need to create a separate IAM identity
-	// provider. These OIDC identity providers are already built-in to Amazon Web
-	// Services and are available for your use. Instead, you can move directly to
-	// creating new roles using your identity provider. To learn more, see Creating a
-	// role for web identity or OpenID connect federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
-	// in the IAM User Guide. When you create the IAM OIDC provider, you specify the
-	// following:
+	// Console.
+	//
+	// You can use the CLI, the Amazon Web Services API, or the Users page in the IAM
+	// console to create a password for any IAM user. Use ChangePasswordto update your own existing
+	// password in the My Security Credentials page in the Amazon Web Services
+	// Management Console.
+	//
+	// For more information about managing passwords, see [Managing passwords] in the IAM User Guide.
+	//
+	// [Managing passwords]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html
+	CreateLoginProfile(ctx context.Context, params *iam.CreateLoginProfileInput, optFns ...func(*Options)) (*iam.CreateLoginProfileOutput, error)
+	// Creates an IAM entity to describe an identity provider (IdP) that supports [OpenID Connect (OIDC)].
+	//
+	// The OIDC provider that you create with this operation can be used as a
+	// principal in a role's trust policy. Such a policy establishes a trust
+	// relationship between Amazon Web Services and the OIDC provider.
+	//
+	// If you are using an OIDC identity provider from Google, Facebook, or Amazon
+	// Cognito, you don't need to create a separate IAM identity provider. These OIDC
+	// identity providers are already built-in to Amazon Web Services and are available
+	// for your use. Instead, you can move directly to creating new roles using your
+	// identity provider. To learn more, see [Creating a role for web identity or OpenID connect federation]in the IAM User Guide.
+	//
+	// When you create the IAM OIDC provider, you specify the following:
+	//
 	//   - The URL of the OIDC identity provider (IdP) to trust
+	//
 	//   - A list of client IDs (also known as audiences) that identify the
 	//     application or applications allowed to authenticate using the OIDC provider
+	//
 	//   - A list of tags that are attached to the specified IAM OIDC provider
+	//
 	//   - A list of thumbprints of one or more server certificates that the IdP uses
 	//
 	// You get all of this information from the OIDC IdP you want to use to access
-	// Amazon Web Services. Amazon Web Services secures communication with some OIDC
-	// identity providers (IdPs) through our library of trusted root certificate
-	// authorities (CAs) instead of using a certificate thumbprint to verify your IdP
-	// server certificate. In these cases, your legacy thumbprint remains in your
-	// configuration, but is no longer used for validation. These OIDC IdPs include
-	// Auth0, GitHub, GitLab, Google, and those that use an Amazon S3 bucket to host a
-	// JSON Web Key Set (JWKS) endpoint. The trust for the OIDC provider is derived
-	// from the IAM provider that this operation creates. Therefore, it is best to
-	// limit access to the CreateOpenIDConnectProvider operation to highly privileged
-	// users.
-	CreateOpenIDConnectProvider(ctx context.Context, params *CreateOpenIDConnectProviderInput, optFns ...func(*Options)) (*CreateOpenIDConnectProviderOutput, error)
-	// Creates a new managed policy for your Amazon Web Services account. This
-	// operation creates a policy version with a version identifier of v1 and sets v1
-	// as the policy's default version. For more information about policy versions, see
-	// Versioning for managed policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html)
-	// in the IAM User Guide. As a best practice, you can validate your IAM policies.
-	// To learn more, see Validating IAM policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html)
-	// in the IAM User Guide. For more information about managed policies in general,
-	// see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	CreatePolicy(ctx context.Context, params *CreatePolicyInput, optFns ...func(*Options)) (*CreatePolicyOutput, error)
+	// Amazon Web Services.
+	//
+	// Amazon Web Services secures communication with OIDC identity providers (IdPs)
+	// using our library of trusted root certificate authorities (CAs) to verify the
+	// JSON Web Key Set (JWKS) endpoint's TLS certificate. If your OIDC IdP relies on a
+	// certificate that is not signed by one of these trusted CAs, only then we secure
+	// communication using the thumbprints set in the IdP's configuration.
+	//
+	// The trust for the OIDC provider is derived from the IAM provider that this
+	// operation creates. Therefore, it is best to limit access to the CreateOpenIDConnectProvideroperation to
+	// highly privileged users.
+	//
+	// [OpenID Connect (OIDC)]: http://openid.net/connect/
+	// [Creating a role for web identity or OpenID connect federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html
+	CreateOpenIDConnectProvider(ctx context.Context, params *iam.CreateOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.CreateOpenIDConnectProviderOutput, error)
+	// Creates a new managed policy for your Amazon Web Services account.
+	//
+	// This operation creates a policy version with a version identifier of v1 and
+	// sets v1 as the policy's default version. For more information about policy
+	// versions, see [Versioning for managed policies]in the IAM User Guide.
+	//
+	// As a best practice, you can validate your IAM policies. To learn more, see [Validating IAM policies] in
+	// the IAM User Guide.
+	//
+	// For more information about managed policies in general, see [Managed policies and inline policies] in the IAM User
+	// Guide.
+	//
+	// [Validating IAM policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_policy-validator.html
+	// [Versioning for managed policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	CreatePolicy(ctx context.Context, params *iam.CreatePolicyInput, optFns ...func(*Options)) (*iam.CreatePolicyOutput, error)
 	// Creates a new version of the specified managed policy. To update a managed
 	// policy, you create a new policy version. A managed policy can have up to five
 	// versions. If the policy has five versions, you must delete an existing version
-	// using DeletePolicyVersion before you create a new version. Optionally, you can
-	// set the new version as the policy's default version. The default version is the
-	// version that is in effect for the IAM users, groups, and roles to which the
-	// policy is attached. For more information about managed policy versions, see
-	// Versioning for managed policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html)
-	// in the IAM User Guide.
-	CreatePolicyVersion(ctx context.Context, params *CreatePolicyVersionInput, optFns ...func(*Options)) (*CreatePolicyVersionOutput, error)
-	// Creates a new role for your Amazon Web Services account. For more information
-	// about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide. For information about quotas for role names and the
-	// number of roles you can create, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide.
-	CreateRole(ctx context.Context, params *CreateRoleInput, optFns ...func(*Options)) (*CreateRoleOutput, error)
+	// using DeletePolicyVersionbefore you create a new version.
+	//
+	// Optionally, you can set the new version as the policy's default version. The
+	// default version is the version that is in effect for the IAM users, groups, and
+	// roles to which the policy is attached.
+	//
+	// For more information about managed policy versions, see [Versioning for managed policies] in the IAM User Guide.
+	//
+	// [Versioning for managed policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html
+	CreatePolicyVersion(ctx context.Context, params *iam.CreatePolicyVersionInput, optFns ...func(*Options)) (*iam.CreatePolicyVersionOutput, error)
+	// Creates a new role for your Amazon Web Services account.
+	//
+	// For more information about roles, see [IAM roles] in the IAM User Guide. For information
+	// about quotas for role names and the number of roles you can create, see [IAM and STS quotas]in the
+	// IAM User Guide.
+	//
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*Options)) (*iam.CreateRoleOutput, error)
 	// Creates an IAM resource that describes an identity provider (IdP) that supports
-	// SAML 2.0. The SAML provider resource that you create with this operation can be
-	// used as a principal in an IAM role's trust policy. Such a policy can enable
-	// federated users who sign in using the SAML IdP to assume the role. You can
-	// create an IAM role that supports Web-based single sign-on (SSO) to the Amazon
-	// Web Services Management Console or one that supports API access to Amazon Web
-	// Services. When you create the SAML provider resource, you upload a SAML metadata
-	// document that you get from your IdP. That document includes the issuer's name,
-	// expiration information, and keys that can be used to validate the SAML
-	// authentication response (assertions) that the IdP sends. You must generate the
-	// metadata document using the identity management software that is used as your
-	// organization's IdP. This operation requires Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
-	// . For more information, see Enabling SAML 2.0 federated users to access the
-	// Amazon Web Services Management Console (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-saml.html)
-	// and About SAML 2.0-based federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html)
-	// in the IAM User Guide.
-	CreateSAMLProvider(ctx context.Context, params *CreateSAMLProviderInput, optFns ...func(*Options)) (*CreateSAMLProviderOutput, error)
+	// SAML 2.0.
+	//
+	// The SAML provider resource that you create with this operation can be used as a
+	// principal in an IAM role's trust policy. Such a policy can enable federated
+	// users who sign in using the SAML IdP to assume the role. You can create an IAM
+	// role that supports Web-based single sign-on (SSO) to the Amazon Web Services
+	// Management Console or one that supports API access to Amazon Web Services.
+	//
+	// When you create the SAML provider resource, you upload a SAML metadata document
+	// that you get from your IdP. That document includes the issuer's name, expiration
+	// information, and keys that can be used to validate the SAML authentication
+	// response (assertions) that the IdP sends. You must generate the metadata
+	// document using the identity management software that is used as your
+	// organization's IdP.
+	//
+	// This operation requires [Signature Version 4].
+	//
+	// For more information, see [Enabling SAML 2.0 federated users to access the Amazon Web Services Management Console] and [About SAML 2.0-based federation] in the IAM User Guide.
+	//
+	// [Signature Version 4]: https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
+	// [About SAML 2.0-based federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html
+	// [Enabling SAML 2.0 federated users to access the Amazon Web Services Management Console]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-saml.html
+	CreateSAMLProvider(ctx context.Context, params *iam.CreateSAMLProviderInput, optFns ...func(*Options)) (*iam.CreateSAMLProviderOutput, error)
 	// Creates an IAM role that is linked to a specific Amazon Web Services service.
 	// The service controls the attached policies and when the role can be deleted.
 	// This helps ensure that the service is not broken by an unexpectedly changed or
 	// deleted role, which could put your Amazon Web Services resources into an unknown
 	// state. Allowing the service to control the role helps improve service stability
 	// and proper cleanup when a service and its role are no longer needed. For more
-	// information, see Using service-linked roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/using-service-linked-roles.html)
-	// in the IAM User Guide. To attach a policy to this service-linked role, you must
-	// make the request using the Amazon Web Services service that depends on this
-	// role.
-	CreateServiceLinkedRole(ctx context.Context, params *CreateServiceLinkedRoleInput, optFns ...func(*Options)) (*CreateServiceLinkedRoleOutput, error)
+	// information, see [Using service-linked roles]in the IAM User Guide.
+	//
+	// To attach a policy to this service-linked role, you must make the request using
+	// the Amazon Web Services service that depends on this role.
+	//
+	// [Using service-linked roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/using-service-linked-roles.html
+	CreateServiceLinkedRole(ctx context.Context, params *iam.CreateServiceLinkedRoleInput, optFns ...func(*Options)) (*iam.CreateServiceLinkedRoleOutput, error)
 	// Generates a set of credentials consisting of a user name and password that can
 	// be used to access the service specified in the request. These credentials are
-	// generated by IAM, and can be used only for the specified service. You can have a
-	// maximum of two sets of service-specific credentials for each supported service
-	// per user. You can create service-specific credentials for CodeCommit and Amazon
-	// Keyspaces (for Apache Cassandra). You can reset the password to a new
-	// service-generated value by calling ResetServiceSpecificCredential . For more
-	// information about service-specific credentials, see Using IAM with CodeCommit:
-	// Git credentials, SSH keys, and Amazon Web Services access keys (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_ssh-keys.html)
+	// generated by IAM, and can be used only for the specified service.
+	//
+	// You can have a maximum of two sets of service-specific credentials for each
+	// supported service per user.
+	//
+	// You can create service-specific credentials for CodeCommit and Amazon Keyspaces
+	// (for Apache Cassandra).
+	//
+	// You can reset the password to a new service-generated value by calling ResetServiceSpecificCredential.
+	//
+	// For more information about service-specific credentials, see [Using IAM with CodeCommit: Git credentials, SSH keys, and Amazon Web Services access keys] in the IAM User
+	// Guide.
+	//
+	// [Using IAM with CodeCommit: Git credentials, SSH keys, and Amazon Web Services access keys]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_ssh-keys.html
+	CreateServiceSpecificCredential(ctx context.Context, params *iam.CreateServiceSpecificCredentialInput, optFns ...func(*Options)) (*iam.CreateServiceSpecificCredentialOutput, error)
+	// Creates a new IAM user for your Amazon Web Services account.
+	//
+	// For information about quotas for the number of IAM users you can create, see [IAM and STS quotas]
 	// in the IAM User Guide.
-	CreateServiceSpecificCredential(ctx context.Context, params *CreateServiceSpecificCredentialInput, optFns ...func(*Options)) (*CreateServiceSpecificCredentialOutput, error)
-	// Creates a new IAM user for your Amazon Web Services account. For information
-	// about quotas for the number of IAM users you can create, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide.
-	CreateUser(ctx context.Context, params *CreateUserInput, optFns ...func(*Options)) (*CreateUserOutput, error)
+	//
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	CreateUser(ctx context.Context, params *iam.CreateUserInput, optFns ...func(*Options)) (*iam.CreateUserOutput, error)
 	// Creates a new virtual MFA device for the Amazon Web Services account. After
-	// creating the virtual MFA, use EnableMFADevice to attach the MFA device to an
-	// IAM user. For more information about creating and working with virtual MFA
-	// devices, see Using a virtual MFA device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
-	// in the IAM User Guide. For information about the maximum number of MFA devices
-	// you can create, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. The seed information contained in the QR code and the
-	// Base32 string should be treated like any other secret access information. In
-	// other words, protect the seed information as you would your Amazon Web Services
-	// access keys or your passwords. After you provision your virtual device, you
-	// should ensure that the information is destroyed following secure procedures.
-	CreateVirtualMFADevice(ctx context.Context, params *CreateVirtualMFADeviceInput, optFns ...func(*Options)) (*CreateVirtualMFADeviceOutput, error)
+	// creating the virtual MFA, use EnableMFADeviceto attach the MFA device to an IAM user. For more
+	// information about creating and working with virtual MFA devices, see [Using a virtual MFA device]in the IAM
+	// User Guide.
+	//
+	// For information about the maximum number of MFA devices you can create, see [IAM and STS quotas] in
+	// the IAM User Guide.
+	//
+	// The seed information contained in the QR code and the Base32 string should be
+	// treated like any other secret access information. In other words, protect the
+	// seed information as you would your Amazon Web Services access keys or your
+	// passwords. After you provision your virtual device, you should ensure that the
+	// information is destroyed following secure procedures.
+	//
+	// [Using a virtual MFA device]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	CreateVirtualMFADevice(ctx context.Context, params *iam.CreateVirtualMFADeviceInput, optFns ...func(*Options)) (*iam.CreateVirtualMFADeviceOutput, error)
 	// Deactivates the specified MFA device and removes it from association with the
-	// user name for which it was originally enabled. For more information about
-	// creating and working with virtual MFA devices, see Enabling a virtual
-	// multi-factor authentication (MFA) device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
+	// user name for which it was originally enabled.
+	//
+	// For more information about creating and working with virtual MFA devices, see [Enabling a virtual multi-factor authentication (MFA) device]
 	// in the IAM User Guide.
-	DeactivateMFADevice(ctx context.Context, params *DeactivateMFADeviceInput, optFns ...func(*Options)) (*DeactivateMFADeviceOutput, error)
-	// Deletes the access key pair associated with the specified IAM user. If you do
-	// not specify a user name, IAM determines the user name implicitly based on the
-	// Amazon Web Services access key ID signing the request. This operation works for
-	// access keys under the Amazon Web Services account. Consequently, you can use
-	// this operation to manage Amazon Web Services account root user credentials even
-	// if the Amazon Web Services account has no associated users.
-	DeleteAccessKey(ctx context.Context, params *DeleteAccessKeyInput, optFns ...func(*Options)) (*DeleteAccessKeyOutput, error)
-	// Deletes the specified Amazon Web Services account alias. For information about
-	// using an Amazon Web Services account alias, see Creating, deleting, and listing
-	// an Amazon Web Services account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
-	// in the Amazon Web Services Sign-In User Guide.
-	DeleteAccountAlias(ctx context.Context, params *DeleteAccountAliasInput, optFns ...func(*Options)) (*DeleteAccountAliasOutput, error)
+	//
+	// [Enabling a virtual multi-factor authentication (MFA) device]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html
+	DeactivateMFADevice(ctx context.Context, params *iam.DeactivateMFADeviceInput, optFns ...func(*Options)) (*iam.DeactivateMFADeviceOutput, error)
+	// Deletes the access key pair associated with the specified IAM user.
+	//
+	// If you do not specify a user name, IAM determines the user name implicitly
+	// based on the Amazon Web Services access key ID signing the request. This
+	// operation works for access keys under the Amazon Web Services account.
+	// Consequently, you can use this operation to manage Amazon Web Services account
+	// root user credentials even if the Amazon Web Services account has no associated
+	// users.
+	DeleteAccessKey(ctx context.Context, params *iam.DeleteAccessKeyInput, optFns ...func(*Options)) (*iam.DeleteAccessKeyOutput, error)
+	//	Deletes the specified Amazon Web Services account alias. For information about
+	//
+	// using an Amazon Web Services account alias, see [Creating, deleting, and listing an Amazon Web Services account alias]in the Amazon Web Services
+	// Sign-In User Guide.
+	//
+	// [Creating, deleting, and listing an Amazon Web Services account alias]: https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html
+	DeleteAccountAlias(ctx context.Context, params *iam.DeleteAccountAliasInput, optFns ...func(*Options)) (*iam.DeleteAccountAliasOutput, error)
 	// Deletes the password policy for the Amazon Web Services account. There are no
 	// parameters.
-	DeleteAccountPasswordPolicy(ctx context.Context, params *DeleteAccountPasswordPolicyInput, optFns ...func(*Options)) (*DeleteAccountPasswordPolicyOutput, error)
+	DeleteAccountPasswordPolicy(ctx context.Context, params *iam.DeleteAccountPasswordPolicyInput, optFns ...func(*Options)) (*iam.DeleteAccountPasswordPolicyOutput, error)
 	// Deletes the specified IAM group. The group must not contain any users or have
 	// any attached policies.
-	DeleteGroup(ctx context.Context, params *DeleteGroupInput, optFns ...func(*Options)) (*DeleteGroupOutput, error)
-	// Deletes the specified inline policy that is embedded in the specified IAM
-	// group. A group can also have managed policies attached to it. To detach a
-	// managed policy from a group, use DetachGroupPolicy . For more information about
-	// policies, refer to Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DeleteGroupPolicy(ctx context.Context, params *DeleteGroupPolicyInput, optFns ...func(*Options)) (*DeleteGroupPolicyOutput, error)
+	DeleteGroup(ctx context.Context, params *iam.DeleteGroupInput, optFns ...func(*Options)) (*iam.DeleteGroupOutput, error)
+	// Deletes the specified inline policy that is embedded in the specified IAM group.
+	//
+	// A group can also have managed policies attached to it. To detach a managed
+	// policy from a group, use DetachGroupPolicy. For more information about policies, refer to [Managed policies and inline policies] in
+	// the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DeleteGroupPolicy(ctx context.Context, params *iam.DeleteGroupPolicyInput, optFns ...func(*Options)) (*iam.DeleteGroupPolicyOutput, error)
 	// Deletes the specified instance profile. The instance profile must not have an
-	// associated role. Make sure that you do not have any Amazon EC2 instances running
-	// with the instance profile you are about to delete. Deleting a role or instance
-	// profile that is associated with a running instance will break any applications
-	// running on the instance. For more information about instance profiles, see
-	// Using instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide.
-	DeleteInstanceProfile(ctx context.Context, params *DeleteInstanceProfileInput, optFns ...func(*Options)) (*DeleteInstanceProfileOutput, error)
-	// Deletes the password for the specified IAM user, For more information, see
-	// Managing passwords for IAM users (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_passwords_admin-change-user.html)
-	// . You can use the CLI, the Amazon Web Services API, or the Users page in the IAM
-	// console to delete a password for any IAM user. You can use ChangePassword to
-	// update, but not delete, your own password in the My Security Credentials page in
-	// the Amazon Web Services Management Console. Deleting a user's password does not
-	// prevent a user from accessing Amazon Web Services through the command line
-	// interface or the API. To prevent all user access, you must also either make any
-	// access keys inactive or delete them. For more information about making keys
-	// inactive or deleting them, see UpdateAccessKey and DeleteAccessKey .
-	DeleteLoginProfile(ctx context.Context, params *DeleteLoginProfileInput, optFns ...func(*Options)) (*DeleteLoginProfileOutput, error)
+	// associated role.
+	//
+	// Make sure that you do not have any Amazon EC2 instances running with the
+	// instance profile you are about to delete. Deleting a role or instance profile
+	// that is associated with a running instance will break any applications running
+	// on the instance.
+	//
+	// For more information about instance profiles, see [Using instance profiles] in the IAM User Guide.
+	//
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	DeleteInstanceProfile(ctx context.Context, params *iam.DeleteInstanceProfileInput, optFns ...func(*Options)) (*iam.DeleteInstanceProfileOutput, error)
+	// Deletes the password for the specified IAM user, For more information, see [Managing passwords for IAM users].
+	//
+	// You can use the CLI, the Amazon Web Services API, or the Users page in the IAM
+	// console to delete a password for any IAM user. You can use ChangePasswordto update, but not
+	// delete, your own password in the My Security Credentials page in the Amazon Web
+	// Services Management Console.
+	//
+	// Deleting a user's password does not prevent a user from accessing Amazon Web
+	// Services through the command line interface or the API. To prevent all user
+	// access, you must also either make any access keys inactive or delete them. For
+	// more information about making keys inactive or deleting them, see UpdateAccessKeyand DeleteAccessKey.
+	//
+	// [Managing passwords for IAM users]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_passwords_admin-change-user.html
+	DeleteLoginProfile(ctx context.Context, params *iam.DeleteLoginProfileInput, optFns ...func(*Options)) (*iam.DeleteLoginProfileOutput, error)
 	// Deletes an OpenID Connect identity provider (IdP) resource object in IAM.
+	//
 	// Deleting an IAM OIDC provider resource does not update any roles that reference
 	// the provider as a principal in their trust policies. Any attempt to assume a
-	// role that references a deleted provider fails. This operation is idempotent; it
-	// does not fail or return an error if you call the operation for a provider that
-	// does not exist.
-	DeleteOpenIDConnectProvider(ctx context.Context, params *DeleteOpenIDConnectProviderInput, optFns ...func(*Options)) (*DeleteOpenIDConnectProviderOutput, error)
-	// Deletes the specified managed policy. Before you can delete a managed policy,
-	// you must first detach the policy from all users, groups, and roles that it is
-	// attached to. In addition, you must delete all the policy's versions. The
-	// following steps describe the process for deleting a managed policy:
+	// role that references a deleted provider fails.
+	//
+	// This operation is idempotent; it does not fail or return an error if you call
+	// the operation for a provider that does not exist.
+	DeleteOpenIDConnectProvider(ctx context.Context, params *iam.DeleteOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.DeleteOpenIDConnectProviderOutput, error)
+	// Deletes the specified managed policy.
+	//
+	// Before you can delete a managed policy, you must first detach the policy from
+	// all users, groups, and roles that it is attached to. In addition, you must
+	// delete all the policy's versions. The following steps describe the process for
+	// deleting a managed policy:
+	//
 	//   - Detach the policy from all users, groups, and roles that the policy is
-	//     attached to, using DetachUserPolicy , DetachGroupPolicy , or DetachRolePolicy
-	//     . To list all the users, groups, and roles that a policy is attached to, use
-	//     ListEntitiesForPolicy .
-	//   - Delete all versions of the policy using DeletePolicyVersion . To list the
-	//     policy's versions, use ListPolicyVersions . You cannot use DeletePolicyVersion
-	//     to delete the version that is marked as the default version. You delete the
-	//     policy's default version in the next step of the process.
+	//     attached to, using DetachUserPolicy, DetachGroupPolicy, or DetachRolePolicy. To list all the users, groups, and roles that a
+	//     policy is attached to, use ListEntitiesForPolicy.
+	//
+	//   - Delete all versions of the policy using DeletePolicyVersion. To list the policy's versions,
+	//     use ListPolicyVersions. You cannot use DeletePolicyVersionto delete the version that is marked as the default
+	//     version. You delete the policy's default version in the next step of the
+	//     process.
+	//
 	//   - Delete the policy (this automatically deletes the policy's default version)
 	//     using this operation.
 	//
-	// For information about managed policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DeletePolicy(ctx context.Context, params *DeletePolicyInput, optFns ...func(*Options)) (*DeletePolicyOutput, error)
-	// Deletes the specified version from the specified managed policy. You cannot
-	// delete the default version from a policy using this operation. To delete the
-	// default version from a policy, use DeletePolicy . To find out which version of a
-	// policy is marked as the default version, use ListPolicyVersions . For
-	// information about versions for managed policies, see Versioning for managed
-	// policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html)
-	// in the IAM User Guide.
-	DeletePolicyVersion(ctx context.Context, params *DeletePolicyVersionInput, optFns ...func(*Options)) (*DeletePolicyVersionOutput, error)
+	// For information about managed policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DeletePolicy(ctx context.Context, params *iam.DeletePolicyInput, optFns ...func(*Options)) (*iam.DeletePolicyOutput, error)
+	// Deletes the specified version from the specified managed policy.
+	//
+	// You cannot delete the default version from a policy using this operation. To
+	// delete the default version from a policy, use DeletePolicy. To find out which version of a
+	// policy is marked as the default version, use ListPolicyVersions.
+	//
+	// For information about versions for managed policies, see [Versioning for managed policies] in the IAM User Guide.
+	//
+	// [Versioning for managed policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html
+	DeletePolicyVersion(ctx context.Context, params *iam.DeletePolicyVersionInput, optFns ...func(*Options)) (*iam.DeletePolicyVersionOutput, error)
 	// Deletes the specified role. Unlike the Amazon Web Services Management Console,
 	// when you delete a role programmatically, you must delete the items attached to
-	// the role manually, or the deletion fails. For more information, see Deleting an
-	// IAM role (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_manage_delete.html#roles-managingrole-deleting-cli)
-	// . Before attempting to delete a role, remove the following attached items:
-	//   - Inline policies ( DeleteRolePolicy )
-	//   - Attached managed policies ( DetachRolePolicy )
-	//   - Instance profile ( RemoveRoleFromInstanceProfile )
+	// the role manually, or the deletion fails. For more information, see [Deleting an IAM role]. Before
+	// attempting to delete a role, remove the following attached items:
+	//
+	//   - Inline policies (DeleteRolePolicy )
+	//
+	//   - Attached managed policies (DetachRolePolicy )
+	//
+	//   - Instance profile (RemoveRoleFromInstanceProfile )
+	//
 	//   - Optional – Delete instance profile after detaching from role for resource
-	//     clean up ( DeleteInstanceProfile )
+	//     clean up (DeleteInstanceProfile )
 	//
 	// Make sure that you do not have any Amazon EC2 instances running with the role
 	// you are about to delete. Deleting a role or instance profile that is associated
 	// with a running instance will break any applications running on the instance.
-	DeleteRole(ctx context.Context, params *DeleteRoleInput, optFns ...func(*Options)) (*DeleteRoleOutput, error)
-	// Deletes the permissions boundary for the specified IAM role. You cannot set the
-	// boundary for a service-linked role. Deleting the permissions boundary for a role
-	// might increase its permissions. For example, it might allow anyone who assumes
-	// the role to perform all the actions granted in its permissions policies.
-	DeleteRolePermissionsBoundary(ctx context.Context, params *DeleteRolePermissionsBoundaryInput, optFns ...func(*Options)) (*DeleteRolePermissionsBoundaryOutput, error)
+	//
+	// [Deleting an IAM role]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_manage_delete.html#roles-managingrole-deleting-cli
+	DeleteRole(ctx context.Context, params *iam.DeleteRoleInput, optFns ...func(*Options)) (*iam.DeleteRoleOutput, error)
+	// Deletes the permissions boundary for the specified IAM role.
+	//
+	// You cannot set the boundary for a service-linked role.
+	//
+	// Deleting the permissions boundary for a role might increase its permissions.
+	// For example, it might allow anyone who assumes the role to perform all the
+	// actions granted in its permissions policies.
+	DeleteRolePermissionsBoundary(ctx context.Context, params *iam.DeleteRolePermissionsBoundaryInput, optFns ...func(*Options)) (*iam.DeleteRolePermissionsBoundaryOutput, error)
 	// Deletes the specified inline policy that is embedded in the specified IAM role.
-	// A role can also have managed policies attached to it. To detach a managed policy
-	// from a role, use DetachRolePolicy . For more information about policies, refer
-	// to Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DeleteRolePolicy(ctx context.Context, params *DeleteRolePolicyInput, optFns ...func(*Options)) (*DeleteRolePolicyOutput, error)
-	// Deletes a SAML provider resource in IAM. Deleting the provider resource from
-	// IAM does not update any roles that reference the SAML provider resource's ARN as
-	// a principal in their trust policies. Any attempt to assume a role that
-	// references a non-existent provider resource ARN fails. This operation requires
-	// Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
-	// .
-	DeleteSAMLProvider(ctx context.Context, params *DeleteSAMLProviderInput, optFns ...func(*Options)) (*DeleteSAMLProviderOutput, error)
-	// Deletes the specified SSH public key. The SSH public key deleted by this
-	// operation is used only for authenticating the associated IAM user to an
-	// CodeCommit repository. For more information about using SSH keys to authenticate
-	// to an CodeCommit repository, see Set up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-	// in the CodeCommit User Guide.
-	DeleteSSHPublicKey(ctx context.Context, params *DeleteSSHPublicKeyInput, optFns ...func(*Options)) (*DeleteSSHPublicKeyOutput, error)
-	// Deletes the specified server certificate. For more information about working
-	// with server certificates, see Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. This topic also includes a list of Amazon Web Services
-	// services that can use the server certificates that you manage with IAM. If you
-	// are using a server certificate with Elastic Load Balancing, deleting the
+	//
+	// A role can also have managed policies attached to it. To detach a managed
+	// policy from a role, use DetachRolePolicy. For more information about policies, refer to [Managed policies and inline policies] in the
+	// IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DeleteRolePolicy(ctx context.Context, params *iam.DeleteRolePolicyInput, optFns ...func(*Options)) (*iam.DeleteRolePolicyOutput, error)
+	// Deletes a SAML provider resource in IAM.
+	//
+	// Deleting the provider resource from IAM does not update any roles that
+	// reference the SAML provider resource's ARN as a principal in their trust
+	// policies. Any attempt to assume a role that references a non-existent provider
+	// resource ARN fails.
+	//
+	// This operation requires [Signature Version 4].
+	//
+	// [Signature Version 4]: https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
+	DeleteSAMLProvider(ctx context.Context, params *iam.DeleteSAMLProviderInput, optFns ...func(*Options)) (*iam.DeleteSAMLProviderOutput, error)
+	// Deletes the specified SSH public key.
+	//
+	// The SSH public key deleted by this operation is used only for authenticating
+	// the associated IAM user to an CodeCommit repository. For more information about
+	// using SSH keys to authenticate to an CodeCommit repository, see [Set up CodeCommit for SSH connections]in the
+	// CodeCommit User Guide.
+	//
+	// [Set up CodeCommit for SSH connections]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html
+	DeleteSSHPublicKey(ctx context.Context, params *iam.DeleteSSHPublicKeyInput, optFns ...func(*Options)) (*iam.DeleteSSHPublicKeyOutput, error)
+	// Deletes the specified server certificate.
+	//
+	// For more information about working with server certificates, see [Working with server certificates] in the IAM
+	// User Guide. This topic also includes a list of Amazon Web Services services that
+	// can use the server certificates that you manage with IAM.
+	//
+	// If you are using a server certificate with Elastic Load Balancing, deleting the
 	// certificate could have implications for your application. If Elastic Load
 	// Balancing doesn't detect the deletion of bound certificates, it may continue to
 	// use the certificates. This could cause Elastic Load Balancing to stop accepting
 	// traffic. We recommend that you remove the reference to the certificate from
 	// Elastic Load Balancing before using this command to delete the certificate. For
-	// more information, see DeleteLoadBalancerListeners (https://docs.aws.amazon.com/ElasticLoadBalancing/latest/APIReference/API_DeleteLoadBalancerListeners.html)
-	// in the Elastic Load Balancing API Reference.
-	DeleteServerCertificate(ctx context.Context, params *DeleteServerCertificateInput, optFns ...func(*Options)) (*DeleteServerCertificateOutput, error)
+	// more information, see [DeleteLoadBalancerListeners]in the Elastic Load Balancing API Reference.
+	//
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [DeleteLoadBalancerListeners]: https://docs.aws.amazon.com/ElasticLoadBalancing/latest/APIReference/API_DeleteLoadBalancerListeners.html
+	DeleteServerCertificate(ctx context.Context, params *iam.DeleteServerCertificateInput, optFns ...func(*Options)) (*iam.DeleteServerCertificateOutput, error)
 	// Submits a service-linked role deletion request and returns a DeletionTaskId ,
 	// which you can use to check the status of the deletion. Before you call this
 	// operation, confirm that the role has no active sessions and that any resources
 	// used by the role in the linked service are deleted. If you call this operation
 	// more than once for the same service-linked role and an earlier deletion task is
-	// not complete, then the DeletionTaskId of the earlier request is returned. If
-	// you submit a deletion request for a service-linked role whose linked service is
-	// still accessing a resource, then the deletion task fails. If it fails, the
-	// GetServiceLinkedRoleDeletionStatus operation returns the reason for the failure,
-	// usually including the resources that must be deleted. To delete the
-	// service-linked role, you must first remove those resources from the linked
-	// service and then submit the deletion request again. Resources are specific to
-	// the service that is linked to the role. For more information about removing
-	// resources from a service, see the Amazon Web Services documentation (http://docs.aws.amazon.com/)
-	// for your service. For more information about service-linked roles, see Roles
-	// terms and concepts: Amazon Web Services service-linked role (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#iam-term-service-linked-role)
-	// in the IAM User Guide.
-	DeleteServiceLinkedRole(ctx context.Context, params *DeleteServiceLinkedRoleInput, optFns ...func(*Options)) (*DeleteServiceLinkedRoleOutput, error)
+	// not complete, then the DeletionTaskId of the earlier request is returned.
+	//
+	// If you submit a deletion request for a service-linked role whose linked service
+	// is still accessing a resource, then the deletion task fails. If it fails, the GetServiceLinkedRoleDeletionStatus
+	// operation returns the reason for the failure, usually including the resources
+	// that must be deleted. To delete the service-linked role, you must first remove
+	// those resources from the linked service and then submit the deletion request
+	// again. Resources are specific to the service that is linked to the role. For
+	// more information about removing resources from a service, see the [Amazon Web Services documentation]for your
+	// service.
+	//
+	// For more information about service-linked roles, see [Roles terms and concepts: Amazon Web Services service-linked role] in the IAM User Guide.
+	//
+	// [Roles terms and concepts: Amazon Web Services service-linked role]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_terms-and-concepts.html#iam-term-service-linked-role
+	// [Amazon Web Services documentation]: http://docs.aws.amazon.com/
+	DeleteServiceLinkedRole(ctx context.Context, params *iam.DeleteServiceLinkedRoleInput, optFns ...func(*Options)) (*iam.DeleteServiceLinkedRoleOutput, error)
 	// Deletes the specified service-specific credential.
-	DeleteServiceSpecificCredential(ctx context.Context, params *DeleteServiceSpecificCredentialInput, optFns ...func(*Options)) (*DeleteServiceSpecificCredentialOutput, error)
-	// Deletes a signing certificate associated with the specified IAM user. If you do
-	// not specify a user name, IAM determines the user name implicitly based on the
-	// Amazon Web Services access key ID signing the request. This operation works for
-	// access keys under the Amazon Web Services account. Consequently, you can use
-	// this operation to manage Amazon Web Services account root user credentials even
-	// if the Amazon Web Services account has no associated IAM users.
-	DeleteSigningCertificate(ctx context.Context, params *DeleteSigningCertificateInput, optFns ...func(*Options)) (*DeleteSigningCertificateOutput, error)
+	DeleteServiceSpecificCredential(ctx context.Context, params *iam.DeleteServiceSpecificCredentialInput, optFns ...func(*Options)) (*iam.DeleteServiceSpecificCredentialOutput, error)
+	// Deletes a signing certificate associated with the specified IAM user.
+	//
+	// If you do not specify a user name, IAM determines the user name implicitly
+	// based on the Amazon Web Services access key ID signing the request. This
+	// operation works for access keys under the Amazon Web Services account.
+	// Consequently, you can use this operation to manage Amazon Web Services account
+	// root user credentials even if the Amazon Web Services account has no associated
+	// IAM users.
+	DeleteSigningCertificate(ctx context.Context, params *iam.DeleteSigningCertificateInput, optFns ...func(*Options)) (*iam.DeleteSigningCertificateOutput, error)
 	// Deletes the specified IAM user. Unlike the Amazon Web Services Management
 	// Console, when you delete a user programmatically, you must delete the items
-	// attached to the user manually, or the deletion fails. For more information, see
-	// Deleting an IAM user (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_deleting_cli)
+	// attached to the user manually, or the deletion fails. For more information, see [Deleting an IAM user]
 	// . Before attempting to delete a user, remove the following items:
-	//   - Password ( DeleteLoginProfile )
-	//   - Access keys ( DeleteAccessKey )
-	//   - Signing certificate ( DeleteSigningCertificate )
-	//   - SSH public key ( DeleteSSHPublicKey )
-	//   - Git credentials ( DeleteServiceSpecificCredential )
-	//   - Multi-factor authentication (MFA) device ( DeactivateMFADevice ,
-	//     DeleteVirtualMFADevice )
-	//   - Inline policies ( DeleteUserPolicy )
-	//   - Attached managed policies ( DetachUserPolicy )
-	//   - Group memberships ( RemoveUserFromGroup )
-	DeleteUser(ctx context.Context, params *DeleteUserInput, optFns ...func(*Options)) (*DeleteUserOutput, error)
-	// Deletes the permissions boundary for the specified IAM user. Deleting the
-	// permissions boundary for a user might increase its permissions by allowing the
-	// user to perform all the actions granted in its permissions policies.
-	DeleteUserPermissionsBoundary(ctx context.Context, params *DeleteUserPermissionsBoundaryInput, optFns ...func(*Options)) (*DeleteUserPermissionsBoundaryOutput, error)
+	//
+	//   - Password (DeleteLoginProfile )
+	//
+	//   - Access keys (DeleteAccessKey )
+	//
+	//   - Signing certificate (DeleteSigningCertificate )
+	//
+	//   - SSH public key (DeleteSSHPublicKey )
+	//
+	//   - Git credentials (DeleteServiceSpecificCredential )
+	//
+	//   - Multi-factor authentication (MFA) device (DeactivateMFADevice , DeleteVirtualMFADevice)
+	//
+	//   - Inline policies (DeleteUserPolicy )
+	//
+	//   - Attached managed policies (DetachUserPolicy )
+	//
+	//   - Group memberships (RemoveUserFromGroup )
+	//
+	// [Deleting an IAM user]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_deleting_cli
+	DeleteUser(ctx context.Context, params *iam.DeleteUserInput, optFns ...func(*Options)) (*iam.DeleteUserOutput, error)
+	// Deletes the permissions boundary for the specified IAM user.
+	//
+	// Deleting the permissions boundary for a user might increase its permissions by
+	// allowing the user to perform all the actions granted in its permissions
+	// policies.
+	DeleteUserPermissionsBoundary(ctx context.Context, params *iam.DeleteUserPermissionsBoundaryInput, optFns ...func(*Options)) (*iam.DeleteUserPermissionsBoundaryOutput, error)
 	// Deletes the specified inline policy that is embedded in the specified IAM user.
-	// A user can also have managed policies attached to it. To detach a managed policy
-	// from a user, use DetachUserPolicy . For more information about policies, refer
-	// to Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DeleteUserPolicy(ctx context.Context, params *DeleteUserPolicyInput, optFns ...func(*Options)) (*DeleteUserPolicyOutput, error)
-	// Deletes a virtual MFA device. You must deactivate a user's virtual MFA device
-	// before you can delete it. For information about deactivating MFA devices, see
-	// DeactivateMFADevice .
-	DeleteVirtualMFADevice(ctx context.Context, params *DeleteVirtualMFADeviceInput, optFns ...func(*Options)) (*DeleteVirtualMFADeviceOutput, error)
-	// Removes the specified managed policy from the specified IAM group. A group can
-	// also have inline policies embedded with it. To delete an inline policy, use
-	// DeleteGroupPolicy . For information about policies, see Managed policies and
-	// inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DetachGroupPolicy(ctx context.Context, params *DetachGroupPolicyInput, optFns ...func(*Options)) (*DetachGroupPolicyOutput, error)
-	// Removes the specified managed policy from the specified role. A role can also
-	// have inline policies embedded with it. To delete an inline policy, use
-	// DeleteRolePolicy . For information about policies, see Managed policies and
-	// inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DetachRolePolicy(ctx context.Context, params *DetachRolePolicyInput, optFns ...func(*Options)) (*DetachRolePolicyOutput, error)
-	// Removes the specified managed policy from the specified user. A user can also
-	// have inline policies embedded with it. To delete an inline policy, use
-	// DeleteUserPolicy . For information about policies, see Managed policies and
-	// inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	DetachUserPolicy(ctx context.Context, params *DetachUserPolicyInput, optFns ...func(*Options)) (*DetachUserPolicyOutput, error)
+	//
+	// A user can also have managed policies attached to it. To detach a managed
+	// policy from a user, use DetachUserPolicy. For more information about policies, refer to [Managed policies and inline policies] in the
+	// IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DeleteUserPolicy(ctx context.Context, params *iam.DeleteUserPolicyInput, optFns ...func(*Options)) (*iam.DeleteUserPolicyOutput, error)
+	// Deletes a virtual MFA device.
+	//
+	// You must deactivate a user's virtual MFA device before you can delete it. For
+	// information about deactivating MFA devices, see DeactivateMFADevice.
+	DeleteVirtualMFADevice(ctx context.Context, params *iam.DeleteVirtualMFADeviceInput, optFns ...func(*Options)) (*iam.DeleteVirtualMFADeviceOutput, error)
+	// Removes the specified managed policy from the specified IAM group.
+	//
+	// A group can also have inline policies embedded with it. To delete an inline
+	// policy, use DeleteGroupPolicy. For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DetachGroupPolicy(ctx context.Context, params *iam.DetachGroupPolicyInput, optFns ...func(*Options)) (*iam.DetachGroupPolicyOutput, error)
+	// Removes the specified managed policy from the specified role.
+	//
+	// A role can also have inline policies embedded with it. To delete an inline
+	// policy, use DeleteRolePolicy. For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DetachRolePolicy(ctx context.Context, params *iam.DetachRolePolicyInput, optFns ...func(*Options)) (*iam.DetachRolePolicyOutput, error)
+	// Removes the specified managed policy from the specified user.
+	//
+	// A user can also have inline policies embedded with it. To delete an inline
+	// policy, use DeleteUserPolicy. For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	DetachUserPolicy(ctx context.Context, params *iam.DetachUserPolicyInput, optFns ...func(*Options)) (*iam.DetachUserPolicyOutput, error)
+	// Disables the management of privileged root user credentials across member
+	// accounts in your organization. When you disable this feature, the management
+	// account and the delegated administrator for IAM can no longer manage root user
+	// credentials for member accounts in your organization.
+	DisableOrganizationsRootCredentialsManagement(ctx context.Context, params *iam.DisableOrganizationsRootCredentialsManagementInput, optFns ...func(*Options)) (*iam.DisableOrganizationsRootCredentialsManagementOutput, error)
+	// Disables root user sessions for privileged tasks across member accounts in your
+	// organization. When you disable this feature, the management account and the
+	// delegated administrator for IAM can no longer perform privileged tasks on member
+	// accounts in your organization.
+	DisableOrganizationsRootSessions(ctx context.Context, params *iam.DisableOrganizationsRootSessionsInput, optFns ...func(*Options)) (*iam.DisableOrganizationsRootSessionsOutput, error)
 	// Enables the specified MFA device and associates it with the specified IAM user.
 	// When enabled, the MFA device is required for every subsequent login by the IAM
 	// user associated with the device.
-	EnableMFADevice(ctx context.Context, params *EnableMFADeviceInput, optFns ...func(*Options)) (*EnableMFADeviceOutput, error)
-	// Generates a credential report for the Amazon Web Services account. For more
-	// information about the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
-	// in the IAM User Guide.
-	GenerateCredentialReport(ctx context.Context, params *GenerateCredentialReportInput, optFns ...func(*Options)) (*GenerateCredentialReportOutput, error)
+	EnableMFADevice(ctx context.Context, params *iam.EnableMFADeviceInput, optFns ...func(*Options)) (*iam.EnableMFADeviceOutput, error)
+	// Enables the management of privileged root user credentials across member
+	// accounts in your organization. When you enable root credentials management for [centralized root access]
+	// , the management account and the delegated administrator for IAM can manage root
+	// user credentials for member accounts in your organization.
+	//
+	// Before you enable centralized root access, you must have an account configured
+	// with the following settings:
+	//
+	//   - You must manage your Amazon Web Services accounts in [Organizations].
+	//
+	//   - Enable trusted access for Identity and Access Management in Organizations.
+	//     For details, see [IAM and Organizations]in the Organizations User Guide.
+	//
+	// [Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html
+	// [centralized root access]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	// [IAM and Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-iam.html
+	EnableOrganizationsRootCredentialsManagement(ctx context.Context, params *iam.EnableOrganizationsRootCredentialsManagementInput, optFns ...func(*Options)) (*iam.EnableOrganizationsRootCredentialsManagementOutput, error)
+	// Allows the management account or delegated administrator to perform privileged
+	// tasks on member accounts in your organization. For more information, see [Centrally manage root access for member accounts]in the
+	// Identity and Access Management User Guide.
+	//
+	// Before you enable this feature, you must have an account configured with the
+	// following settings:
+	//
+	//   - You must manage your Amazon Web Services accounts in [Organizations].
+	//
+	//   - Enable trusted access for Identity and Access Management in Organizations.
+	//     For details, see [IAM and Organizations]in the Organizations User Guide.
+	//
+	// [Centrally manage root access for member accounts]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	// [Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html
+	// [IAM and Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-ra.html
+	EnableOrganizationsRootSessions(ctx context.Context, params *iam.EnableOrganizationsRootSessionsInput, optFns ...func(*Options)) (*iam.EnableOrganizationsRootSessionsOutput, error)
+	//	Generates a credential report for the Amazon Web Services account. For more
+	//
+	// information about the credential report, see [Getting credential reports]in the IAM User Guide.
+	//
+	// [Getting credential reports]: https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html
+	GenerateCredentialReport(ctx context.Context, params *iam.GenerateCredentialReportInput, optFns ...func(*Options)) (*iam.GenerateCredentialReportOutput, error)
 	// Generates a report for service last accessed data for Organizations. You can
 	// generate a report for any entities (organization root, organizational unit, or
-	// account) or policies in your organization. To call this operation, you must be
-	// signed in using your Organizations management account credentials. You can use
-	// your long-term IAM user or root user credentials, or temporary credentials from
-	// assuming an IAM role. SCPs must be enabled for your organization root. You must
-	// have the required IAM and Organizations permissions. For more information, see
-	// Refining permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide. You can generate a service last accessed data report for
-	// entities by specifying only the entity's path. This data includes a list of
-	// services that are allowed by any service control policies (SCPs) that apply to
-	// the entity. You can generate a service last accessed data report for a policy by
-	// specifying an entity's path and an optional Organizations policy ID. This data
-	// includes a list of services that are allowed by the specified SCP. For each
-	// service in both report types, the data includes the most recent account activity
-	// that the policy allows to account principals in the entity or the entity's
-	// children. For important information about the data, reporting period,
-	// permissions required, troubleshooting, and supported Regions see Reducing
-	// permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide. The data includes all attempts to access Amazon Web
-	// Services, not just the successful ones. This includes all attempts that were
-	// made using the Amazon Web Services Management Console, the Amazon Web Services
-	// API through any of the SDKs, or any of the command line tools. An unexpected
-	// entry in the service last accessed data does not mean that an account has been
-	// compromised, because the request might have been denied. Refer to your
-	// CloudTrail logs as the authoritative source for information about all API calls
-	// and whether they were successful or denied access. For more information, see
-	// Logging IAM events with CloudTrail (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
-	// in the IAM User Guide. This operation returns a JobId . Use this parameter in
-	// the GetOrganizationsAccessReport operation to check the status of the report
-	// generation. To check the status of this request, use the JobId parameter in the
-	// GetOrganizationsAccessReport operation and test the JobStatus response
-	// parameter. When the job is complete, you can retrieve the report. To generate a
-	// service last accessed data report for entities, specify an entity path without
-	// specifying the optional Organizations policy ID. The type of entity that you
-	// specify determines the data returned in the report.
+	// account) or policies in your organization.
+	//
+	// To call this operation, you must be signed in using your Organizations
+	// management account credentials. You can use your long-term IAM user or root user
+	// credentials, or temporary credentials from assuming an IAM role. SCPs must be
+	// enabled for your organization root. You must have the required IAM and
+	// Organizations permissions. For more information, see [Refining permissions using service last accessed data]in the IAM User Guide.
+	//
+	// You can generate a service last accessed data report for entities by specifying
+	// only the entity's path. This data includes a list of services that are allowed
+	// by any service control policies (SCPs) that apply to the entity.
+	//
+	// You can generate a service last accessed data report for a policy by specifying
+	// an entity's path and an optional Organizations policy ID. This data includes a
+	// list of services that are allowed by the specified SCP.
+	//
+	// For each service in both report types, the data includes the most recent
+	// account activity that the policy allows to account principals in the entity or
+	// the entity's children. For important information about the data, reporting
+	// period, permissions required, troubleshooting, and supported Regions see [Reducing permissions using service last accessed data]in the
+	// IAM User Guide.
+	//
+	// The data includes all attempts to access Amazon Web Services, not just the
+	// successful ones. This includes all attempts that were made using the Amazon Web
+	// Services Management Console, the Amazon Web Services API through any of the
+	// SDKs, or any of the command line tools. An unexpected entry in the service last
+	// accessed data does not mean that an account has been compromised, because the
+	// request might have been denied. Refer to your CloudTrail logs as the
+	// authoritative source for information about all API calls and whether they were
+	// successful or denied access. For more information, see [Logging IAM events with CloudTrail]in the IAM User Guide.
+	//
+	// This operation returns a JobId . Use this parameter in the GetOrganizationsAccessReport operation to check
+	// the status of the report generation. To check the status of this request, use
+	// the JobId parameter in the GetOrganizationsAccessReport operation and test the JobStatus response
+	// parameter. When the job is complete, you can retrieve the report.
+	//
+	// To generate a service last accessed data report for entities, specify an entity
+	// path without specifying the optional Organizations policy ID. The type of entity
+	// that you specify determines the data returned in the report.
+	//
 	//   - Root – When you specify the organizations root as the entity, the resulting
 	//     report lists all of the services allowed by SCPs that are attached to your root.
 	//     For each service, the report includes data for all accounts in your organization
 	//     except the management account, because the management account is not limited by
 	//     SCPs.
+	//
 	//   - OU – When you specify an organizational unit (OU) as the entity, the
 	//     resulting report lists all of the services allowed by SCPs that are attached to
 	//     the OU and its parents. For each service, the report includes data for all
 	//     accounts in the OU or its children. This data excludes the management account,
 	//     because the management account is not limited by SCPs.
+	//
 	//   - management account – When you specify the management account, the resulting
 	//     report lists all Amazon Web Services services, because the management account is
 	//     not limited by SCPs. For each service, the report includes data for only the
 	//     management account.
+	//
 	//   - Account – When you specify another account as the entity, the resulting
 	//     report lists all of the services allowed by SCPs that are attached to the
 	//     account and its parents. For each service, the report includes data for only the
@@ -504,6 +726,7 @@ type IAM interface {
 	// To generate a service last accessed data report for policies, specify an entity
 	// path and the optional Organizations policy ID. The type of entity that you
 	// specify determines the data returned for each service.
+	//
 	//   - Root – When you specify the root entity and a policy ID, the resulting
 	//     report lists all of the services that are allowed by the specified SCP. For each
 	//     service, the report includes data for all accounts in your organization to which
@@ -511,6 +734,7 @@ type IAM interface {
 	//     management account is not limited by SCPs. If the SCP is not attached to any
 	//     entities in the organization, then the report will return a list of services
 	//     with no data.
+	//
 	//   - OU – When you specify an OU entity and a policy ID, the resulting report
 	//     lists all of the services that are allowed by the specified SCP. For each
 	//     service, the report includes data for all accounts in the OU or its children to
@@ -519,11 +743,13 @@ type IAM interface {
 	//     management account, because the management account is not limited by SCPs. If
 	//     the SCP is not attached to the OU or one of its children, the report will return
 	//     a list of services with no data.
+	//
 	//   - management account – When you specify the management account, the resulting
 	//     report lists all Amazon Web Services services, because the management account is
 	//     not limited by SCPs. If you specify a policy ID in the CLI or API, the policy is
 	//     ignored. For each service, the report includes data for only the management
 	//     account.
+	//
 	//   - Account – When you specify another account entity and a policy ID, the
 	//     resulting report lists all of the services that are allowed by the specified
 	//     SCP. For each service, the report includes data for only the specified account.
@@ -535,771 +761,1050 @@ type IAM interface {
 	// whether a principal could access a service. These other policy types include
 	// identity-based policies, resource-based policies, access control lists, IAM
 	// permissions boundaries, and STS assume role policies. It only applies SCP logic.
-	// For more about the evaluation of policy types, see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
-	// in the IAM User Guide. For more information about service last accessed data,
-	// see Reducing policy scope by viewing user activity (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide.
-	GenerateOrganizationsAccessReport(ctx context.Context, params *GenerateOrganizationsAccessReportInput, optFns ...func(*Options)) (*GenerateOrganizationsAccessReportOutput, error)
+	// For more about the evaluation of policy types, see [Evaluating policies]in the IAM User Guide.
+	//
+	// For more information about service last accessed data, see [Reducing policy scope by viewing user activity] in the IAM User
+	// Guide.
+	//
+	// [Logging IAM events with CloudTrail]: https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html
+	// [Refining permissions using service last accessed data]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	// [Reducing permissions using service last accessed data]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	// [Evaluating policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics
+	// [Reducing policy scope by viewing user activity]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	GenerateOrganizationsAccessReport(ctx context.Context, params *iam.GenerateOrganizationsAccessReportInput, optFns ...func(*Options)) (*iam.GenerateOrganizationsAccessReportOutput, error)
 	// Generates a report that includes details about when an IAM resource (user,
 	// group, role, or policy) was last used in an attempt to access Amazon Web
 	// Services services. Recent activity usually appears within four hours. IAM
 	// reports activity for at least the last 400 days, or less if your Region began
-	// supporting this feature within the last year. For more information, see Regions
-	// where data is tracked (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#access-advisor_tracking-period)
-	// . For more information about services and actions for which action last accessed
-	// information is displayed, see IAM action last accessed information services and
-	// actions (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor-action-last-accessed.html)
-	// . The service last accessed data includes all attempts to access an Amazon Web
+	// supporting this feature within the last year. For more information, see [Regions where data is tracked]. For
+	// more information about services and actions for which action last accessed
+	// information is displayed, see [IAM action last accessed information services and actions].
+	//
+	// The service last accessed data includes all attempts to access an Amazon Web
 	// Services API, not just the successful ones. This includes all attempts that were
 	// made using the Amazon Web Services Management Console, the Amazon Web Services
 	// API through any of the SDKs, or any of the command line tools. An unexpected
 	// entry in the service last accessed data does not mean that your account has been
 	// compromised, because the request might have been denied. Refer to your
 	// CloudTrail logs as the authoritative source for information about all API calls
-	// and whether they were successful or denied access. For more information, see
-	// Logging IAM events with CloudTrail (https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html)
-	// in the IAM User Guide. The GenerateServiceLastAccessedDetails operation returns
-	// a JobId . Use this parameter in the following operations to retrieve the
-	// following details from your report:
-	//   - GetServiceLastAccessedDetails – Use this operation for users, groups, roles,
-	//     or policies to list every Amazon Web Services service that the resource could
-	//     access using permissions policies. For each service, the response includes
-	//     information about the most recent access attempt. The JobId returned by
-	//     GenerateServiceLastAccessedDetail must be used by the same role within a
-	//     session, or by the same user when used to call GetServiceLastAccessedDetail .
-	//   - GetServiceLastAccessedDetailsWithEntities – Use this operation for groups
-	//     and policies to list information about the associated entities (users or roles)
-	//     that attempted to access a specific Amazon Web Services service.
+	// and whether they were successful or denied access. For more information, see [Logging IAM events with CloudTrail]in
+	// the IAM User Guide.
+	//
+	// The GenerateServiceLastAccessedDetails operation returns a JobId . Use this
+	// parameter in the following operations to retrieve the following details from
+	// your report:
+	//
+	// GetServiceLastAccessedDetails
+	//   - – Use this operation for users, groups, roles, or policies to list every
+	//     Amazon Web Services service that the resource could access using permissions
+	//     policies. For each service, the response includes information about the most
+	//     recent access attempt.
+	//
+	// The JobId returned by GenerateServiceLastAccessedDetail must be used by the same
+	//
+	//	role within a session, or by the same user when used to call
+	//	GetServiceLastAccessedDetail .
+	//
+	// GetServiceLastAccessedDetailsWithEntities
+	//   - – Use this operation for groups and policies to list information about the
+	//     associated entities (users or roles) that attempted to access a specific Amazon
+	//     Web Services service.
 	//
 	// To check the status of the GenerateServiceLastAccessedDetails request, use the
 	// JobId parameter in the same operations and test the JobStatus response
-	// parameter. For additional information about the permissions policies that allow
-	// an identity (user, group, or role) to access specific services, use the
-	// ListPoliciesGrantingServiceAccess operation. Service last accessed data does not
-	// use other policy types when determining whether a resource could access a
-	// service. These other policy types include resource-based policies, access
-	// control lists, Organizations policies, IAM permissions boundaries, and STS
-	// assume role policies. It only applies permissions policy logic. For more about
-	// the evaluation of policy types, see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
-	// in the IAM User Guide. For more information about service and action last
-	// accessed data, see Reducing permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide.
-	GenerateServiceLastAccessedDetails(ctx context.Context, params *GenerateServiceLastAccessedDetailsInput, optFns ...func(*Options)) (*GenerateServiceLastAccessedDetailsOutput, error)
+	// parameter.
+	//
+	// For additional information about the permissions policies that allow an
+	// identity (user, group, or role) to access specific services, use the ListPoliciesGrantingServiceAccessoperation.
+	//
+	// Service last accessed data does not use other policy types when determining
+	// whether a resource could access a service. These other policy types include
+	// resource-based policies, access control lists, Organizations policies, IAM
+	// permissions boundaries, and STS assume role policies. It only applies
+	// permissions policy logic. For more about the evaluation of policy types, see [Evaluating policies]in
+	// the IAM User Guide.
+	//
+	// For more information about service and action last accessed data, see [Reducing permissions using service last accessed data] in the
+	// IAM User Guide.
+	//
+	// [Logging IAM events with CloudTrail]: https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html
+	// [Reducing permissions using service last accessed data]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	// [Regions where data is tracked]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html#access-advisor_tracking-period
+	// [Evaluating policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics
+	// [IAM action last accessed information services and actions]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor-action-last-accessed.html
+	GenerateServiceLastAccessedDetails(ctx context.Context, params *iam.GenerateServiceLastAccessedDetailsInput, optFns ...func(*Options)) (*iam.GenerateServiceLastAccessedDetailsOutput, error)
 	// Retrieves information about when the specified access key was last used. The
 	// information includes the date and time of last use, along with the Amazon Web
 	// Services service and Region that were specified in the last request made with
 	// that key.
-	GetAccessKeyLastUsed(ctx context.Context, params *GetAccessKeyLastUsedInput, optFns ...func(*Options)) (*GetAccessKeyLastUsedOutput, error)
+	GetAccessKeyLastUsed(ctx context.Context, params *iam.GetAccessKeyLastUsedInput, optFns ...func(*Options)) (*iam.GetAccessKeyLastUsedOutput, error)
 	// Retrieves information about all IAM users, groups, roles, and policies in your
 	// Amazon Web Services account, including their relationships to one another. Use
 	// this operation to obtain a snapshot of the configuration of IAM permissions
-	// (users, groups, roles, and policies) in your account. Policies returned by this
-	// operation are URL-encoded compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986)
-	// . You can use a URL decoding method to convert the policy back to plain JSON
-	// text. For example, if you use Java, you can use the decode method of the
+	// (users, groups, roles, and policies) in your account.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
+	// example, if you use Java, you can use the decode method of the
 	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
-	// provide similar functionality. You can optionally filter the results using the
-	// Filter parameter. You can paginate the results using the MaxItems and Marker
-	// parameters.
-	GetAccountAuthorizationDetails(ctx context.Context, params *GetAccountAuthorizationDetailsInput, optFns ...func(*Options)) (*GetAccountAuthorizationDetailsOutput, error)
+	// provide similar functionality.
+	//
+	// You can optionally filter the results using the Filter parameter. You can
+	// paginate the results using the MaxItems and Marker parameters.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	GetAccountAuthorizationDetails(ctx context.Context, params *iam.GetAccountAuthorizationDetailsInput, optFns ...func(*Options)) (*iam.GetAccountAuthorizationDetailsOutput, error)
 	// Retrieves the password policy for the Amazon Web Services account. This tells
 	// you the complexity requirements and mandatory rotation periods for the IAM user
 	// passwords in your account. For more information about using a password policy,
-	// see Managing an IAM password policy (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html)
-	// .
-	GetAccountPasswordPolicy(ctx context.Context, params *GetAccountPasswordPolicyInput, optFns ...func(*Options)) (*GetAccountPasswordPolicyOutput, error)
+	// see [Managing an IAM password policy].
+	//
+	// [Managing an IAM password policy]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html
+	GetAccountPasswordPolicy(ctx context.Context, params *iam.GetAccountPasswordPolicyInput, optFns ...func(*Options)) (*iam.GetAccountPasswordPolicyOutput, error)
 	// Retrieves information about IAM entity usage and IAM quotas in the Amazon Web
-	// Services account. For information about IAM quotas, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide.
-	GetAccountSummary(ctx context.Context, params *GetAccountSummaryInput, optFns ...func(*Options)) (*GetAccountSummaryOutput, error)
+	// Services account.
+	//
+	// For information about IAM quotas, see [IAM and STS quotas] in the IAM User Guide.
+	//
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	GetAccountSummary(ctx context.Context, params *iam.GetAccountSummaryInput, optFns ...func(*Options)) (*iam.GetAccountSummaryOutput, error)
 	// Gets a list of all of the context keys referenced in the input policies. The
 	// policies are supplied as a list of one or more strings. To get the context keys
-	// from policies associated with an IAM user, group, or role, use
-	// GetContextKeysForPrincipalPolicy . Context keys are variables maintained by
-	// Amazon Web Services and its services that provide details about the context of
-	// an API query request. Context keys can be evaluated by testing against a value
-	// specified in an IAM policy. Use GetContextKeysForCustomPolicy to understand
-	// what key names and values you must supply when you call SimulateCustomPolicy .
-	// Note that all parameters are shown in unencoded form here for clarity but must
-	// be URL encoded to be included as a part of a real HTML request.
-	GetContextKeysForCustomPolicy(ctx context.Context, params *GetContextKeysForCustomPolicyInput, optFns ...func(*Options)) (*GetContextKeysForCustomPolicyOutput, error)
+	// from policies associated with an IAM user, group, or role, use GetContextKeysForPrincipalPolicy.
+	//
+	// Context keys are variables maintained by Amazon Web Services and its services
+	// that provide details about the context of an API query request. Context keys can
+	// be evaluated by testing against a value specified in an IAM policy. Use
+	// GetContextKeysForCustomPolicy to understand what key names and values you must
+	// supply when you call SimulateCustomPolicy. Note that all parameters are shown in unencoded form
+	// here for clarity but must be URL encoded to be included as a part of a real HTML
+	// request.
+	GetContextKeysForCustomPolicy(ctx context.Context, params *iam.GetContextKeysForCustomPolicyInput, optFns ...func(*Options)) (*iam.GetContextKeysForCustomPolicyOutput, error)
 	// Gets a list of all of the context keys referenced in all the IAM policies that
 	// are attached to the specified IAM entity. The entity can be an IAM user, group,
 	// or role. If you specify a user, then the request also includes all of the
-	// policies attached to groups that the user is a member of. You can optionally
-	// include a list of one or more additional policies, specified as strings. If you
-	// want to include only a list of policies by string, use
-	// GetContextKeysForCustomPolicy instead. Note: This operation discloses
-	// information about the permissions granted to other users. If you do not want
-	// users to see other user's permissions, then consider allowing them to use
-	// GetContextKeysForCustomPolicy instead. Context keys are variables maintained by
-	// Amazon Web Services and its services that provide details about the context of
-	// an API query request. Context keys can be evaluated by testing against a value
-	// in an IAM policy. Use GetContextKeysForPrincipalPolicy to understand what key
-	// names and values you must supply when you call SimulatePrincipalPolicy .
-	GetContextKeysForPrincipalPolicy(ctx context.Context, params *GetContextKeysForPrincipalPolicyInput, optFns ...func(*Options)) (*GetContextKeysForPrincipalPolicyOutput, error)
-	// Retrieves a credential report for the Amazon Web Services account. For more
-	// information about the credential report, see Getting credential reports (https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html)
-	// in the IAM User Guide.
-	GetCredentialReport(ctx context.Context, params *GetCredentialReportInput, optFns ...func(*Options)) (*GetCredentialReportOutput, error)
-	// Returns a list of IAM users that are in the specified IAM group. You can
+	// policies attached to groups that the user is a member of.
+	//
+	// You can optionally include a list of one or more additional policies, specified
+	// as strings. If you want to include only a list of policies by string, use GetContextKeysForCustomPolicy
+	// instead.
+	//
+	// Note: This operation discloses information about the permissions granted to
+	// other users. If you do not want users to see other user's permissions, then
+	// consider allowing them to use GetContextKeysForCustomPolicyinstead.
+	//
+	// Context keys are variables maintained by Amazon Web Services and its services
+	// that provide details about the context of an API query request. Context keys can
+	// be evaluated by testing against a value in an IAM policy. Use GetContextKeysForPrincipalPolicyto understand
+	// what key names and values you must supply when you call SimulatePrincipalPolicy.
+	GetContextKeysForPrincipalPolicy(ctx context.Context, params *iam.GetContextKeysForPrincipalPolicyInput, optFns ...func(*Options)) (*iam.GetContextKeysForPrincipalPolicyOutput, error)
+	//	Retrieves a credential report for the Amazon Web Services account. For more
+	//
+	// information about the credential report, see [Getting credential reports]in the IAM User Guide.
+	//
+	// [Getting credential reports]: https://docs.aws.amazon.com/IAM/latest/UserGuide/credential-reports.html
+	GetCredentialReport(ctx context.Context, params *iam.GetCredentialReportInput, optFns ...func(*Options)) (*iam.GetCredentialReportOutput, error)
+	//	Returns a list of IAM users that are in the specified IAM group. You can
+	//
 	// paginate the results using the MaxItems and Marker parameters.
-	GetGroup(ctx context.Context, params *GetGroupInput, optFns ...func(*Options)) (*GetGroupOutput, error)
+	GetGroup(ctx context.Context, params *iam.GetGroupInput, optFns ...func(*Options)) (*iam.GetGroupOutput, error)
 	// Retrieves the specified inline policy document that is embedded in the
-	// specified IAM group. Policies returned by this operation are URL-encoded
-	// compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986) . You can use a
-	// URL decoding method to convert the policy back to plain JSON text. For example,
-	// if you use Java, you can use the decode method of the java.net.URLDecoder
-	// utility class in the Java SDK. Other languages and SDKs provide similar
-	// functionality. An IAM group can also have managed policies attached to it. To
-	// retrieve a managed policy document that is attached to a group, use GetPolicy
-	// to determine the policy's default version, then use GetPolicyVersion to
-	// retrieve the policy document. For more information about policies, see Managed
-	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	GetGroupPolicy(ctx context.Context, params *GetGroupPolicyInput, optFns ...func(*Options)) (*GetGroupPolicyOutput, error)
-	// Retrieves information about the specified instance profile, including the
+	// specified IAM group.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
+	// example, if you use Java, you can use the decode method of the
+	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
+	// provide similar functionality.
+	//
+	// An IAM group can also have managed policies attached to it. To retrieve a
+	// managed policy document that is attached to a group, use GetPolicyto determine the
+	// policy's default version, then use GetPolicyVersionto retrieve the policy document.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	GetGroupPolicy(ctx context.Context, params *iam.GetGroupPolicyInput, optFns ...func(*Options)) (*iam.GetGroupPolicyOutput, error)
+	//	Retrieves information about the specified instance profile, including the
+	//
 	// instance profile's path, GUID, ARN, and role. For more information about
-	// instance profiles, see Using instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide.
-	GetInstanceProfile(ctx context.Context, params *GetInstanceProfileInput, optFns ...func(*Options)) (*GetInstanceProfileOutput, error)
+	// instance profiles, see [Using instance profiles]in the IAM User Guide.
+	//
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	GetInstanceProfile(ctx context.Context, params *iam.GetInstanceProfileInput, optFns ...func(*Options)) (*iam.GetInstanceProfileOutput, error)
 	// Retrieves the user name for the specified IAM user. A login profile is created
 	// when you create a password for the user to access the Amazon Web Services
 	// Management Console. If the user does not exist or does not have a password, the
-	// operation returns a 404 ( NoSuchEntity ) error. If you create an IAM user with
-	// access to the console, the CreateDate reflects the date you created the initial
-	// password for the user. If you create an IAM user with programmatic access, and
-	// then later add a password for the user to access the Amazon Web Services
-	// Management Console, the CreateDate reflects the initial password creation date.
-	// A user with programmatic access does not have a login profile unless you create
-	// a password for the user to access the Amazon Web Services Management Console.
-	GetLoginProfile(ctx context.Context, params *GetLoginProfileInput, optFns ...func(*Options)) (*GetLoginProfileOutput, error)
+	// operation returns a 404 ( NoSuchEntity ) error.
+	//
+	// If you create an IAM user with access to the console, the CreateDate reflects
+	// the date you created the initial password for the user.
+	//
+	// If you create an IAM user with programmatic access, and then later add a
+	// password for the user to access the Amazon Web Services Management Console, the
+	// CreateDate reflects the initial password creation date. A user with programmatic
+	// access does not have a login profile unless you create a password for the user
+	// to access the Amazon Web Services Management Console.
+	GetLoginProfile(ctx context.Context, params *iam.GetLoginProfileInput, optFns ...func(*Options)) (*iam.GetLoginProfileOutput, error)
 	// Retrieves information about an MFA device for a specified user.
-	GetMFADevice(ctx context.Context, params *GetMFADeviceInput, optFns ...func(*Options)) (*GetMFADeviceOutput, error)
+	GetMFADevice(ctx context.Context, params *iam.GetMFADeviceInput, optFns ...func(*Options)) (*iam.GetMFADeviceOutput, error)
 	// Returns information about the specified OpenID Connect (OIDC) provider resource
 	// object in IAM.
-	GetOpenIDConnectProvider(ctx context.Context, params *GetOpenIDConnectProviderInput, optFns ...func(*Options)) (*GetOpenIDConnectProviderOutput, error)
+	GetOpenIDConnectProvider(ctx context.Context, params *iam.GetOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.GetOpenIDConnectProviderOutput, error)
 	// Retrieves the service last accessed data report for Organizations that was
-	// previously generated using the GenerateOrganizationsAccessReport operation.
-	// This operation retrieves the status of your report job and the report contents.
+	// previously generated using the GenerateOrganizationsAccessReportoperation. This operation retrieves the status
+	// of your report job and the report contents.
+	//
 	// Depending on the parameters that you passed when you generated the report, the
-	// data returned could include different information. For details, see
-	// GenerateOrganizationsAccessReport . To call this operation, you must be signed
-	// in to the management account in your organization. SCPs must be enabled for your
-	// organization root. You must have permissions to perform this operation. For more
-	// information, see Refining permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide. For each service that principals in an account (root
-	// user, IAM users, or IAM roles) could access using SCPs, the operation returns
-	// details about the most recent access attempt. If there was no attempt, the
-	// service is listed without details about the most recent attempt to access the
-	// service. If the operation fails, it returns the reason that it failed. By
-	// default, the list is sorted by service namespace.
-	GetOrganizationsAccessReport(ctx context.Context, params *GetOrganizationsAccessReportInput, optFns ...func(*Options)) (*GetOrganizationsAccessReportOutput, error)
+	// data returned could include different information. For details, see GenerateOrganizationsAccessReport.
+	//
+	// To call this operation, you must be signed in to the management account in your
+	// organization. SCPs must be enabled for your organization root. You must have
+	// permissions to perform this operation. For more information, see [Refining permissions using service last accessed data]in the IAM
+	// User Guide.
+	//
+	// For each service that principals in an account (root user, IAM users, or IAM
+	// roles) could access using SCPs, the operation returns details about the most
+	// recent access attempt. If there was no attempt, the service is listed without
+	// details about the most recent attempt to access the service. If the operation
+	// fails, it returns the reason that it failed.
+	//
+	// By default, the list is sorted by service namespace.
+	//
+	// [Refining permissions using service last accessed data]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	GetOrganizationsAccessReport(ctx context.Context, params *iam.GetOrganizationsAccessReportInput, optFns ...func(*Options)) (*iam.GetOrganizationsAccessReportOutput, error)
 	// Retrieves information about the specified managed policy, including the
 	// policy's default version and the total number of IAM users, groups, and roles to
 	// which the policy is attached. To retrieve the list of the specific users,
-	// groups, and roles that the policy is attached to, use ListEntitiesForPolicy .
-	// This operation returns metadata about the policy. To retrieve the actual policy
-	// document for a specific version of the policy, use GetPolicyVersion . This
-	// operation retrieves information about managed policies. To retrieve information
-	// about an inline policy that is embedded with an IAM user, group, or role, use
-	// GetUserPolicy , GetGroupPolicy , or GetRolePolicy . For more information about
-	// policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	GetPolicy(ctx context.Context, params *GetPolicyInput, optFns ...func(*Options)) (*GetPolicyOutput, error)
+	// groups, and roles that the policy is attached to, use ListEntitiesForPolicy. This operation returns
+	// metadata about the policy. To retrieve the actual policy document for a specific
+	// version of the policy, use GetPolicyVersion.
+	//
+	// This operation retrieves information about managed policies. To retrieve
+	// information about an inline policy that is embedded with an IAM user, group, or
+	// role, use GetUserPolicy, GetGroupPolicy, or GetRolePolicy.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	GetPolicy(ctx context.Context, params *iam.GetPolicyInput, optFns ...func(*Options)) (*iam.GetPolicyOutput, error)
 	// Retrieves information about the specified version of the specified managed
-	// policy, including the policy document. Policies returned by this operation are
-	// URL-encoded compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986) . You
-	// can use a URL decoding method to convert the policy back to plain JSON text. For
+	// policy, including the policy document.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
 	// example, if you use Java, you can use the decode method of the
 	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
-	// provide similar functionality. To list the available versions for a policy, use
-	// ListPolicyVersions . This operation retrieves information about managed
-	// policies. To retrieve information about an inline policy that is embedded in a
-	// user, group, or role, use GetUserPolicy , GetGroupPolicy , or GetRolePolicy .
-	// For more information about the types of policies, see Managed policies and
-	// inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. For more information about managed policy versions, see
-	// Versioning for managed policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html)
-	// in the IAM User Guide.
-	GetPolicyVersion(ctx context.Context, params *GetPolicyVersionInput, optFns ...func(*Options)) (*GetPolicyVersionOutput, error)
+	// provide similar functionality.
+	//
+	// To list the available versions for a policy, use ListPolicyVersions.
+	//
+	// This operation retrieves information about managed policies. To retrieve
+	// information about an inline policy that is embedded in a user, group, or role,
+	// use GetUserPolicy, GetGroupPolicy, or GetRolePolicy.
+	//
+	// For more information about the types of policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// For more information about managed policy versions, see [Versioning for managed policies] in the IAM User Guide.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	// [Versioning for managed policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-versions.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	GetPolicyVersion(ctx context.Context, params *iam.GetPolicyVersionInput, optFns ...func(*Options)) (*iam.GetPolicyVersionOutput, error)
 	// Retrieves information about the specified role, including the role's path,
 	// GUID, ARN, and the role's trust policy that grants permission to assume the
-	// role. For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide. Policies returned by this operation are URL-encoded
-	// compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986) . You can use a
-	// URL decoding method to convert the policy back to plain JSON text. For example,
-	// if you use Java, you can use the decode method of the java.net.URLDecoder
-	// utility class in the Java SDK. Other languages and SDKs provide similar
-	// functionality.
-	GetRole(ctx context.Context, params *GetRoleInput, optFns ...func(*Options)) (*GetRoleOutput, error)
+	// role. For more information about roles, see [IAM roles]in the IAM User Guide.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
+	// example, if you use Java, you can use the decode method of the
+	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
+	// provide similar functionality.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	GetRole(ctx context.Context, params *iam.GetRoleInput, optFns ...func(*Options)) (*iam.GetRoleOutput, error)
 	// Retrieves the specified inline policy document that is embedded with the
-	// specified IAM role. Policies returned by this operation are URL-encoded
-	// compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986) . You can use a
-	// URL decoding method to convert the policy back to plain JSON text. For example,
-	// if you use Java, you can use the decode method of the java.net.URLDecoder
-	// utility class in the Java SDK. Other languages and SDKs provide similar
-	// functionality. An IAM role can also have managed policies attached to it. To
-	// retrieve a managed policy document that is attached to a role, use GetPolicy to
-	// determine the policy's default version, then use GetPolicyVersion to retrieve
-	// the policy document. For more information about policies, see Managed policies
-	// and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide.
-	GetRolePolicy(ctx context.Context, params *GetRolePolicyInput, optFns ...func(*Options)) (*GetRolePolicyOutput, error)
+	// specified IAM role.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
+	// example, if you use Java, you can use the decode method of the
+	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
+	// provide similar functionality.
+	//
+	// An IAM role can also have managed policies attached to it. To retrieve a
+	// managed policy document that is attached to a role, use GetPolicyto determine the
+	// policy's default version, then use GetPolicyVersionto retrieve the policy document.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// For more information about roles, see [IAM roles] in the IAM User Guide.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	GetRolePolicy(ctx context.Context, params *iam.GetRolePolicyInput, optFns ...func(*Options)) (*iam.GetRolePolicyOutput, error)
 	// Returns the SAML provider metadocument that was uploaded when the IAM SAML
-	// provider resource object was created or updated. This operation requires
-	// Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
-	// .
-	GetSAMLProvider(ctx context.Context, params *GetSAMLProviderInput, optFns ...func(*Options)) (*GetSAMLProviderOutput, error)
-	// Retrieves the specified SSH public key, including metadata about the key. The
-	// SSH public key retrieved by this operation is used only for authenticating the
-	// associated IAM user to an CodeCommit repository. For more information about
-	// using SSH keys to authenticate to an CodeCommit repository, see Set up
-	// CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-	// in the CodeCommit User Guide.
-	GetSSHPublicKey(ctx context.Context, params *GetSSHPublicKeyInput, optFns ...func(*Options)) (*GetSSHPublicKeyOutput, error)
-	// Retrieves information about the specified server certificate stored in IAM. For
-	// more information about working with server certificates, see Working with
-	// server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. This topic includes a list of Amazon Web Services
-	// services that can use the server certificates that you manage with IAM.
-	GetServerCertificate(ctx context.Context, params *GetServerCertificateInput, optFns ...func(*Options)) (*GetServerCertificateOutput, error)
+	// provider resource object was created or updated.
+	//
+	// This operation requires [Signature Version 4].
+	//
+	// [Signature Version 4]: https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
+	GetSAMLProvider(ctx context.Context, params *iam.GetSAMLProviderInput, optFns ...func(*Options)) (*iam.GetSAMLProviderOutput, error)
+	// Retrieves the specified SSH public key, including metadata about the key.
+	//
+	// The SSH public key retrieved by this operation is used only for authenticating
+	// the associated IAM user to an CodeCommit repository. For more information about
+	// using SSH keys to authenticate to an CodeCommit repository, see [Set up CodeCommit for SSH connections]in the
+	// CodeCommit User Guide.
+	//
+	// [Set up CodeCommit for SSH connections]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html
+	GetSSHPublicKey(ctx context.Context, params *iam.GetSSHPublicKeyInput, optFns ...func(*Options)) (*iam.GetSSHPublicKeyOutput, error)
+	// Retrieves information about the specified server certificate stored in IAM.
+	//
+	// For more information about working with server certificates, see [Working with server certificates] in the IAM
+	// User Guide. This topic includes a list of Amazon Web Services services that can
+	// use the server certificates that you manage with IAM.
+	//
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	GetServerCertificate(ctx context.Context, params *iam.GetServerCertificateInput, optFns ...func(*Options)) (*iam.GetServerCertificateOutput, error)
 	// Retrieves a service last accessed report that was created using the
 	// GenerateServiceLastAccessedDetails operation. You can use the JobId parameter
 	// in GetServiceLastAccessedDetails to retrieve the status of your report job.
 	// When the report is complete, you can retrieve the generated report. The report
 	// includes a list of Amazon Web Services services that the resource (user, group,
-	// role, or managed policy) can access. Service last accessed data does not use
-	// other policy types when determining whether a resource could access a service.
-	// These other policy types include resource-based policies, access control lists,
-	// Organizations policies, IAM permissions boundaries, and STS assume role
-	// policies. It only applies permissions policy logic. For more about the
-	// evaluation of policy types, see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
-	// in the IAM User Guide. For each service that the resource could access using
-	// permissions policies, the operation returns details about the most recent access
-	// attempt. If there was no attempt, the service is listed without details about
-	// the most recent attempt to access the service. If the operation fails, the
-	// GetServiceLastAccessedDetails operation returns the reason that it failed. The
-	// GetServiceLastAccessedDetails operation returns a list of services. This list
-	// includes the number of entities that have attempted to access the service and
-	// the date and time of the last attempt. It also returns the ARN of the following
-	// entity, depending on the resource ARN that you used to generate the report:
+	// role, or managed policy) can access.
+	//
+	// Service last accessed data does not use other policy types when determining
+	// whether a resource could access a service. These other policy types include
+	// resource-based policies, access control lists, Organizations policies, IAM
+	// permissions boundaries, and STS assume role policies. It only applies
+	// permissions policy logic. For more about the evaluation of policy types, see [Evaluating policies]in
+	// the IAM User Guide.
+	//
+	// For each service that the resource could access using permissions policies, the
+	// operation returns details about the most recent access attempt. If there was no
+	// attempt, the service is listed without details about the most recent attempt to
+	// access the service. If the operation fails, the GetServiceLastAccessedDetails
+	// operation returns the reason that it failed.
+	//
+	// The GetServiceLastAccessedDetails operation returns a list of services. This
+	// list includes the number of entities that have attempted to access the service
+	// and the date and time of the last attempt. It also returns the ARN of the
+	// following entity, depending on the resource ARN that you used to generate the
+	// report:
+	//
 	//   - User – Returns the user ARN that you used to generate the report
+	//
 	//   - Group – Returns the ARN of the group member (user) that last attempted to
 	//     access the service
+	//
 	//   - Role – Returns the role ARN that you used to generate the report
+	//
 	//   - Policy – Returns the ARN of the user or role that last used the policy to
 	//     attempt to access the service
 	//
-	// By default, the list is sorted by service namespace. If you specified
-	// ACTION_LEVEL granularity when you generated the report, this operation returns
-	// service and action last accessed data. This includes the most recent access
-	// attempt for each tracked action within a service. Otherwise, this operation
-	// returns only service data. For more information about service and action last
-	// accessed data, see Reducing permissions using service last accessed data (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html)
-	// in the IAM User Guide.
-	GetServiceLastAccessedDetails(ctx context.Context, params *GetServiceLastAccessedDetailsInput, optFns ...func(*Options)) (*GetServiceLastAccessedDetailsOutput, error)
+	// By default, the list is sorted by service namespace.
+	//
+	// If you specified ACTION_LEVEL granularity when you generated the report, this
+	// operation returns service and action last accessed data. This includes the most
+	// recent access attempt for each tracked action within a service. Otherwise, this
+	// operation returns only service data.
+	//
+	// For more information about service and action last accessed data, see [Reducing permissions using service last accessed data] in the
+	// IAM User Guide.
+	//
+	// [Reducing permissions using service last accessed data]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_access-advisor.html
+	// [Evaluating policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics
+	GetServiceLastAccessedDetails(ctx context.Context, params *iam.GetServiceLastAccessedDetailsInput, optFns ...func(*Options)) (*iam.GetServiceLastAccessedDetailsOutput, error)
 	// After you generate a group or policy report using the
 	// GenerateServiceLastAccessedDetails operation, you can use the JobId parameter
 	// in GetServiceLastAccessedDetailsWithEntities . This operation retrieves the
 	// status of your report job and a list of entities that could have used group or
 	// policy permissions to access the specified service.
+	//
 	//   - Group – For a group report, this operation returns a list of users in the
 	//     group that could have used the group’s policies in an attempt to access the
 	//     service.
+	//
 	//   - Policy – For a policy report, this operation returns a list of entities
 	//     (users or roles) that could have used the policy in an attempt to access the
 	//     service.
 	//
 	// You can also use this operation for user or role reports to retrieve details
-	// about those entities. If the operation fails, the
-	// GetServiceLastAccessedDetailsWithEntities operation returns the reason that it
-	// failed. By default, the list of associated entities is sorted by date, with the
-	// most recent access listed first.
-	GetServiceLastAccessedDetailsWithEntities(ctx context.Context, params *GetServiceLastAccessedDetailsWithEntitiesInput, optFns ...func(*Options)) (*GetServiceLastAccessedDetailsWithEntitiesOutput, error)
-	// Retrieves the status of your service-linked role deletion. After you use
-	// DeleteServiceLinkedRole to submit a service-linked role for deletion, you can
-	// use the DeletionTaskId parameter in GetServiceLinkedRoleDeletionStatus to check
-	// the status of the deletion. If the deletion fails, this operation returns the
-	// reason that it failed, if that information is returned by the service.
-	GetServiceLinkedRoleDeletionStatus(ctx context.Context, params *GetServiceLinkedRoleDeletionStatusInput, optFns ...func(*Options)) (*GetServiceLinkedRoleDeletionStatusOutput, error)
+	// about those entities.
+	//
+	// If the operation fails, the GetServiceLastAccessedDetailsWithEntities operation
+	// returns the reason that it failed.
+	//
+	// By default, the list of associated entities is sorted by date, with the most
+	// recent access listed first.
+	GetServiceLastAccessedDetailsWithEntities(ctx context.Context, params *iam.GetServiceLastAccessedDetailsWithEntitiesInput, optFns ...func(*Options)) (*iam.GetServiceLastAccessedDetailsWithEntitiesOutput, error)
+	// Retrieves the status of your service-linked role deletion. After you use DeleteServiceLinkedRole to
+	// submit a service-linked role for deletion, you can use the DeletionTaskId
+	// parameter in GetServiceLinkedRoleDeletionStatus to check the status of the
+	// deletion. If the deletion fails, this operation returns the reason that it
+	// failed, if that information is returned by the service.
+	GetServiceLinkedRoleDeletionStatus(ctx context.Context, params *iam.GetServiceLinkedRoleDeletionStatusInput, optFns ...func(*Options)) (*iam.GetServiceLinkedRoleDeletionStatusOutput, error)
 	// Retrieves information about the specified IAM user, including the user's
-	// creation date, path, unique ID, and ARN. If you do not specify a user name, IAM
-	// determines the user name implicitly based on the Amazon Web Services access key
-	// ID used to sign the request to this operation.
-	GetUser(ctx context.Context, params *GetUserInput, optFns ...func(*Options)) (*GetUserOutput, error)
+	// creation date, path, unique ID, and ARN.
+	//
+	// If you do not specify a user name, IAM determines the user name implicitly
+	// based on the Amazon Web Services access key ID used to sign the request to this
+	// operation.
+	GetUser(ctx context.Context, params *iam.GetUserInput, optFns ...func(*Options)) (*iam.GetUserOutput, error)
 	// Retrieves the specified inline policy document that is embedded in the
-	// specified IAM user. Policies returned by this operation are URL-encoded
-	// compliant with RFC 3986 (https://tools.ietf.org/html/rfc3986) . You can use a
-	// URL decoding method to convert the policy back to plain JSON text. For example,
-	// if you use Java, you can use the decode method of the java.net.URLDecoder
-	// utility class in the Java SDK. Other languages and SDKs provide similar
-	// functionality. An IAM user can also have managed policies attached to it. To
-	// retrieve a managed policy document that is attached to a user, use GetPolicy to
-	// determine the policy's default version. Then use GetPolicyVersion to retrieve
-	// the policy document. For more information about policies, see Managed policies
-	// and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	GetUserPolicy(ctx context.Context, params *GetUserPolicyInput, optFns ...func(*Options)) (*GetUserPolicyOutput, error)
+	// specified IAM user.
+	//
+	// Policies returned by this operation are URL-encoded compliant with [RFC 3986]. You can
+	// use a URL decoding method to convert the policy back to plain JSON text. For
+	// example, if you use Java, you can use the decode method of the
+	// java.net.URLDecoder utility class in the Java SDK. Other languages and SDKs
+	// provide similar functionality.
+	//
+	// An IAM user can also have managed policies attached to it. To retrieve a
+	// managed policy document that is attached to a user, use GetPolicyto determine the
+	// policy's default version. Then use GetPolicyVersionto retrieve the policy document.
+	//
+	// For more information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [RFC 3986]: https://tools.ietf.org/html/rfc3986
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	GetUserPolicy(ctx context.Context, params *iam.GetUserPolicyInput, optFns ...func(*Options)) (*iam.GetUserPolicyOutput, error)
 	// Returns information about the access key IDs associated with the specified IAM
-	// user. If there is none, the operation returns an empty list. Although each user
-	// is limited to a small number of keys, you can still paginate the results using
-	// the MaxItems and Marker parameters. If the UserName is not specified, the user
-	// name is determined implicitly based on the Amazon Web Services access key ID
-	// used to sign the request. If a temporary access key is used, then UserName is
-	// required. If a long-term key is assigned to the user, then UserName is not
-	// required. This operation works for access keys under the Amazon Web Services
-	// account. If the Amazon Web Services account has no associated users, the root
-	// user returns it's own access key IDs by running this command. To ensure the
-	// security of your Amazon Web Services account, the secret access key is
-	// accessible only during key and user creation.
-	ListAccessKeys(ctx context.Context, params *ListAccessKeysInput, optFns ...func(*Options)) (*ListAccessKeysOutput, error)
+	// user. If there is none, the operation returns an empty list.
+	//
+	// Although each user is limited to a small number of keys, you can still paginate
+	// the results using the MaxItems and Marker parameters.
+	//
+	// If the UserName is not specified, the user name is determined implicitly based
+	// on the Amazon Web Services access key ID used to sign the request. If a
+	// temporary access key is used, then UserName is required. If a long-term key is
+	// assigned to the user, then UserName is not required.
+	//
+	// This operation works for access keys under the Amazon Web Services account. If
+	// the Amazon Web Services account has no associated users, the root user returns
+	// it's own access key IDs by running this command.
+	//
+	// To ensure the security of your Amazon Web Services account, the secret access
+	// key is accessible only during key and user creation.
+	ListAccessKeys(ctx context.Context, params *iam.ListAccessKeysInput, optFns ...func(*Options)) (*iam.ListAccessKeysOutput, error)
 	// Lists the account alias associated with the Amazon Web Services account (Note:
 	// you can have only one). For information about using an Amazon Web Services
-	// account alias, see Creating, deleting, and listing an Amazon Web Services
-	// account alias (https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html)
-	// in the Amazon Web Services Sign-In User Guide.
-	ListAccountAliases(ctx context.Context, params *ListAccountAliasesInput, optFns ...func(*Options)) (*ListAccountAliasesOutput, error)
-	// Lists all managed policies that are attached to the specified IAM group. An IAM
-	// group can also have inline policies embedded with it. To list the inline
-	// policies for a group, use ListGroupPolicies . For information about policies,
-	// see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. You can use the PathPrefix parameter to limit the list of
-	// policies to only those matching the specified path prefix. If there are no
-	// policies attached to the specified group (or none that match the specified path
-	// prefix), the operation returns an empty list.
-	ListAttachedGroupPolicies(ctx context.Context, params *ListAttachedGroupPoliciesInput, optFns ...func(*Options)) (*ListAttachedGroupPoliciesOutput, error)
-	// Lists all managed policies that are attached to the specified IAM role. An IAM
-	// role can also have inline policies embedded with it. To list the inline policies
-	// for a role, use ListRolePolicies . For information about policies, see Managed
-	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. You can use the PathPrefix parameter to limit the list of
-	// policies to only those matching the specified path prefix. If there are no
-	// policies attached to the specified role (or none that match the specified path
-	// prefix), the operation returns an empty list.
-	ListAttachedRolePolicies(ctx context.Context, params *ListAttachedRolePoliciesInput, optFns ...func(*Options)) (*ListAttachedRolePoliciesOutput, error)
-	// Lists all managed policies that are attached to the specified IAM user. An IAM
-	// user can also have inline policies embedded with it. To list the inline policies
-	// for a user, use ListUserPolicies . For information about policies, see Managed
-	// policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. You can use the PathPrefix parameter to limit the list of
-	// policies to only those matching the specified path prefix. If there are no
-	// policies attached to the specified group (or none that match the specified path
-	// prefix), the operation returns an empty list.
-	ListAttachedUserPolicies(ctx context.Context, params *ListAttachedUserPoliciesInput, optFns ...func(*Options)) (*ListAttachedUserPoliciesOutput, error)
+	// account alias, see [Creating, deleting, and listing an Amazon Web Services account alias]in the IAM User Guide.
+	//
+	// [Creating, deleting, and listing an Amazon Web Services account alias]: https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html#CreateAccountAlias
+	ListAccountAliases(ctx context.Context, params *iam.ListAccountAliasesInput, optFns ...func(*Options)) (*iam.ListAccountAliasesOutput, error)
+	// Lists all managed policies that are attached to the specified IAM group.
+	//
+	// An IAM group can also have inline policies embedded with it. To list the inline
+	// policies for a group, use ListGroupPolicies. For information about policies, see [Managed policies and inline policies] in the IAM
+	// User Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. You can
+	// use the PathPrefix parameter to limit the list of policies to only those
+	// matching the specified path prefix. If there are no policies attached to the
+	// specified group (or none that match the specified path prefix), the operation
+	// returns an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListAttachedGroupPolicies(ctx context.Context, params *iam.ListAttachedGroupPoliciesInput, optFns ...func(*Options)) (*iam.ListAttachedGroupPoliciesOutput, error)
+	// Lists all managed policies that are attached to the specified IAM role.
+	//
+	// An IAM role can also have inline policies embedded with it. To list the inline
+	// policies for a role, use ListRolePolicies. For information about policies, see [Managed policies and inline policies] in the IAM User
+	// Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. You can
+	// use the PathPrefix parameter to limit the list of policies to only those
+	// matching the specified path prefix. If there are no policies attached to the
+	// specified role (or none that match the specified path prefix), the operation
+	// returns an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListAttachedRolePolicies(ctx context.Context, params *iam.ListAttachedRolePoliciesInput, optFns ...func(*Options)) (*iam.ListAttachedRolePoliciesOutput, error)
+	// Lists all managed policies that are attached to the specified IAM user.
+	//
+	// An IAM user can also have inline policies embedded with it. To list the inline
+	// policies for a user, use ListUserPolicies. For information about policies, see [Managed policies and inline policies] in the IAM User
+	// Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. You can
+	// use the PathPrefix parameter to limit the list of policies to only those
+	// matching the specified path prefix. If there are no policies attached to the
+	// specified group (or none that match the specified path prefix), the operation
+	// returns an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListAttachedUserPolicies(ctx context.Context, params *iam.ListAttachedUserPoliciesInput, optFns ...func(*Options)) (*iam.ListAttachedUserPoliciesOutput, error)
 	// Lists all IAM users, groups, and roles that the specified managed policy is
-	// attached to. You can use the optional EntityFilter parameter to limit the
-	// results to a particular type of entity (users, groups, or roles). For example,
-	// to list only the roles that are attached to the specified policy, set
-	// EntityFilter to Role . You can paginate the results using the MaxItems and
-	// Marker parameters.
-	ListEntitiesForPolicy(ctx context.Context, params *ListEntitiesForPolicyInput, optFns ...func(*Options)) (*ListEntitiesForPolicyOutput, error)
+	// attached to.
+	//
+	// You can use the optional EntityFilter parameter to limit the results to a
+	// particular type of entity (users, groups, or roles). For example, to list only
+	// the roles that are attached to the specified policy, set EntityFilter to Role .
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListEntitiesForPolicy(ctx context.Context, params *iam.ListEntitiesForPolicyInput, optFns ...func(*Options)) (*iam.ListEntitiesForPolicyOutput, error)
 	// Lists the names of the inline policies that are embedded in the specified IAM
-	// group. An IAM group can also have managed policies attached to it. To list the
-	// managed policies that are attached to a group, use ListAttachedGroupPolicies .
-	// For more information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. If there are no inline policies embedded with the specified
-	// group, the operation returns an empty list.
-	ListGroupPolicies(ctx context.Context, params *ListGroupPoliciesInput, optFns ...func(*Options)) (*ListGroupPoliciesOutput, error)
-	// Lists the IAM groups that have the specified path prefix. You can paginate the
-	// results using the MaxItems and Marker parameters.
-	ListGroups(ctx context.Context, params *ListGroupsInput, optFns ...func(*Options)) (*ListGroupsOutput, error)
-	// Lists the IAM groups that the specified IAM user belongs to. You can paginate
-	// the results using the MaxItems and Marker parameters.
-	ListGroupsForUser(ctx context.Context, params *ListGroupsForUserInput, optFns ...func(*Options)) (*ListGroupsForUserOutput, error)
+	// group.
+	//
+	// An IAM group can also have managed policies attached to it. To list the managed
+	// policies that are attached to a group, use ListAttachedGroupPolicies. For more information about
+	// policies, see [Managed policies and inline policies]in the IAM User Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. If there
+	// are no inline policies embedded with the specified group, the operation returns
+	// an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListGroupPolicies(ctx context.Context, params *iam.ListGroupPoliciesInput, optFns ...func(*Options)) (*iam.ListGroupPoliciesOutput, error)
+	// Lists the IAM groups that have the specified path prefix.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListGroups(ctx context.Context, params *iam.ListGroupsInput, optFns ...func(*Options)) (*iam.ListGroupsOutput, error)
+	// Lists the IAM groups that the specified IAM user belongs to.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListGroupsForUser(ctx context.Context, params *iam.ListGroupsForUserInput, optFns ...func(*Options)) (*iam.ListGroupsForUserOutput, error)
 	// Lists the tags that are attached to the specified IAM instance profile. The
 	// returned list of tags is sorted by tag key. For more information about tagging,
-	// see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	ListInstanceProfileTags(ctx context.Context, params *ListInstanceProfileTagsInput, optFns ...func(*Options)) (*ListInstanceProfileTagsOutput, error)
+	// see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListInstanceProfileTags(ctx context.Context, params *iam.ListInstanceProfileTagsInput, optFns ...func(*Options)) (*iam.ListInstanceProfileTagsOutput, error)
 	// Lists the instance profiles that have the specified path prefix. If there are
 	// none, the operation returns an empty list. For more information about instance
-	// profiles, see Using instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide. IAM resource-listing operations return a subset of the
-	// available attributes for the resource. For example, this operation does not
-	// return tags, even though they are an attribute of the returned object. To view
-	// all of the information for an instance profile, see GetInstanceProfile . You can
-	// paginate the results using the MaxItems and Marker parameters.
-	ListInstanceProfiles(ctx context.Context, params *ListInstanceProfilesInput, optFns ...func(*Options)) (*ListInstanceProfilesOutput, error)
+	// profiles, see [Using instance profiles]in the IAM User Guide.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. For example, this operation does not return tags, even though they
+	// are an attribute of the returned object. To view all of the information for an
+	// instance profile, see GetInstanceProfile.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	//
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	ListInstanceProfiles(ctx context.Context, params *iam.ListInstanceProfilesInput, optFns ...func(*Options)) (*iam.ListInstanceProfilesOutput, error)
 	// Lists the instance profiles that have the specified associated IAM role. If
 	// there are none, the operation returns an empty list. For more information about
-	// instance profiles, go to Using instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters.
-	ListInstanceProfilesForRole(ctx context.Context, params *ListInstanceProfilesForRoleInput, optFns ...func(*Options)) (*ListInstanceProfilesForRoleOutput, error)
+	// instance profiles, go to [Using instance profiles]in the IAM User Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	//
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	ListInstanceProfilesForRole(ctx context.Context, params *iam.ListInstanceProfilesForRoleInput, optFns ...func(*Options)) (*iam.ListInstanceProfilesForRoleOutput, error)
 	// Lists the tags that are attached to the specified IAM virtual multi-factor
 	// authentication (MFA) device. The returned list of tags is sorted by tag key. For
-	// more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	ListMFADeviceTags(ctx context.Context, params *ListMFADeviceTagsInput, optFns ...func(*Options)) (*ListMFADeviceTagsOutput, error)
+	// more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListMFADeviceTags(ctx context.Context, params *iam.ListMFADeviceTagsInput, optFns ...func(*Options)) (*iam.ListMFADeviceTagsOutput, error)
 	// Lists the MFA devices for an IAM user. If the request includes a IAM user name,
 	// then this operation lists all the MFA devices associated with the specified
 	// user. If you do not specify a user name, IAM determines the user name implicitly
 	// based on the Amazon Web Services access key ID signing the request for this
-	// operation. You can paginate the results using the MaxItems and Marker
-	// parameters.
-	ListMFADevices(ctx context.Context, params *ListMFADevicesInput, optFns ...func(*Options)) (*ListMFADevicesOutput, error)
+	// operation.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListMFADevices(ctx context.Context, params *iam.ListMFADevicesInput, optFns ...func(*Options)) (*iam.ListMFADevicesOutput, error)
 	// Lists the tags that are attached to the specified OpenID Connect
 	// (OIDC)-compatible identity provider. The returned list of tags is sorted by tag
-	// key. For more information, see About web identity federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html)
-	// . For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	ListOpenIDConnectProviderTags(ctx context.Context, params *ListOpenIDConnectProviderTagsInput, optFns ...func(*Options)) (*ListOpenIDConnectProviderTagsOutput, error)
+	// key. For more information, see [About web identity federation].
+	//
+	// For more information about tagging, see [Tagging IAM resources] in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [About web identity federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html
+	ListOpenIDConnectProviderTags(ctx context.Context, params *iam.ListOpenIDConnectProviderTagsInput, optFns ...func(*Options)) (*iam.ListOpenIDConnectProviderTagsOutput, error)
 	// Lists information about the IAM OpenID Connect (OIDC) provider resource objects
-	// defined in the Amazon Web Services account. IAM resource-listing operations
-	// return a subset of the available attributes for the resource. For example, this
-	// operation does not return tags, even though they are an attribute of the
-	// returned object. To view all of the information for an OIDC provider, see
-	// GetOpenIDConnectProvider .
-	ListOpenIDConnectProviders(ctx context.Context, params *ListOpenIDConnectProvidersInput, optFns ...func(*Options)) (*ListOpenIDConnectProvidersOutput, error)
+	// defined in the Amazon Web Services account.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. For example, this operation does not return tags, even though they
+	// are an attribute of the returned object. To view all of the information for an
+	// OIDC provider, see GetOpenIDConnectProvider.
+	ListOpenIDConnectProviders(ctx context.Context, params *iam.ListOpenIDConnectProvidersInput, optFns ...func(*Options)) (*iam.ListOpenIDConnectProvidersOutput, error)
+	// Lists the centralized root access features enabled for your organization. For
+	// more information, see [Centrally manage root access for member accounts].
+	//
+	// [Centrally manage root access for member accounts]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	ListOrganizationsFeatures(ctx context.Context, params *iam.ListOrganizationsFeaturesInput, optFns ...func(*Options)) (*iam.ListOrganizationsFeaturesOutput, error)
 	// Lists all the managed policies that are available in your Amazon Web Services
 	// account, including your own customer-defined managed policies and all Amazon Web
-	// Services managed policies. You can filter the list of policies that is returned
-	// using the optional OnlyAttached , Scope , and PathPrefix parameters. For
-	// example, to list only the customer managed policies in your Amazon Web Services
-	// account, set Scope to Local . To list only Amazon Web Services managed policies,
-	// set Scope to AWS . You can paginate the results using the MaxItems and Marker
-	// parameters. For more information about managed policies, see Managed policies
-	// and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. IAM resource-listing operations return a subset of the
-	// available attributes for the resource. For example, this operation does not
-	// return tags, even though they are an attribute of the returned object. To view
-	// all of the information for a customer manged policy, see GetPolicy .
-	ListPolicies(ctx context.Context, params *ListPoliciesInput, optFns ...func(*Options)) (*ListPoliciesOutput, error)
+	// Services managed policies.
+	//
+	// You can filter the list of policies that is returned using the optional
+	// OnlyAttached , Scope , and PathPrefix parameters. For example, to list only the
+	// customer managed policies in your Amazon Web Services account, set Scope to
+	// Local . To list only Amazon Web Services managed policies, set Scope to AWS .
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	//
+	// For more information about managed policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. For example, this operation does not return tags, even though they
+	// are an attribute of the returned object. To view all of the information for a
+	// customer manged policy, see GetPolicy.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListPolicies(ctx context.Context, params *iam.ListPoliciesInput, optFns ...func(*Options)) (*iam.ListPoliciesOutput, error)
 	// Retrieves a list of policies that the IAM identity (user, group, or role) can
-	// use to access each specified service. This operation does not use other policy
-	// types when determining whether a resource could access a service. These other
-	// policy types include resource-based policies, access control lists,
-	// Organizations policies, IAM permissions boundaries, and STS assume role
-	// policies. It only applies permissions policy logic. For more about the
-	// evaluation of policy types, see Evaluating policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics)
-	// in the IAM User Guide. The list of policies returned by the operation depends on
-	// the ARN of the identity that you provide.
+	// use to access each specified service.
+	//
+	// This operation does not use other policy types when determining whether a
+	// resource could access a service. These other policy types include resource-based
+	// policies, access control lists, Organizations policies, IAM permissions
+	// boundaries, and STS assume role policies. It only applies permissions policy
+	// logic. For more about the evaluation of policy types, see [Evaluating policies]in the IAM User Guide.
+	//
+	// The list of policies returned by the operation depends on the ARN of the
+	// identity that you provide.
+	//
 	//   - User – The list of policies includes the managed and inline policies that
 	//     are attached to the user directly. The list also includes any additional managed
 	//     and inline policies that are attached to the group to which the user belongs.
+	//
 	//   - Group – The list of policies includes only the managed and inline policies
 	//     that are attached to the group directly. Policies that are attached to the
 	//     group’s user are not included.
+	//
 	//   - Role – The list of policies includes only the managed and inline policies
 	//     that are attached to the role.
 	//
 	// For each managed policy, this operation returns the ARN and policy name. For
 	// each inline policy, it returns the policy name and the entity to which it is
 	// attached. Inline policies do not have an ARN. For more information about these
-	// policy types, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html)
-	// in the IAM User Guide. Policies that are attached to users and roles as
-	// permissions boundaries are not returned. To view which managed policy is
-	// currently used to set the permissions boundary for a user or role, use the
-	// GetUser or GetRole operations.
-	ListPoliciesGrantingServiceAccess(ctx context.Context, params *ListPoliciesGrantingServiceAccessInput, optFns ...func(*Options)) (*ListPoliciesGrantingServiceAccessOutput, error)
+	// policy types, see [Managed policies and inline policies]in the IAM User Guide.
+	//
+	// Policies that are attached to users and roles as permissions boundaries are not
+	// returned. To view which managed policy is currently used to set the permissions
+	// boundary for a user or role, use the GetUseror GetRole operations.
+	//
+	// [Evaluating policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html#policy-eval-basics
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-vs-inline.html
+	ListPoliciesGrantingServiceAccess(ctx context.Context, params *iam.ListPoliciesGrantingServiceAccessInput, optFns ...func(*Options)) (*iam.ListPoliciesGrantingServiceAccessOutput, error)
 	// Lists the tags that are attached to the specified IAM customer managed policy.
 	// The returned list of tags is sorted by tag key. For more information about
-	// tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	ListPolicyTags(ctx context.Context, params *ListPolicyTagsInput, optFns ...func(*Options)) (*ListPolicyTagsOutput, error)
+	// tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListPolicyTags(ctx context.Context, params *iam.ListPolicyTagsInput, optFns ...func(*Options)) (*iam.ListPolicyTagsOutput, error)
 	// Lists information about the versions of the specified managed policy, including
-	// the version that is currently set as the policy's default version. For more
-	// information about managed policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	ListPolicyVersions(ctx context.Context, params *ListPolicyVersionsInput, optFns ...func(*Options)) (*ListPolicyVersionsOutput, error)
+	// the version that is currently set as the policy's default version.
+	//
+	// For more information about managed policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListPolicyVersions(ctx context.Context, params *iam.ListPolicyVersionsInput, optFns ...func(*Options)) (*iam.ListPolicyVersionsOutput, error)
 	// Lists the names of the inline policies that are embedded in the specified IAM
-	// role. An IAM role can also have managed policies attached to it. To list the
-	// managed policies that are attached to a role, use ListAttachedRolePolicies . For
-	// more information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. If there are no inline policies embedded with the specified
-	// role, the operation returns an empty list.
-	ListRolePolicies(ctx context.Context, params *ListRolePoliciesInput, optFns ...func(*Options)) (*ListRolePoliciesOutput, error)
+	// role.
+	//
+	// An IAM role can also have managed policies attached to it. To list the managed
+	// policies that are attached to a role, use ListAttachedRolePolicies. For more information about
+	// policies, see [Managed policies and inline policies]in the IAM User Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. If there
+	// are no inline policies embedded with the specified role, the operation returns
+	// an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListRolePolicies(ctx context.Context, params *iam.ListRolePoliciesInput, optFns ...func(*Options)) (*iam.ListRolePoliciesOutput, error)
 	// Lists the tags that are attached to the specified role. The returned list of
-	// tags is sorted by tag key. For more information about tagging, see Tagging IAM
-	// resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in the
-	// IAM User Guide.
-	ListRoleTags(ctx context.Context, params *ListRoleTagsInput, optFns ...func(*Options)) (*ListRoleTagsOutput, error)
+	// tags is sorted by tag key. For more information about tagging, see [Tagging IAM resources]in the IAM
+	// User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListRoleTags(ctx context.Context, params *iam.ListRoleTagsInput, optFns ...func(*Options)) (*iam.ListRoleTagsOutput, error)
 	// Lists the IAM roles that have the specified path prefix. If there are none, the
-	// operation returns an empty list. For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)
-	// in the IAM User Guide. IAM resource-listing operations return a subset of the
-	// available attributes for the resource. This operation does not return the
-	// following attributes, even though they are an attribute of the returned object:
+	// operation returns an empty list. For more information about roles, see [IAM roles]in the
+	// IAM User Guide.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. This operation does not return the following attributes, even
+	// though they are an attribute of the returned object:
+	//
 	//   - PermissionsBoundary
+	//
 	//   - RoleLastUsed
+	//
 	//   - Tags
 	//
-	// To view all of the information for a role, see GetRole . You can paginate the
-	// results using the MaxItems and Marker parameters.
-	ListRoles(ctx context.Context, params *ListRolesInput, optFns ...func(*Options)) (*ListRolesOutput, error)
+	// To view all of the information for a role, see GetRole.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	//
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	ListRoles(ctx context.Context, params *iam.ListRolesInput, optFns ...func(*Options)) (*iam.ListRolesOutput, error)
 	// Lists the tags that are attached to the specified Security Assertion Markup
 	// Language (SAML) identity provider. The returned list of tags is sorted by tag
-	// key. For more information, see About SAML 2.0-based federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html)
-	// . For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	ListSAMLProviderTags(ctx context.Context, params *ListSAMLProviderTagsInput, optFns ...func(*Options)) (*ListSAMLProviderTagsOutput, error)
+	// key. For more information, see [About SAML 2.0-based federation].
+	//
+	// For more information about tagging, see [Tagging IAM resources] in the IAM User Guide.
+	//
+	// [About SAML 2.0-based federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListSAMLProviderTags(ctx context.Context, params *iam.ListSAMLProviderTagsInput, optFns ...func(*Options)) (*iam.ListSAMLProviderTagsOutput, error)
 	// Lists the SAML provider resource objects defined in IAM in the account. IAM
 	// resource-listing operations return a subset of the available attributes for the
 	// resource. For example, this operation does not return tags, even though they are
 	// an attribute of the returned object. To view all of the information for a SAML
-	// provider, see GetSAMLProvider . This operation requires Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
-	// .
-	ListSAMLProviders(ctx context.Context, params *ListSAMLProvidersInput, optFns ...func(*Options)) (*ListSAMLProvidersOutput, error)
+	// provider, see GetSAMLProvider.
+	//
+	// This operation requires [Signature Version 4].
+	//
+	// [Signature Version 4]: https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
+	ListSAMLProviders(ctx context.Context, params *iam.ListSAMLProvidersInput, optFns ...func(*Options)) (*iam.ListSAMLProvidersOutput, error)
 	// Returns information about the SSH public keys associated with the specified IAM
-	// user. If none exists, the operation returns an empty list. The SSH public keys
-	// returned by this operation are used only for authenticating the IAM user to an
-	// CodeCommit repository. For more information about using SSH keys to authenticate
-	// to an CodeCommit repository, see Set up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-	// in the CodeCommit User Guide. Although each user is limited to a small number of
-	// keys, you can still paginate the results using the MaxItems and Marker
-	// parameters.
-	ListSSHPublicKeys(ctx context.Context, params *ListSSHPublicKeysInput, optFns ...func(*Options)) (*ListSSHPublicKeysOutput, error)
+	// user. If none exists, the operation returns an empty list.
+	//
+	// The SSH public keys returned by this operation are used only for authenticating
+	// the IAM user to an CodeCommit repository. For more information about using SSH
+	// keys to authenticate to an CodeCommit repository, see [Set up CodeCommit for SSH connections]in the CodeCommit User
+	// Guide.
+	//
+	// Although each user is limited to a small number of keys, you can still paginate
+	// the results using the MaxItems and Marker parameters.
+	//
+	// [Set up CodeCommit for SSH connections]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html
+	ListSSHPublicKeys(ctx context.Context, params *iam.ListSSHPublicKeysInput, optFns ...func(*Options)) (*iam.ListSSHPublicKeysOutput, error)
 	// Lists the tags that are attached to the specified IAM server certificate. The
 	// returned list of tags is sorted by tag key. For more information about tagging,
-	// see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide. For certificates in a Region supported by Certificate
-	// Manager (ACM), we recommend that you don't use IAM server certificates. Instead,
-	// use ACM to provision, manage, and deploy your server certificates. For more
-	// information about IAM server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide.
-	ListServerCertificateTags(ctx context.Context, params *ListServerCertificateTagsInput, optFns ...func(*Options)) (*ListServerCertificateTagsOutput, error)
+	// see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// For certificates in a Region supported by Certificate Manager (ACM), we
+	// recommend that you don't use IAM server certificates. Instead, use ACM to
+	// provision, manage, and deploy your server certificates. For more information
+	// about IAM server certificates, [Working with server certificates]in the IAM User Guide.
+	//
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListServerCertificateTags(ctx context.Context, params *iam.ListServerCertificateTagsInput, optFns ...func(*Options)) (*iam.ListServerCertificateTagsOutput, error)
 	// Lists the server certificates stored in IAM that have the specified path
-	// prefix. If none exist, the operation returns an empty list. You can paginate the
-	// results using the MaxItems and Marker parameters. For more information about
-	// working with server certificates, see Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. This topic also includes a list of Amazon Web Services
-	// services that can use the server certificates that you manage with IAM. IAM
-	// resource-listing operations return a subset of the available attributes for the
-	// resource. For example, this operation does not return tags, even though they are
-	// an attribute of the returned object. To view all of the information for a
-	// servercertificate, see GetServerCertificate .
-	ListServerCertificates(ctx context.Context, params *ListServerCertificatesInput, optFns ...func(*Options)) (*ListServerCertificatesOutput, error)
+	// prefix. If none exist, the operation returns an empty list.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	//
+	// For more information about working with server certificates, see [Working with server certificates] in the IAM
+	// User Guide. This topic also includes a list of Amazon Web Services services that
+	// can use the server certificates that you manage with IAM.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. For example, this operation does not return tags, even though they
+	// are an attribute of the returned object. To view all of the information for a
+	// servercertificate, see GetServerCertificate.
+	//
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	ListServerCertificates(ctx context.Context, params *iam.ListServerCertificatesInput, optFns ...func(*Options)) (*iam.ListServerCertificatesOutput, error)
 	// Returns information about the service-specific credentials associated with the
 	// specified IAM user. If none exists, the operation returns an empty list. The
 	// service-specific credentials returned by this operation are used only for
 	// authenticating the IAM user to a specific service. For more information about
 	// using service-specific credentials to authenticate to an Amazon Web Services
-	// service, see Set up service-specific credentials (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-gc.html)
-	// in the CodeCommit User Guide.
-	ListServiceSpecificCredentials(ctx context.Context, params *ListServiceSpecificCredentialsInput, optFns ...func(*Options)) (*ListServiceSpecificCredentialsOutput, error)
+	// service, see [Set up service-specific credentials]in the CodeCommit User Guide.
+	//
+	// [Set up service-specific credentials]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-gc.html
+	ListServiceSpecificCredentials(ctx context.Context, params *iam.ListServiceSpecificCredentialsInput, optFns ...func(*Options)) (*iam.ListServiceSpecificCredentialsOutput, error)
 	// Returns information about the signing certificates associated with the
 	// specified IAM user. If none exists, the operation returns an empty list.
-	// Although each user is limited to a small number of signing certificates, you can
-	// still paginate the results using the MaxItems and Marker parameters. If the
-	// UserName field is not specified, the user name is determined implicitly based on
-	// the Amazon Web Services access key ID used to sign the request for this
+	//
+	// Although each user is limited to a small number of signing certificates, you
+	// can still paginate the results using the MaxItems and Marker parameters.
+	//
+	// If the UserName field is not specified, the user name is determined implicitly
+	// based on the Amazon Web Services access key ID used to sign the request for this
 	// operation. This operation works for access keys under the Amazon Web Services
 	// account. Consequently, you can use this operation to manage Amazon Web Services
 	// account root user credentials even if the Amazon Web Services account has no
 	// associated users.
-	ListSigningCertificates(ctx context.Context, params *ListSigningCertificatesInput, optFns ...func(*Options)) (*ListSigningCertificatesOutput, error)
-	// Lists the names of the inline policies embedded in the specified IAM user. An
-	// IAM user can also have managed policies attached to it. To list the managed
-	// policies that are attached to a user, use ListAttachedUserPolicies . For more
-	// information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. You can paginate the results using the MaxItems and
-	// Marker parameters. If there are no inline policies embedded with the specified
-	// user, the operation returns an empty list.
-	ListUserPolicies(ctx context.Context, params *ListUserPoliciesInput, optFns ...func(*Options)) (*ListUserPoliciesOutput, error)
+	ListSigningCertificates(ctx context.Context, params *iam.ListSigningCertificatesInput, optFns ...func(*Options)) (*iam.ListSigningCertificatesOutput, error)
+	// Lists the names of the inline policies embedded in the specified IAM user.
+	//
+	// An IAM user can also have managed policies attached to it. To list the managed
+	// policies that are attached to a user, use ListAttachedUserPolicies. For more information about
+	// policies, see [Managed policies and inline policies]in the IAM User Guide.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters. If there
+	// are no inline policies embedded with the specified user, the operation returns
+	// an empty list.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	ListUserPolicies(ctx context.Context, params *iam.ListUserPoliciesInput, optFns ...func(*Options)) (*iam.ListUserPoliciesOutput, error)
 	// Lists the tags that are attached to the specified IAM user. The returned list
-	// of tags is sorted by tag key. For more information about tagging, see Tagging
-	// IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html) in
-	// the IAM User Guide.
-	ListUserTags(ctx context.Context, params *ListUserTagsInput, optFns ...func(*Options)) (*ListUserTagsOutput, error)
+	// of tags is sorted by tag key. For more information about tagging, see [Tagging IAM resources]in the
+	// IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	ListUserTags(ctx context.Context, params *iam.ListUserTagsInput, optFns ...func(*Options)) (*iam.ListUserTagsOutput, error)
 	// Lists the IAM users that have the specified path prefix. If no path prefix is
 	// specified, the operation returns all users in the Amazon Web Services account.
-	// If there are none, the operation returns an empty list. IAM resource-listing
-	// operations return a subset of the available attributes for the resource. This
-	// operation does not return the following attributes, even though they are an
-	// attribute of the returned object:
+	// If there are none, the operation returns an empty list.
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. This operation does not return the following attributes, even
+	// though they are an attribute of the returned object:
+	//
 	//   - PermissionsBoundary
+	//
 	//   - Tags
 	//
-	// To view all of the information for a user, see GetUser . You can paginate the
-	// results using the MaxItems and Marker parameters.
-	ListUsers(ctx context.Context, params *ListUsersInput, optFns ...func(*Options)) (*ListUsersOutput, error)
+	// To view all of the information for a user, see GetUser.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListUsers(ctx context.Context, params *iam.ListUsersInput, optFns ...func(*Options)) (*iam.ListUsersOutput, error)
 	// Lists the virtual MFA devices defined in the Amazon Web Services account by
 	// assignment status. If you do not specify an assignment status, the operation
 	// returns a list of all virtual MFA devices. Assignment status can be Assigned ,
-	// Unassigned , or Any . IAM resource-listing operations return a subset of the
-	// available attributes for the resource. For example, this operation does not
-	// return tags, even though they are an attribute of the returned object. To view
-	// tag information for a virtual MFA device, see ListMFADeviceTags . You can
-	// paginate the results using the MaxItems and Marker parameters.
-	ListVirtualMFADevices(ctx context.Context, params *ListVirtualMFADevicesInput, optFns ...func(*Options)) (*ListVirtualMFADevicesOutput, error)
+	// Unassigned , or Any .
+	//
+	// IAM resource-listing operations return a subset of the available attributes for
+	// the resource. For example, this operation does not return tags, even though they
+	// are an attribute of the returned object. To view tag information for a virtual
+	// MFA device, see ListMFADeviceTags.
+	//
+	// You can paginate the results using the MaxItems and Marker parameters.
+	ListVirtualMFADevices(ctx context.Context, params *iam.ListVirtualMFADevicesInput, optFns ...func(*Options)) (*iam.ListVirtualMFADevicesOutput, error)
 	// Adds or updates an inline policy document that is embedded in the specified IAM
-	// group. A user can also have managed policies attached to it. To attach a managed
-	// policy to a group, use AttachGroupPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachGroupPolicy.html)
-	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
-	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. For information about the maximum number of inline
-	// policies that you can embed in a group, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. Because policy documents can be large, you should use
-	// POST rather than GET when calling PutGroupPolicy . For general information about
-	// using the Query API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
-	// in the IAM User Guide.
-	PutGroupPolicy(ctx context.Context, params *PutGroupPolicyInput, optFns ...func(*Options)) (*PutGroupPolicyOutput, error)
+	// group.
+	//
+	// A user can also have managed policies attached to it. To attach a managed
+	// policy to a group, use [AttachGroupPolicy]AttachGroupPolicy . To create a new managed policy, use [CreatePolicy]
+	// CreatePolicy . For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// For information about the maximum number of inline policies that you can embed
+	// in a group, see [IAM and STS quotas]in the IAM User Guide.
+	//
+	// Because policy documents can be large, you should use POST rather than GET when
+	// calling PutGroupPolicy . For general information about using the Query API with
+	// IAM, see [Making query requests]in the IAM User Guide.
+	//
+	// [CreatePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	// [Making query requests]: https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html
+	// [AttachGroupPolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachGroupPolicy.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	PutGroupPolicy(ctx context.Context, params *iam.PutGroupPolicyInput, optFns ...func(*Options)) (*iam.PutGroupPolicyOutput, error)
 	// Adds or updates the policy that is specified as the IAM role's permissions
 	// boundary. You can use an Amazon Web Services managed policy or a customer
 	// managed policy to set the boundary for a role. Use the boundary to control the
 	// maximum permissions that the role can have. Setting a permissions boundary is an
-	// advanced feature that can affect the permissions for the role. You cannot set
-	// the boundary for a service-linked role. Policies used as permissions boundaries
-	// do not provide permissions. You must also attach a permissions policy to the
-	// role. To learn how the effective permissions for a role are evaluated, see IAM
-	// JSON policy evaluation logic (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
-	// in the IAM User Guide.
-	PutRolePermissionsBoundary(ctx context.Context, params *PutRolePermissionsBoundaryInput, optFns ...func(*Options)) (*PutRolePermissionsBoundaryOutput, error)
+	// advanced feature that can affect the permissions for the role.
+	//
+	// You cannot set the boundary for a service-linked role.
+	//
+	// Policies used as permissions boundaries do not provide permissions. You must
+	// also attach a permissions policy to the role. To learn how the effective
+	// permissions for a role are evaluated, see [IAM JSON policy evaluation logic]in the IAM User Guide.
+	//
+	// [IAM JSON policy evaluation logic]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+	PutRolePermissionsBoundary(ctx context.Context, params *iam.PutRolePermissionsBoundaryInput, optFns ...func(*Options)) (*iam.PutRolePermissionsBoundaryOutput, error)
 	// Adds or updates an inline policy document that is embedded in the specified IAM
-	// role. When you embed an inline policy in a role, the inline policy is used as
-	// part of the role's access (permissions) policy. The role's trust policy is
-	// created at the same time as the role, using CreateRole (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html)
-	// . You can update a role's trust policy using UpdateAssumeRolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html)
-	// . For more information about roles, see IAM roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html)
-	// in the IAM User Guide. A role can also have a managed policy attached to it. To
-	// attach a managed policy to a role, use AttachRolePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachRolePolicy.html)
-	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
-	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. For information about the maximum number of inline
-	// policies that you can embed with a role, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. Because policy documents can be large, you should use
-	// POST rather than GET when calling PutRolePolicy . For general information about
-	// using the Query API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
-	// in the IAM User Guide.
-	PutRolePolicy(ctx context.Context, params *PutRolePolicyInput, optFns ...func(*Options)) (*PutRolePolicyOutput, error)
+	// role.
+	//
+	// When you embed an inline policy in a role, the inline policy is used as part of
+	// the role's access (permissions) policy. The role's trust policy is created at
+	// the same time as the role, using [CreateRole]CreateRole . You can update a role's trust
+	// policy using [UpdateAssumeRolePolicy]UpdateAssumeRolePolicy . For more information about roles, see [IAM roles] in
+	// the IAM User Guide.
+	//
+	// A role can also have a managed policy attached to it. To attach a managed
+	// policy to a role, use [AttachRolePolicy]AttachRolePolicy . To create a new managed policy, use [CreatePolicy]
+	// CreatePolicy . For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// For information about the maximum number of inline policies that you can embed
+	// with a role, see [IAM and STS quotas]in the IAM User Guide.
+	//
+	// Because policy documents can be large, you should use POST rather than GET when
+	// calling PutRolePolicy . For general information about using the Query API with
+	// IAM, see [Making query requests]in the IAM User Guide.
+	//
+	// [UpdateAssumeRolePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_UpdateAssumeRolePolicy.html
+	// [AttachRolePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachRolePolicy.html
+	// [CreatePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	// [Making query requests]: https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html
+	// [CreateRole]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreateRole.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*Options)) (*iam.PutRolePolicyOutput, error)
 	// Adds or updates the policy that is specified as the IAM user's permissions
 	// boundary. You can use an Amazon Web Services managed policy or a customer
 	// managed policy to set the boundary for a user. Use the boundary to control the
 	// maximum permissions that the user can have. Setting a permissions boundary is an
-	// advanced feature that can affect the permissions for the user. Policies that are
-	// used as permissions boundaries do not provide permissions. You must also attach
-	// a permissions policy to the user. To learn how the effective permissions for a
-	// user are evaluated, see IAM JSON policy evaluation logic (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
-	// in the IAM User Guide.
-	PutUserPermissionsBoundary(ctx context.Context, params *PutUserPermissionsBoundaryInput, optFns ...func(*Options)) (*PutUserPermissionsBoundaryOutput, error)
+	// advanced feature that can affect the permissions for the user.
+	//
+	// Policies that are used as permissions boundaries do not provide permissions.
+	// You must also attach a permissions policy to the user. To learn how the
+	// effective permissions for a user are evaluated, see [IAM JSON policy evaluation logic]in the IAM User Guide.
+	//
+	// [IAM JSON policy evaluation logic]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html
+	PutUserPermissionsBoundary(ctx context.Context, params *iam.PutUserPermissionsBoundaryInput, optFns ...func(*Options)) (*iam.PutUserPermissionsBoundaryOutput, error)
 	// Adds or updates an inline policy document that is embedded in the specified IAM
-	// user. An IAM user can also have a managed policy attached to it. To attach a
-	// managed policy to a user, use AttachUserPolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachUserPolicy.html)
-	// . To create a new managed policy, use CreatePolicy (https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html)
-	// . For information about policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide. For information about the maximum number of inline
-	// policies that you can embed in a user, see IAM and STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. Because policy documents can be large, you should use
-	// POST rather than GET when calling PutUserPolicy . For general information about
-	// using the Query API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
-	// in the IAM User Guide.
-	PutUserPolicy(ctx context.Context, params *PutUserPolicyInput, optFns ...func(*Options)) (*PutUserPolicyOutput, error)
+	// user.
+	//
+	// An IAM user can also have a managed policy attached to it. To attach a managed
+	// policy to a user, use [AttachUserPolicy]AttachUserPolicy . To create a new managed policy, use [CreatePolicy]
+	// CreatePolicy . For information about policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// For information about the maximum number of inline policies that you can embed
+	// in a user, see [IAM and STS quotas]in the IAM User Guide.
+	//
+	// Because policy documents can be large, you should use POST rather than GET when
+	// calling PutUserPolicy . For general information about using the Query API with
+	// IAM, see [Making query requests]in the IAM User Guide.
+	//
+	// [CreatePolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_CreatePolicy.html
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	// [Making query requests]: https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html
+	// [AttachUserPolicy]: https://docs.aws.amazon.com/IAM/latest/APIReference/API_AttachUserPolicy.html
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	PutUserPolicy(ctx context.Context, params *iam.PutUserPolicyInput, optFns ...func(*Options)) (*iam.PutUserPolicyOutput, error)
 	// Removes the specified client ID (also known as audience) from the list of
 	// client IDs registered for the specified IAM OpenID Connect (OIDC) provider
-	// resource object. This operation is idempotent; it does not fail or return an
-	// error if you try to remove a client ID that does not exist.
-	RemoveClientIDFromOpenIDConnectProvider(ctx context.Context, params *RemoveClientIDFromOpenIDConnectProviderInput, optFns ...func(*Options)) (*RemoveClientIDFromOpenIDConnectProviderOutput, error)
+	// resource object.
+	//
+	// This operation is idempotent; it does not fail or return an error if you try to
+	// remove a client ID that does not exist.
+	RemoveClientIDFromOpenIDConnectProvider(ctx context.Context, params *iam.RemoveClientIDFromOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.RemoveClientIDFromOpenIDConnectProviderOutput, error)
 	// Removes the specified IAM role from the specified Amazon EC2 instance profile.
+	//
 	// Make sure that you do not have any Amazon EC2 instances running with the role
 	// you are about to remove from the instance profile. Removing a role from an
 	// instance profile that is associated with a running instance might break any
-	// applications running on the instance. For more information about roles, see IAM
-	// roles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) in the
-	// IAM User Guide. For more information about instance profiles, see Using
-	// instance profiles (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html)
-	// in the IAM User Guide.
-	RemoveRoleFromInstanceProfile(ctx context.Context, params *RemoveRoleFromInstanceProfileInput, optFns ...func(*Options)) (*RemoveRoleFromInstanceProfileOutput, error)
+	// applications running on the instance.
+	//
+	// For more information about roles, see [IAM roles] in the IAM User Guide. For more
+	// information about instance profiles, see [Using instance profiles]in the IAM User Guide.
+	//
+	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
+	RemoveRoleFromInstanceProfile(ctx context.Context, params *iam.RemoveRoleFromInstanceProfileInput, optFns ...func(*Options)) (*iam.RemoveRoleFromInstanceProfileOutput, error)
 	// Removes the specified user from the specified group.
-	RemoveUserFromGroup(ctx context.Context, params *RemoveUserFromGroupInput, optFns ...func(*Options)) (*RemoveUserFromGroupOutput, error)
+	RemoveUserFromGroup(ctx context.Context, params *iam.RemoveUserFromGroupInput, optFns ...func(*Options)) (*iam.RemoveUserFromGroupOutput, error)
 	// Resets the password for a service-specific credential. The new password is
 	// Amazon Web Services generated and cryptographically strong. It cannot be
 	// configured by the user. Resetting the password immediately invalidates the
 	// previous password associated with this user.
-	ResetServiceSpecificCredential(ctx context.Context, params *ResetServiceSpecificCredentialInput, optFns ...func(*Options)) (*ResetServiceSpecificCredentialOutput, error)
+	ResetServiceSpecificCredential(ctx context.Context, params *iam.ResetServiceSpecificCredentialInput, optFns ...func(*Options)) (*iam.ResetServiceSpecificCredentialOutput, error)
 	// Synchronizes the specified MFA device with its IAM resource object on the
-	// Amazon Web Services servers. For more information about creating and working
-	// with virtual MFA devices, see Using a virtual MFA device (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html)
+	// Amazon Web Services servers.
+	//
+	// For more information about creating and working with virtual MFA devices, see [Using a virtual MFA device]
 	// in the IAM User Guide.
-	ResyncMFADevice(ctx context.Context, params *ResyncMFADeviceInput, optFns ...func(*Options)) (*ResyncMFADeviceOutput, error)
+	//
+	// [Using a virtual MFA device]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_VirtualMFA.html
+	ResyncMFADevice(ctx context.Context, params *iam.ResyncMFADeviceInput, optFns ...func(*Options)) (*iam.ResyncMFADeviceOutput, error)
 	// Sets the specified version of the specified policy as the policy's default
-	// (operative) version. This operation affects all users, groups, and roles that
-	// the policy is attached to. To list the users, groups, and roles that the policy
-	// is attached to, use ListEntitiesForPolicy . For information about managed
-	// policies, see Managed policies and inline policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html)
-	// in the IAM User Guide.
-	SetDefaultPolicyVersion(ctx context.Context, params *SetDefaultPolicyVersionInput, optFns ...func(*Options)) (*SetDefaultPolicyVersionOutput, error)
+	// (operative) version.
+	//
+	// This operation affects all users, groups, and roles that the policy is attached
+	// to. To list the users, groups, and roles that the policy is attached to, use ListEntitiesForPolicy.
+	//
+	// For information about managed policies, see [Managed policies and inline policies] in the IAM User Guide.
+	//
+	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
+	SetDefaultPolicyVersion(ctx context.Context, params *iam.SetDefaultPolicyVersionInput, optFns ...func(*Options)) (*iam.SetDefaultPolicyVersionOutput, error)
 	// Sets the specified version of the global endpoint token as the token version
-	// used for the Amazon Web Services account. By default, Security Token Service
-	// (STS) is available as a global service, and all STS requests go to a single
-	// endpoint at https://sts.amazonaws.com . Amazon Web Services recommends using
-	// Regional STS endpoints to reduce latency, build in redundancy, and increase
-	// session token availability. For information about Regional endpoints for STS,
-	// see Security Token Service endpoints and quotas (https://docs.aws.amazon.com/general/latest/gr/sts.html)
-	// in the Amazon Web Services General Reference. If you make an STS call to the
-	// global endpoint, the resulting session tokens might be valid in some Regions but
-	// not others. It depends on the version that is set in this operation. Version 1
-	// tokens are valid only in Amazon Web Services Regions that are available by
-	// default. These tokens do not work in manually enabled Regions, such as Asia
-	// Pacific (Hong Kong). Version 2 tokens are valid in all Regions. However, version
-	// 2 tokens are longer and might affect systems where you temporarily store tokens.
-	// For information, see Activating and deactivating STS in an Amazon Web Services
-	// Region (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html)
-	// in the IAM User Guide. To view the current session token version, see the
-	// GlobalEndpointTokenVersion entry in the response of the GetAccountSummary
-	// operation.
-	SetSecurityTokenServicePreferences(ctx context.Context, params *SetSecurityTokenServicePreferencesInput, optFns ...func(*Options)) (*SetSecurityTokenServicePreferencesOutput, error)
+	// used for the Amazon Web Services account.
+	//
+	// By default, Security Token Service (STS) is available as a global service, and
+	// all STS requests go to a single endpoint at https://sts.amazonaws.com . Amazon
+	// Web Services recommends using Regional STS endpoints to reduce latency, build in
+	// redundancy, and increase session token availability. For information about
+	// Regional endpoints for STS, see [Security Token Service endpoints and quotas]in the Amazon Web Services General Reference.
+	//
+	// If you make an STS call to the global endpoint, the resulting session tokens
+	// might be valid in some Regions but not others. It depends on the version that is
+	// set in this operation. Version 1 tokens are valid only in Amazon Web Services
+	// Regions that are available by default. These tokens do not work in manually
+	// enabled Regions, such as Asia Pacific (Hong Kong). Version 2 tokens are valid in
+	// all Regions. However, version 2 tokens are longer and might affect systems where
+	// you temporarily store tokens. For information, see [Activating and deactivating STS in an Amazon Web Services Region]in the IAM User Guide.
+	//
+	// To view the current session token version, see the GlobalEndpointTokenVersion
+	// entry in the response of the GetAccountSummaryoperation.
+	//
+	// [Activating and deactivating STS in an Amazon Web Services Region]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_enable-regions.html
+	// [Security Token Service endpoints and quotas]: https://docs.aws.amazon.com/general/latest/gr/sts.html
+	SetSecurityTokenServicePreferences(ctx context.Context, params *iam.SetSecurityTokenServicePreferencesInput, optFns ...func(*Options)) (*iam.SetSecurityTokenServicePreferencesOutput, error)
 	// Simulate how a set of IAM policies and optionally a resource-based policy works
 	// with a list of API operations and Amazon Web Services resources to determine the
-	// policies' effective permissions. The policies are provided as strings. The
-	// simulation does not perform the API operations; it only checks the authorization
-	// to determine if the simulated policies allow or deny the operations. You can
-	// simulate resources that don't exist in your account. If you want to simulate
-	// existing policies that are attached to an IAM user, group, or role, use
-	// SimulatePrincipalPolicy instead. Context keys are variables that are maintained
-	// by Amazon Web Services and its services and which provide details about the
-	// context of an API query request. You can use the Condition element of an IAM
-	// policy to evaluate context keys. To get the list of context keys that the
-	// policies require for correct simulation, use GetContextKeysForCustomPolicy . If
-	// the output is long, you can use MaxItems and Marker parameters to paginate the
-	// results. The IAM policy simulator evaluates statements in the identity-based
-	// policy and the inputs that you provide during simulation. The policy simulator
-	// results can differ from your live Amazon Web Services environment. We recommend
-	// that you check your policies against your live Amazon Web Services environment
-	// after testing using the policy simulator to confirm that you have the desired
-	// results. For more information about using the policy simulator, see Testing IAM
-	// policies with the IAM policy simulator  (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html)
-	// in the IAM User Guide.
-	SimulateCustomPolicy(ctx context.Context, params *SimulateCustomPolicyInput, optFns ...func(*Options)) (*SimulateCustomPolicyOutput, error)
+	// policies' effective permissions. The policies are provided as strings.
+	//
+	// The simulation does not perform the API operations; it only checks the
+	// authorization to determine if the simulated policies allow or deny the
+	// operations. You can simulate resources that don't exist in your account.
+	//
+	// If you want to simulate existing policies that are attached to an IAM user,
+	// group, or role, use SimulatePrincipalPolicyinstead.
+	//
+	// Context keys are variables that are maintained by Amazon Web Services and its
+	// services and which provide details about the context of an API query request.
+	// You can use the Condition element of an IAM policy to evaluate context keys. To
+	// get the list of context keys that the policies require for correct simulation,
+	// use GetContextKeysForCustomPolicy.
+	//
+	// If the output is long, you can use MaxItems and Marker parameters to paginate
+	// the results.
+	//
+	// The IAM policy simulator evaluates statements in the identity-based policy and
+	// the inputs that you provide during simulation. The policy simulator results can
+	// differ from your live Amazon Web Services environment. We recommend that you
+	// check your policies against your live Amazon Web Services environment after
+	// testing using the policy simulator to confirm that you have the desired results.
+	// For more information about using the policy simulator, see [Testing IAM policies with the IAM policy simulator]in the IAM User
+	// Guide.
+	//
+	// [Testing IAM policies with the IAM policy simulator]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html
+	SimulateCustomPolicy(ctx context.Context, params *iam.SimulateCustomPolicyInput, optFns ...func(*Options)) (*iam.SimulateCustomPolicyOutput, error)
 	// Simulate how a set of IAM policies attached to an IAM entity works with a list
 	// of API operations and Amazon Web Services resources to determine the policies'
 	// effective permissions. The entity can be an IAM user, group, or role. If you
 	// specify a user, then the simulation also includes all of the policies that are
 	// attached to groups that the user belongs to. You can simulate resources that
-	// don't exist in your account. You can optionally include a list of one or more
-	// additional policies specified as strings to include in the simulation. If you
-	// want to simulate only policies specified as strings, use SimulateCustomPolicy
-	// instead. You can also optionally include one resource-based policy to be
-	// evaluated with each of the resources included in the simulation for IAM users
-	// only. The simulation does not perform the API operations; it only checks the
+	// don't exist in your account.
+	//
+	// You can optionally include a list of one or more additional policies specified
+	// as strings to include in the simulation. If you want to simulate only policies
+	// specified as strings, use SimulateCustomPolicyinstead.
+	//
+	// You can also optionally include one resource-based policy to be evaluated with
+	// each of the resources included in the simulation for IAM users only.
+	//
+	// The simulation does not perform the API operations; it only checks the
 	// authorization to determine if the simulated policies allow or deny the
-	// operations. Note: This operation discloses information about the permissions
-	// granted to other users. If you do not want users to see other user's
-	// permissions, then consider allowing them to use SimulateCustomPolicy instead.
+	// operations.
+	//
+	// Note: This operation discloses information about the permissions granted to
+	// other users. If you do not want users to see other user's permissions, then
+	// consider allowing them to use SimulateCustomPolicyinstead.
+	//
 	// Context keys are variables maintained by Amazon Web Services and its services
 	// that provide details about the context of an API query request. You can use the
 	// Condition element of an IAM policy to evaluate context keys. To get the list of
-	// context keys that the policies require for correct simulation, use
-	// GetContextKeysForPrincipalPolicy . If the output is long, you can use the
-	// MaxItems and Marker parameters to paginate the results. The IAM policy
-	// simulator evaluates statements in the identity-based policy and the inputs that
-	// you provide during simulation. The policy simulator results can differ from your
-	// live Amazon Web Services environment. We recommend that you check your policies
-	// against your live Amazon Web Services environment after testing using the policy
-	// simulator to confirm that you have the desired results. For more information
-	// about using the policy simulator, see Testing IAM policies with the IAM policy
-	// simulator  (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html)
-	// in the IAM User Guide.
-	SimulatePrincipalPolicy(ctx context.Context, params *SimulatePrincipalPolicyInput, optFns ...func(*Options)) (*SimulatePrincipalPolicyOutput, error)
+	// context keys that the policies require for correct simulation, use GetContextKeysForPrincipalPolicy.
+	//
+	// If the output is long, you can use the MaxItems and Marker parameters to
+	// paginate the results.
+	//
+	// The IAM policy simulator evaluates statements in the identity-based policy and
+	// the inputs that you provide during simulation. The policy simulator results can
+	// differ from your live Amazon Web Services environment. We recommend that you
+	// check your policies against your live Amazon Web Services environment after
+	// testing using the policy simulator to confirm that you have the desired results.
+	// For more information about using the policy simulator, see [Testing IAM policies with the IAM policy simulator]in the IAM User
+	// Guide.
+	//
+	// [Testing IAM policies with the IAM policy simulator]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_testing-policies.html
+	SimulatePrincipalPolicy(ctx context.Context, params *iam.SimulatePrincipalPolicyInput, optFns ...func(*Options)) (*iam.SimulatePrincipalPolicyOutput, error)
 	// Adds one or more tags to an IAM instance profile. If a tag with the same key
-	// name already exists, then that tag is overwritten with the new value. Each tag
-	// consists of a key name and an associated value. By assigning tags to your
-	// resources, you can do the following:
+	// name already exists, then that tag is overwritten with the new value.
+	//
+	// Each tag consists of a key name and an associated value. By assigning tags to
+	// your resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1309,22 +1814,25 @@ type IAM interface {
 	//   - Access control - Include tags in IAM user-based and resource-based
 	//     policies. You can use tags to restrict access to only an IAM instance profile
 	//     that has a specified tag attached. For examples of policies that show how to use
-	//     tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagInstanceProfile(ctx context.Context, params *TagInstanceProfileInput, optFns ...func(*Options)) (*TagInstanceProfileOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagInstanceProfile(ctx context.Context, params *iam.TagInstanceProfileInput, optFns ...func(*Options)) (*iam.TagInstanceProfileOutput, error)
 	// Adds one or more tags to an IAM virtual multi-factor authentication (MFA)
 	// device. If a tag with the same key name already exists, then that tag is
-	// overwritten with the new value. A tag consists of a key name and an associated
-	// value. By assigning tags to your resources, you can do the following:
+	// overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1334,23 +1842,25 @@ type IAM interface {
 	//   - Access control - Include tags in IAM user-based and resource-based
 	//     policies. You can use tags to restrict access to only an IAM virtual MFA device
 	//     that has a specified tag attached. For examples of policies that show how to use
-	//     tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagMFADevice(ctx context.Context, params *TagMFADeviceInput, optFns ...func(*Options)) (*TagMFADeviceOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagMFADevice(ctx context.Context, params *iam.TagMFADeviceInput, optFns ...func(*Options)) (*iam.TagMFADeviceOutput, error)
 	// Adds one or more tags to an OpenID Connect (OIDC)-compatible identity provider.
-	// For more information about these providers, see About web identity federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html)
-	// . If a tag with the same key name already exists, then that tag is overwritten
-	// with the new value. A tag consists of a key name and an associated value. By
-	// assigning tags to your resources, you can do the following:
+	// For more information about these providers, see [About web identity federation]. If a tag with the same key
+	// name already exists, then that tag is overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1360,21 +1870,24 @@ type IAM interface {
 	//   - Access control - Include tags in IAM identity-based and resource-based
 	//     policies. You can use tags to restrict access to only an OIDC provider that has
 	//     a specified tag attached. For examples of policies that show how to use tags to
-	//     control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagOpenIDConnectProvider(ctx context.Context, params *TagOpenIDConnectProviderInput, optFns ...func(*Options)) (*TagOpenIDConnectProviderOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [About web identity federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html
+	TagOpenIDConnectProvider(ctx context.Context, params *iam.TagOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.TagOpenIDConnectProviderOutput, error)
 	// Adds one or more tags to an IAM customer managed policy. If a tag with the same
-	// key name already exists, then that tag is overwritten with the new value. A tag
-	// consists of a key name and an associated value. By assigning tags to your
+	// key name already exists, then that tag is overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
 	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
@@ -1385,22 +1898,25 @@ type IAM interface {
 	//   - Access control - Include tags in IAM user-based and resource-based
 	//     policies. You can use tags to restrict access to only an IAM customer managed
 	//     policy that has a specified tag attached. For examples of policies that show how
-	//     to use tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     to use tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagPolicy(ctx context.Context, params *TagPolicyInput, optFns ...func(*Options)) (*TagPolicyOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagPolicy(ctx context.Context, params *iam.TagPolicyInput, optFns ...func(*Options)) (*iam.TagPolicyOutput, error)
 	// Adds one or more tags to an IAM role. The role can be a regular role or a
 	// service-linked role. If a tag with the same key name already exists, then that
-	// tag is overwritten with the new value. A tag consists of a key name and an
-	// associated value. By assigning tags to your resources, you can do the following:
+	// tag is overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1411,30 +1927,31 @@ type IAM interface {
 	//     policies. You can use tags to restrict access to only an IAM role that has a
 	//     specified tag attached. You can also restrict access to only those resources
 	//     that have a certain tag attached. For examples of policies that show how to use
-	//     tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - Cost allocation - Use tags to help track which individuals and teams are
 	//     using which Amazon Web Services resources.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
 	//
-	// For more information about tagging, see Tagging IAM identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	TagRole(ctx context.Context, params *TagRoleInput, optFns ...func(*Options)) (*TagRoleOutput, error)
+	// For more information about tagging, see [Tagging IAM identities] in the IAM User Guide.
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [Tagging IAM identities]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagRole(ctx context.Context, params *iam.TagRoleInput, optFns ...func(*Options)) (*iam.TagRoleOutput, error)
 	// Adds one or more tags to a Security Assertion Markup Language (SAML) identity
-	// provider. For more information about these providers, see About SAML 2.0-based
-	// federation  (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html)
-	// . If a tag with the same key name already exists, then that tag is overwritten
-	// with the new value. A tag consists of a key name and an associated value. By
-	// assigning tags to your resources, you can do the following:
+	// provider. For more information about these providers, see [About SAML 2.0-based federation]. If a tag with the
+	// same key name already exists, then that tag is overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1444,26 +1961,30 @@ type IAM interface {
 	//   - Access control - Include tags in IAM user-based and resource-based
 	//     policies. You can use tags to restrict access to only a SAML identity provider
 	//     that has a specified tag attached. For examples of policies that show how to use
-	//     tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagSAMLProvider(ctx context.Context, params *TagSAMLProviderInput, optFns ...func(*Options)) (*TagSAMLProviderOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [About SAML 2.0-based federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_saml.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagSAMLProvider(ctx context.Context, params *iam.TagSAMLProviderInput, optFns ...func(*Options)) (*iam.TagSAMLProviderOutput, error)
 	// Adds one or more tags to an IAM server certificate. If a tag with the same key
-	// name already exists, then that tag is overwritten with the new value. For
-	// certificates in a Region supported by Certificate Manager (ACM), we recommend
-	// that you don't use IAM server certificates. Instead, use ACM to provision,
-	// manage, and deploy your server certificates. For more information about IAM
-	// server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. A tag consists of a key name and an associated value. By
-	// assigning tags to your resources, you can do the following:
+	// name already exists, then that tag is overwritten with the new value.
+	//
+	// For certificates in a Region supported by Certificate Manager (ACM), we
+	// recommend that you don't use IAM server certificates. Instead, use ACM to
+	// provision, manage, and deploy your server certificates. For more information
+	// about IAM server certificates, [Working with server certificates]in the IAM User Guide.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1473,25 +1994,28 @@ type IAM interface {
 	//   - Access control - Include tags in IAM user-based and resource-based
 	//     policies. You can use tags to restrict access to only a server certificate that
 	//     has a specified tag attached. For examples of policies that show how to use tags
-	//     to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - Cost allocation - Use tags to help track which individuals and teams are
 	//     using which Amazon Web Services resources.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
-	TagServerCertificate(ctx context.Context, params *TagServerCertificateInput, optFns ...func(*Options)) (*TagServerCertificateOutput, error)
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagServerCertificate(ctx context.Context, params *iam.TagServerCertificateInput, optFns ...func(*Options)) (*iam.TagServerCertificateOutput, error)
 	// Adds one or more tags to an IAM user. If a tag with the same key name already
-	// exists, then that tag is overwritten with the new value. A tag consists of a key
-	// name and an associated value. By assigning tags to your resources, you can do
-	// the following:
+	// exists, then that tag is overwritten with the new value.
+	//
+	// A tag consists of a key name and an associated value. By assigning tags to your
+	// resources, you can do the following:
 	//
 	//   - Administrative grouping and discovery - Attach tags to resources to aid in
 	//     organization and search. For example, you could search for all resources with
@@ -1502,235 +2026,294 @@ type IAM interface {
 	//     policies. You can use tags to restrict access to only an IAM requesting user
 	//     that has a specified tag attached. You can also restrict access to only those
 	//     resources that have a certain tag attached. For examples of policies that show
-	//     how to use tags to control access, see Control access using IAM tags (https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html)
-	//     in the IAM User Guide.
+	//     how to use tags to control access, see [Control access using IAM tags]in the IAM User Guide.
 	//
 	//   - Cost allocation - Use tags to help track which individuals and teams are
 	//     using which Amazon Web Services resources.
 	//
 	//   - If any one of the tags is invalid or if you exceed the allowed maximum
 	//     number of tags, then the entire request fails and the resource is not created.
-	//     For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	//     in the IAM User Guide.
+	//     For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
 	//
 	//   - Amazon Web Services always interprets the tag Value as a single string. If
 	//     you need to store an array, you can store comma-separated values in the string.
 	//     However, you must interpret the value in your code.
 	//
-	// For more information about tagging, see Tagging IAM identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	TagUser(ctx context.Context, params *TagUserInput, optFns ...func(*Options)) (*TagUserOutput, error)
+	// For more information about tagging, see [Tagging IAM identities] in the IAM User Guide.
+	//
+	// [Control access using IAM tags]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_tags.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [Tagging IAM identities]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	TagUser(ctx context.Context, params *iam.TagUserInput, optFns ...func(*Options)) (*iam.TagUserOutput, error)
 	// Removes the specified tags from the IAM instance profile. For more information
-	// about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagInstanceProfile(ctx context.Context, params *UntagInstanceProfileInput, optFns ...func(*Options)) (*UntagInstanceProfileOutput, error)
+	// about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagInstanceProfile(ctx context.Context, params *iam.UntagInstanceProfileInput, optFns ...func(*Options)) (*iam.UntagInstanceProfileOutput, error)
 	// Removes the specified tags from the IAM virtual multi-factor authentication
-	// (MFA) device. For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagMFADevice(ctx context.Context, params *UntagMFADeviceInput, optFns ...func(*Options)) (*UntagMFADeviceOutput, error)
+	// (MFA) device. For more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagMFADevice(ctx context.Context, params *iam.UntagMFADeviceInput, optFns ...func(*Options)) (*iam.UntagMFADeviceOutput, error)
 	// Removes the specified tags from the specified OpenID Connect (OIDC)-compatible
-	// identity provider in IAM. For more information about OIDC providers, see About
-	// web identity federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html)
-	// . For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagOpenIDConnectProvider(ctx context.Context, params *UntagOpenIDConnectProviderInput, optFns ...func(*Options)) (*UntagOpenIDConnectProviderOutput, error)
+	// identity provider in IAM. For more information about OIDC providers, see [About web identity federation]. For
+	// more information about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [About web identity federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html
+	UntagOpenIDConnectProvider(ctx context.Context, params *iam.UntagOpenIDConnectProviderInput, optFns ...func(*Options)) (*iam.UntagOpenIDConnectProviderOutput, error)
 	// Removes the specified tags from the customer managed policy. For more
-	// information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagPolicy(ctx context.Context, params *UntagPolicyInput, optFns ...func(*Options)) (*UntagPolicyOutput, error)
+	// information about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagPolicy(ctx context.Context, params *iam.UntagPolicyInput, optFns ...func(*Options)) (*iam.UntagPolicyOutput, error)
 	// Removes the specified tags from the role. For more information about tagging,
-	// see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagRole(ctx context.Context, params *UntagRoleInput, optFns ...func(*Options)) (*UntagRoleOutput, error)
+	// see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagRole(ctx context.Context, params *iam.UntagRoleInput, optFns ...func(*Options)) (*iam.UntagRoleOutput, error)
 	// Removes the specified tags from the specified Security Assertion Markup
 	// Language (SAML) identity provider in IAM. For more information about these
-	// providers, see About web identity federation (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html)
-	// . For more information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagSAMLProvider(ctx context.Context, params *UntagSAMLProviderInput, optFns ...func(*Options)) (*UntagSAMLProviderOutput, error)
+	// providers, see [About web identity federation]. For more information about tagging, see [Tagging IAM resources] in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	// [About web identity federation]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html
+	UntagSAMLProvider(ctx context.Context, params *iam.UntagSAMLProviderInput, optFns ...func(*Options)) (*iam.UntagSAMLProviderOutput, error)
 	// Removes the specified tags from the IAM server certificate. For more
-	// information about tagging, see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide. For certificates in a Region supported by Certificate
-	// Manager (ACM), we recommend that you don't use IAM server certificates. Instead,
-	// use ACM to provision, manage, and deploy your server certificates. For more
-	// information about IAM server certificates, Working with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide.
-	UntagServerCertificate(ctx context.Context, params *UntagServerCertificateInput, optFns ...func(*Options)) (*UntagServerCertificateOutput, error)
+	// information about tagging, see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// For certificates in a Region supported by Certificate Manager (ACM), we
+	// recommend that you don't use IAM server certificates. Instead, use ACM to
+	// provision, manage, and deploy your server certificates. For more information
+	// about IAM server certificates, [Working with server certificates]in the IAM User Guide.
+	//
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagServerCertificate(ctx context.Context, params *iam.UntagServerCertificateInput, optFns ...func(*Options)) (*iam.UntagServerCertificateOutput, error)
 	// Removes the specified tags from the user. For more information about tagging,
-	// see Tagging IAM resources (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html)
-	// in the IAM User Guide.
-	UntagUser(ctx context.Context, params *UntagUserInput, optFns ...func(*Options)) (*UntagUserOutput, error)
+	// see [Tagging IAM resources]in the IAM User Guide.
+	//
+	// [Tagging IAM resources]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_tags.html
+	UntagUser(ctx context.Context, params *iam.UntagUserInput, optFns ...func(*Options)) (*iam.UntagUserOutput, error)
 	// Changes the status of the specified access key from Active to Inactive, or vice
 	// versa. This operation can be used to disable a user's key as part of a key
-	// rotation workflow. If the UserName is not specified, the user name is
-	// determined implicitly based on the Amazon Web Services access key ID used to
-	// sign the request. If a temporary access key is used, then UserName is required.
-	// If a long-term key is assigned to the user, then UserName is not required. This
-	// operation works for access keys under the Amazon Web Services account.
-	// Consequently, you can use this operation to manage Amazon Web Services account
-	// root user credentials even if the Amazon Web Services account has no associated
-	// users. For information about rotating keys, see Managing keys and certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/ManagingCredentials.html)
-	// in the IAM User Guide.
-	UpdateAccessKey(ctx context.Context, params *UpdateAccessKeyInput, optFns ...func(*Options)) (*UpdateAccessKeyOutput, error)
-	// Updates the password policy settings for the Amazon Web Services account. This
-	// operation does not support partial updates. No parameters are required, but if
-	// you do not specify a parameter, that parameter's value reverts to its default
-	// value. See the Request Parameters section for each parameter's default value.
-	// Also note that some parameters do not allow the default parameter to be
+	// rotation workflow.
+	//
+	// If the UserName is not specified, the user name is determined implicitly based
+	// on the Amazon Web Services access key ID used to sign the request. If a
+	// temporary access key is used, then UserName is required. If a long-term key is
+	// assigned to the user, then UserName is not required. This operation works for
+	// access keys under the Amazon Web Services account. Consequently, you can use
+	// this operation to manage Amazon Web Services account root user credentials even
+	// if the Amazon Web Services account has no associated users.
+	//
+	// For information about rotating keys, see [Managing keys and certificates] in the IAM User Guide.
+	//
+	// [Managing keys and certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/ManagingCredentials.html
+	UpdateAccessKey(ctx context.Context, params *iam.UpdateAccessKeyInput, optFns ...func(*Options)) (*iam.UpdateAccessKeyOutput, error)
+	// Updates the password policy settings for the Amazon Web Services account.
+	//
+	// This operation does not support partial updates. No parameters are required,
+	// but if you do not specify a parameter, that parameter's value reverts to its
+	// default value. See the Request Parameters section for each parameter's default
+	// value. Also note that some parameters do not allow the default parameter to be
 	// explicitly set. Instead, to invoke the default value, do not include that
-	// parameter when you invoke the operation. For more information about using a
-	// password policy, see Managing an IAM password policy (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html)
-	// in the IAM User Guide.
-	UpdateAccountPasswordPolicy(ctx context.Context, params *UpdateAccountPasswordPolicyInput, optFns ...func(*Options)) (*UpdateAccountPasswordPolicyOutput, error)
+	// parameter when you invoke the operation.
+	//
+	// For more information about using a password policy, see [Managing an IAM password policy] in the IAM User Guide.
+	//
+	// [Managing an IAM password policy]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingPasswordPolicies.html
+	UpdateAccountPasswordPolicy(ctx context.Context, params *iam.UpdateAccountPasswordPolicyInput, optFns ...func(*Options)) (*iam.UpdateAccountPasswordPolicyOutput, error)
 	// Updates the policy that grants an IAM entity permission to assume a role. This
 	// is typically referred to as the "role trust policy". For more information about
-	// roles, see Using roles to delegate permissions and federate identities (https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html)
-	// .
-	UpdateAssumeRolePolicy(ctx context.Context, params *UpdateAssumeRolePolicyInput, optFns ...func(*Options)) (*UpdateAssumeRolePolicyOutput, error)
-	// Updates the name and/or the path of the specified IAM group. You should
-	// understand the implications of changing a group's path or name. For more
-	// information, see Renaming users and groups (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_WorkingWithGroupsAndUsers.html)
-	// in the IAM User Guide. The person making the request (the principal), must have
-	// permission to change the role group with the old name and the new name. For
-	// example, to change the group named Managers to MGRs , the principal must have a
-	// policy that allows them to update both groups. If the principal has permission
-	// to update the Managers group, but not the MGRs group, then the update fails.
-	// For more information about permissions, see Access management (https://docs.aws.amazon.com/IAM/latest/UserGuide/access.html)
-	// .
-	UpdateGroup(ctx context.Context, params *UpdateGroupInput, optFns ...func(*Options)) (*UpdateGroupOutput, error)
+	// roles, see [Using roles to delegate permissions and federate identities].
+	//
+	// [Using roles to delegate permissions and federate identities]: https://docs.aws.amazon.com/IAM/latest/UserGuide/roles-toplevel.html
+	UpdateAssumeRolePolicy(ctx context.Context, params *iam.UpdateAssumeRolePolicyInput, optFns ...func(*Options)) (*iam.UpdateAssumeRolePolicyOutput, error)
+	// Updates the name and/or the path of the specified IAM group.
+	//
+	// You should understand the implications of changing a group's path or name. For
+	// more information, see [Renaming users and groups]in the IAM User Guide.
+	//
+	// The person making the request (the principal), must have permission to change
+	// the role group with the old name and the new name. For example, to change the
+	// group named Managers to MGRs , the principal must have a policy that allows them
+	// to update both groups. If the principal has permission to update the Managers
+	// group, but not the MGRs group, then the update fails. For more information
+	// about permissions, see [Access management].
+	//
+	// [Access management]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access.html
+	// [Renaming users and groups]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_WorkingWithGroupsAndUsers.html
+	UpdateGroup(ctx context.Context, params *iam.UpdateGroupInput, optFns ...func(*Options)) (*iam.UpdateGroupOutput, error)
 	// Changes the password for the specified IAM user. You can use the CLI, the
 	// Amazon Web Services API, or the Users page in the IAM console to change the
-	// password for any IAM user. Use ChangePassword to change your own password in
-	// the My Security Credentials page in the Amazon Web Services Management Console.
-	// For more information about modifying passwords, see Managing passwords (https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html)
-	// in the IAM User Guide.
-	UpdateLoginProfile(ctx context.Context, params *UpdateLoginProfileInput, optFns ...func(*Options)) (*UpdateLoginProfileOutput, error)
+	// password for any IAM user. Use ChangePasswordto change your own password in the My Security
+	// Credentials page in the Amazon Web Services Management Console.
+	//
+	// For more information about modifying passwords, see [Managing passwords] in the IAM User Guide.
+	//
+	// [Managing passwords]: https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_ManagingLogins.html
+	UpdateLoginProfile(ctx context.Context, params *iam.UpdateLoginProfileInput, optFns ...func(*Options)) (*iam.UpdateLoginProfileOutput, error)
 	// Replaces the existing list of server certificate thumbprints associated with an
 	// OpenID Connect (OIDC) provider resource object with a new list of thumbprints.
-	// The list that you pass with this operation completely replaces the existing list
-	// of thumbprints. (The lists are not merged.) Typically, you need to update a
-	// thumbprint only when the identity provider certificate changes, which occurs
-	// rarely. However, if the provider's certificate does change, any attempt to
-	// assume an IAM role that specifies the OIDC provider as a principal fails until
-	// the certificate thumbprint is updated. Amazon Web Services secures communication
-	// with some OIDC identity providers (IdPs) through our library of trusted root
-	// certificate authorities (CAs) instead of using a certificate thumbprint to
-	// verify your IdP server certificate. In these cases, your legacy thumbprint
-	// remains in your configuration, but is no longer used for validation. These OIDC
-	// IdPs include Auth0, GitHub, GitLab, Google, and those that use an Amazon S3
-	// bucket to host a JSON Web Key Set (JWKS) endpoint. Trust for the OIDC provider
-	// is derived from the provider certificate and is validated by the thumbprint.
-	// Therefore, it is best to limit access to the
+	//
+	// The list that you pass with this operation completely replaces the existing
+	// list of thumbprints. (The lists are not merged.)
+	//
+	// Typically, you need to update a thumbprint only when the identity provider
+	// certificate changes, which occurs rarely. However, if the provider's certificate
+	// does change, any attempt to assume an IAM role that specifies the OIDC provider
+	// as a principal fails until the certificate thumbprint is updated.
+	//
+	// Amazon Web Services secures communication with OIDC identity providers (IdPs)
+	// using our library of trusted root certificate authorities (CAs) to verify the
+	// JSON Web Key Set (JWKS) endpoint's TLS certificate. If your OIDC IdP relies on a
+	// certificate that is not signed by one of these trusted CAs, only then we secure
+	// communication using the thumbprints set in the IdP's configuration.
+	//
+	// Trust for the OIDC provider is derived from the provider certificate and is
+	// validated by the thumbprint. Therefore, it is best to limit access to the
 	// UpdateOpenIDConnectProviderThumbprint operation to highly privileged users.
-	UpdateOpenIDConnectProviderThumbprint(ctx context.Context, params *UpdateOpenIDConnectProviderThumbprintInput, optFns ...func(*Options)) (*UpdateOpenIDConnectProviderThumbprintOutput, error)
+	UpdateOpenIDConnectProviderThumbprint(ctx context.Context, params *iam.UpdateOpenIDConnectProviderThumbprintInput, optFns ...func(*Options)) (*iam.UpdateOpenIDConnectProviderThumbprintOutput, error)
 	// Updates the description or maximum session duration setting of a role.
-	UpdateRole(ctx context.Context, params *UpdateRoleInput, optFns ...func(*Options)) (*UpdateRoleOutput, error)
-	// Use UpdateRole instead. Modifies only the description of a role. This operation
-	// performs the same function as the Description parameter in the UpdateRole
-	// operation.
-	UpdateRoleDescription(ctx context.Context, params *UpdateRoleDescriptionInput, optFns ...func(*Options)) (*UpdateRoleDescriptionOutput, error)
-	// Updates the metadata document for an existing SAML provider resource object.
-	// This operation requires Signature Version 4 (https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
-	// .
-	UpdateSAMLProvider(ctx context.Context, params *UpdateSAMLProviderInput, optFns ...func(*Options)) (*UpdateSAMLProviderOutput, error)
+	UpdateRole(ctx context.Context, params *iam.UpdateRoleInput, optFns ...func(*Options)) (*iam.UpdateRoleOutput, error)
+	// Use UpdateRole instead.
+	//
+	// Modifies only the description of a role. This operation performs the same
+	// function as the Description parameter in the UpdateRole operation.
+	UpdateRoleDescription(ctx context.Context, params *iam.UpdateRoleDescriptionInput, optFns ...func(*Options)) (*iam.UpdateRoleDescriptionOutput, error)
+	// Updates the metadata document, SAML encryption settings, and private keys for
+	// an existing SAML provider. To rotate private keys, add your new private key and
+	// then remove the old key in a separate request.
+	UpdateSAMLProvider(ctx context.Context, params *iam.UpdateSAMLProviderInput, optFns ...func(*Options)) (*iam.UpdateSAMLProviderOutput, error)
 	// Sets the status of an IAM user's SSH public key to active or inactive. SSH
 	// public keys that are inactive cannot be used for authentication. This operation
 	// can be used to disable a user's SSH public key as part of a key rotation work
-	// flow. The SSH public key affected by this operation is used only for
-	// authenticating the associated IAM user to an CodeCommit repository. For more
-	// information about using SSH keys to authenticate to an CodeCommit repository,
-	// see Set up CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-	// in the CodeCommit User Guide.
-	UpdateSSHPublicKey(ctx context.Context, params *UpdateSSHPublicKeyInput, optFns ...func(*Options)) (*UpdateSSHPublicKeyOutput, error)
+	// flow.
+	//
+	// The SSH public key affected by this operation is used only for authenticating
+	// the associated IAM user to an CodeCommit repository. For more information about
+	// using SSH keys to authenticate to an CodeCommit repository, see [Set up CodeCommit for SSH connections]in the
+	// CodeCommit User Guide.
+	//
+	// [Set up CodeCommit for SSH connections]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html
+	UpdateSSHPublicKey(ctx context.Context, params *iam.UpdateSSHPublicKeyInput, optFns ...func(*Options)) (*iam.UpdateSSHPublicKeyOutput, error)
 	// Updates the name and/or the path of the specified server certificate stored in
-	// IAM. For more information about working with server certificates, see Working
-	// with server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. This topic also includes a list of Amazon Web Services
-	// services that can use the server certificates that you manage with IAM. You
-	// should understand the implications of changing a server certificate's path or
-	// name. For more information, see Renaming a server certificate (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs_manage.html#RenamingServerCerts)
-	// in the IAM User Guide. The person making the request (the principal), must have
-	// permission to change the server certificate with the old name and the new name.
-	// For example, to change the certificate named ProductionCert to ProdCert , the
-	// principal must have a policy that allows them to update both certificates. If
-	// the principal has permission to update the ProductionCert group, but not the
-	// ProdCert certificate, then the update fails. For more information about
-	// permissions, see Access management (https://docs.aws.amazon.com/IAM/latest/UserGuide/access.html)
+	// IAM.
+	//
+	// For more information about working with server certificates, see [Working with server certificates] in the IAM
+	// User Guide. This topic also includes a list of Amazon Web Services services that
+	// can use the server certificates that you manage with IAM.
+	//
+	// You should understand the implications of changing a server certificate's path
+	// or name. For more information, see [Renaming a server certificate]in the IAM User Guide.
+	//
+	// The person making the request (the principal), must have permission to change
+	// the server certificate with the old name and the new name. For example, to
+	// change the certificate named ProductionCert to ProdCert , the principal must
+	// have a policy that allows them to update both certificates. If the principal has
+	// permission to update the ProductionCert group, but not the ProdCert
+	// certificate, then the update fails. For more information about permissions, see [Access management]
 	// in the IAM User Guide.
-	UpdateServerCertificate(ctx context.Context, params *UpdateServerCertificateInput, optFns ...func(*Options)) (*UpdateServerCertificateOutput, error)
+	//
+	// [Renaming a server certificate]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs_manage.html#RenamingServerCerts
+	// [Access management]: https://docs.aws.amazon.com/IAM/latest/UserGuide/access.html
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	UpdateServerCertificate(ctx context.Context, params *iam.UpdateServerCertificateInput, optFns ...func(*Options)) (*iam.UpdateServerCertificateOutput, error)
 	// Sets the status of a service-specific credential to Active or Inactive .
 	// Service-specific credentials that are inactive cannot be used for authentication
 	// to the service. This operation can be used to disable a user's service-specific
 	// credential as part of a credential rotation work flow.
-	UpdateServiceSpecificCredential(ctx context.Context, params *UpdateServiceSpecificCredentialInput, optFns ...func(*Options)) (*UpdateServiceSpecificCredentialOutput, error)
+	UpdateServiceSpecificCredential(ctx context.Context, params *iam.UpdateServiceSpecificCredentialInput, optFns ...func(*Options)) (*iam.UpdateServiceSpecificCredentialOutput, error)
 	// Changes the status of the specified user signing certificate from active to
 	// disabled, or vice versa. This operation can be used to disable an IAM user's
-	// signing certificate as part of a certificate rotation work flow. If the UserName
-	// field is not specified, the user name is determined implicitly based on the
-	// Amazon Web Services access key ID used to sign the request. This operation works
-	// for access keys under the Amazon Web Services account. Consequently, you can use
-	// this operation to manage Amazon Web Services account root user credentials even
-	// if the Amazon Web Services account has no associated users.
-	UpdateSigningCertificate(ctx context.Context, params *UpdateSigningCertificateInput, optFns ...func(*Options)) (*UpdateSigningCertificateOutput, error)
-	// Updates the name and/or the path of the specified IAM user. You should
-	// understand the implications of changing an IAM user's path or name. For more
-	// information, see Renaming an IAM user (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_renaming)
-	// and Renaming an IAM group (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_groups_manage_rename.html)
-	// in the IAM User Guide. To change a user name, the requester must have
-	// appropriate permissions on both the source object and the target object. For
-	// example, to change Bob to Robert, the entity making the request must have
-	// permission on Bob and Robert, or must have permission on all (*). For more
-	// information about permissions, see Permissions and policies (https://docs.aws.amazon.com/IAM/latest/UserGuide/PermissionsAndPolicies.html)
-	// .
-	UpdateUser(ctx context.Context, params *UpdateUserInput, optFns ...func(*Options)) (*UpdateUserOutput, error)
-	// Uploads an SSH public key and associates it with the specified IAM user. The
-	// SSH public key uploaded by this operation can be used only for authenticating
-	// the associated IAM user to an CodeCommit repository. For more information about
-	// using SSH keys to authenticate to an CodeCommit repository, see Set up
-	// CodeCommit for SSH connections (https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html)
-	// in the CodeCommit User Guide.
-	UploadSSHPublicKey(ctx context.Context, params *UploadSSHPublicKeyInput, optFns ...func(*Options)) (*UploadSSHPublicKeyOutput, error)
+	// signing certificate as part of a certificate rotation work flow.
+	//
+	// If the UserName field is not specified, the user name is determined implicitly
+	// based on the Amazon Web Services access key ID used to sign the request. This
+	// operation works for access keys under the Amazon Web Services account.
+	// Consequently, you can use this operation to manage Amazon Web Services account
+	// root user credentials even if the Amazon Web Services account has no associated
+	// users.
+	UpdateSigningCertificate(ctx context.Context, params *iam.UpdateSigningCertificateInput, optFns ...func(*Options)) (*iam.UpdateSigningCertificateOutput, error)
+	// Updates the name and/or the path of the specified IAM user.
+	//
+	// You should understand the implications of changing an IAM user's path or name.
+	// For more information, see [Renaming an IAM user]and [Renaming an IAM group] in the IAM User Guide.
+	//
+	// To change a user name, the requester must have appropriate permissions on both
+	// the source object and the target object. For example, to change Bob to Robert,
+	// the entity making the request must have permission on Bob and Robert, or must
+	// have permission on all (*). For more information about permissions, see [Permissions and policies].
+	//
+	// [Renaming an IAM user]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_manage.html#id_users_renaming
+	// [Renaming an IAM group]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_groups_manage_rename.html
+	// [Permissions and policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/PermissionsAndPolicies.html
+	UpdateUser(ctx context.Context, params *iam.UpdateUserInput, optFns ...func(*Options)) (*iam.UpdateUserOutput, error)
+	// Uploads an SSH public key and associates it with the specified IAM user.
+	//
+	// The SSH public key uploaded by this operation can be used only for
+	// authenticating the associated IAM user to an CodeCommit repository. For more
+	// information about using SSH keys to authenticate to an CodeCommit repository,
+	// see [Set up CodeCommit for SSH connections]in the CodeCommit User Guide.
+	//
+	// [Set up CodeCommit for SSH connections]: https://docs.aws.amazon.com/codecommit/latest/userguide/setting-up-credentials-ssh.html
+	UploadSSHPublicKey(ctx context.Context, params *iam.UploadSSHPublicKeyInput, optFns ...func(*Options)) (*iam.UploadSSHPublicKeyOutput, error)
 	// Uploads a server certificate entity for the Amazon Web Services account. The
 	// server certificate entity includes a public key certificate, a private key, and
-	// an optional certificate chain, which should all be PEM-encoded. We recommend
-	// that you use Certificate Manager (https://docs.aws.amazon.com/acm/) to
-	// provision, manage, and deploy your server certificates. With ACM you can request
-	// a certificate, deploy it to Amazon Web Services resources, and let ACM handle
-	// certificate renewals for you. Certificates provided by ACM are free. For more
-	// information about using ACM, see the Certificate Manager User Guide (https://docs.aws.amazon.com/acm/latest/userguide/)
-	// . For more information about working with server certificates, see Working with
-	// server certificates (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. This topic includes a list of Amazon Web Services
-	// services that can use the server certificates that you manage with IAM. For
-	// information about the number of server certificates you can upload, see IAM and
-	// STS quotas (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html)
-	// in the IAM User Guide. Because the body of the public key certificate, private
-	// key, and the certificate chain can be large, you should use POST rather than GET
-	// when calling UploadServerCertificate . For information about setting up
-	// signatures and authorization through the API, see Signing Amazon Web Services
-	// API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
-	// in the Amazon Web Services General Reference. For general information about
-	// using the Query API with IAM, see Calling the API by making HTTP query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/programming.html)
-	// in the IAM User Guide.
-	UploadServerCertificate(ctx context.Context, params *UploadServerCertificateInput, optFns ...func(*Options)) (*UploadServerCertificateOutput, error)
+	// an optional certificate chain, which should all be PEM-encoded.
+	//
+	// We recommend that you use [Certificate Manager] to provision, manage, and deploy your server
+	// certificates. With ACM you can request a certificate, deploy it to Amazon Web
+	// Services resources, and let ACM handle certificate renewals for you.
+	// Certificates provided by ACM are free. For more information about using ACM, see
+	// the [Certificate Manager User Guide].
+	//
+	// For more information about working with server certificates, see [Working with server certificates] in the IAM
+	// User Guide. This topic includes a list of Amazon Web Services services that can
+	// use the server certificates that you manage with IAM.
+	//
+	// For information about the number of server certificates you can upload, see [IAM and STS quotas] in
+	// the IAM User Guide.
+	//
+	// Because the body of the public key certificate, private key, and the
+	// certificate chain can be large, you should use POST rather than GET when calling
+	// UploadServerCertificate . For information about setting up signatures and
+	// authorization through the API, see [Signing Amazon Web Services API requests]in the Amazon Web Services General
+	// Reference. For general information about using the Query API with IAM, see [Calling the API by making HTTP query requests]in
+	// the IAM User Guide.
+	//
+	// [Certificate Manager]: https://docs.aws.amazon.com/acm/
+	// [Certificate Manager User Guide]: https://docs.aws.amazon.com/acm/latest/userguide/
+	// [IAM and STS quotas]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	// [Working with server certificates]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [Signing Amazon Web Services API requests]: https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html
+	// [Calling the API by making HTTP query requests]: https://docs.aws.amazon.com/IAM/latest/UserGuide/programming.html
+	UploadServerCertificate(ctx context.Context, params *iam.UploadServerCertificateInput, optFns ...func(*Options)) (*iam.UploadServerCertificateOutput, error)
 	// Uploads an X.509 signing certificate and associates it with the specified IAM
 	// user. Some Amazon Web Services services require you to use certificates to
 	// validate requests that are signed with a corresponding private key. When you
-	// upload the certificate, its default status is Active . For information about
-	// when you would use an X.509 signing certificate, see Managing server
-	// certificates in IAM (https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html)
-	// in the IAM User Guide. If the UserName is not specified, the IAM user name is
-	// determined implicitly based on the Amazon Web Services access key ID used to
-	// sign the request. This operation works for access keys under the Amazon Web
-	// Services account. Consequently, you can use this operation to manage Amazon Web
-	// Services account root user credentials even if the Amazon Web Services account
-	// has no associated users. Because the body of an X.509 certificate can be large,
-	// you should use POST rather than GET when calling UploadSigningCertificate . For
-	// information about setting up signatures and authorization through the API, see
-	// Signing Amazon Web Services API requests (https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html)
-	// in the Amazon Web Services General Reference. For general information about
-	// using the Query API with IAM, see Making query requests (https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html)
-	// in the IAM User Guide.
-	UploadSigningCertificate(ctx context.Context, params *UploadSigningCertificateInput, optFns ...func(*Options)) (*UploadSigningCertificateOutput, error)
+	// upload the certificate, its default status is Active .
+	//
+	// For information about when you would use an X.509 signing certificate, see [Managing server certificates in IAM] in
+	// the IAM User Guide.
+	//
+	// If the UserName is not specified, the IAM user name is determined implicitly
+	// based on the Amazon Web Services access key ID used to sign the request. This
+	// operation works for access keys under the Amazon Web Services account.
+	// Consequently, you can use this operation to manage Amazon Web Services account
+	// root user credentials even if the Amazon Web Services account has no associated
+	// users.
+	//
+	// Because the body of an X.509 certificate can be large, you should use POST
+	// rather than GET when calling UploadSigningCertificate . For information about
+	// setting up signatures and authorization through the API, see [Signing Amazon Web Services API requests]in the Amazon Web
+	// Services General Reference. For general information about using the Query API
+	// with IAM, see [Making query requests]in the IAM User Guide.
+	//
+	// [Managing server certificates in IAM]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_server-certs.html
+	// [Making query requests]: https://docs.aws.amazon.com/IAM/latest/UserGuide/IAM_UsingQueryAPI.html
+	// [Signing Amazon Web Services API requests]: https://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html
+	UploadSigningCertificate(ctx context.Context, params *iam.UploadSigningCertificateInput, optFns ...func(*Options)) (*iam.UploadSigningCertificateOutput, error)
 }
 

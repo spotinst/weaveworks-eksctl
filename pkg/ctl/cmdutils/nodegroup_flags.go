@@ -56,6 +56,7 @@ func AddCommonCreateNodeGroupFlags(fs *pflag.FlagSet, cmd *Cmd, ng *api.NodeGrou
 
 	fs.BoolVarP(&mngOptions.Managed, "managed", "", true, "Create EKS-managed nodegroup")
 	fs.BoolVar(&mngOptions.Spot, "spot", false, "Create a spot nodegroup (managed nodegroups only)")
+	fs.BoolVar(&mngOptions.NodeRepairEnabled, "enable-node-repair", false, "Enable automatic node repair (managed nodegroups only)")
 	fs.StringSliceVar(&mngOptions.InstanceTypes, "instance-types", nil, "Comma-separated list of instance types (e.g., --instance-types=c3.large,c4.large,c5.large")
 }
 
@@ -74,6 +75,7 @@ func AddInstanceSelectorOptions(flagSetGroup *NamedFlagSetGroup, ng *api.NodeGro
 		fs.StringVar(&ng.InstanceSelector.Memory, "instance-selector-memory", "", "4 or 4GiB")
 		fs.StringVar(&ng.InstanceSelector.CPUArchitecture, "instance-selector-cpu-architecture", "", "x86_64, or arm64")
 		ng.InstanceSelector.GPUs = fs.Int("instance-selector-gpus", 0, "an integer value")
+		ng.InstanceSelector.NeuronDevices = fs.Int32("instance-selector-neuron-devices", 0, "an integer value")
 	})
 }
 

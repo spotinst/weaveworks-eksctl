@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
-	"github.com/aws/amazon-ec2-instance-selector/v2/pkg/selector"
+	"github.com/aws/amazon-ec2-instance-selector/v3/pkg/selector"
 
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -20,6 +18,10 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
+)
+
+const (
+	amazonLinux2EndOfSupportWarning = "Amazon EKS will no longer publish EKS-optimized Amazon Linux 2 (AL2) AMIs after November 26th, 2025. Additionally, Kubernetes version 1.32 is the last version for which Amazon EKS will release AL2 AMIs. From version 1.33 onwards, Amazon EKS will continue to release AL2023 and Bottlerocket based AMIs. The default AMI family when creating clusters and nodegroups in Eksctl will be changed to AL2023 in the future."
 )
 
 func createNodeGroupCmd(cmd *cmdutils.Cmd) {
@@ -34,7 +36,7 @@ func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 
 		ngFilter := filter.NewNodeGroupFilter()
 		if err := cmdutils.NewCreateNodeGroupLoader(cmd, ng, ngFilter, options).Load(); err != nil {
-			return errors.Wrap(err, "couldn't create node group filter from command line options")
+			return fmt.Errorf("couldn't create node group filter from command line options: %w", err)
 		}
 
 		if options.DryRun {
@@ -43,6 +45,10 @@ func createNodeGroupCmd(cmd *cmdutils.Cmd) {
 			defer func() {
 				logger.Writer = originalWriter
 			}()
+		}
+
+		if ng.AMIFamily == api.NodeImageFamilyAmazonLinux2 {
+			logger.Warning(amazonLinux2EndOfSupportWarning)
 		}
 
 		ctx := context.Background()
@@ -138,35 +144,32 @@ func createNodeGroupCmdWithRunFunc(cmd *cmdutils.Cmd, runFunc runFn) {
 	})
 }
 
-func checkNodeGroupVersion(ctl *eks.ClusterProvider, meta *api.ClusterMeta) error {
+func checkNodeGroupVersion(cvm eks.ClusterVersionsManagerInterface, controlPlaneVersion string, meta *api.ClusterMeta) error {
 	switch meta.Version {
 	case "auto":
 		break
 	case "":
 		meta.Version = "auto"
 	case "default":
-		meta.Version = api.DefaultVersion
+		meta.Version = cvm.DefaultVersion()
 		logger.Info("will use default version (%s) for new nodegroup(s)", meta.Version)
 	case "latest":
-		meta.Version = api.LatestVersion
+		meta.Version = cvm.LatestVersion()
 		logger.Info("will use latest version (%s) for new nodegroup(s)", meta.Version)
 	default:
-		if !api.IsSupportedVersion(meta.Version) {
-			if api.IsDeprecatedVersion(meta.Version) {
-				return fmt.Errorf("invalid version, %s is no longer supported, supported values: auto, default, latest, %s\nsee also: https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html", meta.Version, strings.Join(api.SupportedVersions(), ", "))
-			}
-			return fmt.Errorf("invalid version %s, supported values: auto, default, latest, %s", meta.Version, strings.Join(api.SupportedVersions(), ", "))
+		if err := cvm.ValidateVersion(meta.Version); err != nil {
+			return err
 		}
 	}
 
-	if v := ctl.ControlPlaneVersion(); v == "" {
+	if controlPlaneVersion == "" {
 		return fmt.Errorf("unable to get control plane version")
 	} else if meta.Version == "auto" {
-		meta.Version = v
+		meta.Version = controlPlaneVersion
 		logger.Info("will use version %s for new nodegroup(s) based on control plane version", meta.Version)
-	} else if meta.Version != v {
+	} else if meta.Version != controlPlaneVersion {
 		hint := "--version=auto"
-		logger.Warning("will use version %s for new nodegroup(s), while control plane version is %s; to automatically inherit the version use %q", meta.Version, v, hint)
+		logger.Warning("will use version %s for new nodegroup(s), while control plane version is %s; to automatically inherit the version use %q", meta.Version, controlPlaneVersion, hint)
 	}
 
 	return nil

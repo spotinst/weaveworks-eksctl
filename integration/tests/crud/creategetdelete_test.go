@@ -16,7 +16,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -56,7 +55,7 @@ func init() {
 	// Call testing.Init() prior to tests.NewParams(), as otherwise -test.* will not be recognised. See also: https://golang.org/doc/go1.13#testing
 	testing.Init()
 	if err := api.Register(); err != nil {
-		panic(errors.Wrap(err, "unexpected error registering API scheme"))
+		panic(fmt.Errorf("unexpected error registering API scheme: %w", err))
 	}
 	params = tests.NewParamsWithGivenClusterName("crud", "test")
 }
@@ -70,6 +69,8 @@ const (
 	deleteNg        = "ng-delete"
 	taintsNg1       = "ng-taints-1"
 	taintsNg2       = "ng-taints-2"
+	maxPodsMNG1     = "mng-max-pods-1"
+	maxPodsMNG2     = "mng-max-pods-2"
 	scaleSingleNg   = "ng-scale-single"
 	scaleMultipleNg = "ng-scale-multiple"
 
@@ -499,54 +500,6 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 		})
 	})
 
-	Context("configuring K8s API", Serial, Ordered, func() {
-		var (
-			k8sAPICall func() error
-		)
-
-		BeforeAll(func() {
-			cfg := makeClusterConfig()
-
-			ctl, err := eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, cfg)
-			Expect(err).NotTo(HaveOccurred())
-
-			err = ctl.RefreshClusterStatus(context.Background(), cfg)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			clientSet, err := ctl.NewStdClientSet(cfg)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			k8sAPICall = func() error {
-				_, err = clientSet.CoreV1().ServiceAccounts(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
-				return err
-			}
-		})
-
-		It("should have public access by default", func() {
-			Expect(k8sAPICall()).ShouldNot(HaveOccurred())
-		})
-
-		It("should disable public access", func() {
-			Expect(params.EksctlUtilsCmd.WithArgs(
-				"set-public-access-cidrs",
-				"--cluster", params.ClusterName,
-				"1.1.1.1/32,2.2.2.0/24",
-				"--approve",
-			)).To(RunSuccessfully())
-			Eventually(k8sAPICall, "5m", "20s").Should(HaveOccurred())
-		})
-
-		It("should re-enable public access", func() {
-			Expect(params.EksctlUtilsCmd.WithArgs(
-				"set-public-access-cidrs",
-				"--cluster", params.ClusterName,
-				"0.0.0.0/0",
-				"--approve",
-			)).To(RunSuccessfully())
-			Expect(k8sAPICall()).ShouldNot(HaveOccurred())
-		})
-	})
-
 	Context("configuring Cloudwatch logging", Serial, Ordered, func() {
 		var (
 			cfg *api.ClusterConfig
@@ -873,6 +826,8 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 			clientset := makeClientset()
 			nodeListN1 := tests.ListNodes(clientset, taintsNg1)
 			nodeListN2 := tests.ListNodes(clientset, taintsNg2)
+			mngNodeListN1 := tests.ListNodes(clientset, maxPodsMNG1)
+			mngNodeListN2 := tests.ListNodes(clientset, maxPodsMNG2)
 
 			tests.AssertNodeTaints(nodeListN1, []corev1.Taint{
 				{
@@ -897,9 +852,19 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 				},
 			})
 
-			By("asserting that maxPods is set correctly")
+			By("asserting that maxPods is set correctly for AL2 nodegroup")
 			expectedMaxPods := 123
 			for _, node := range nodeListN1.Items {
+				maxPods, _ := node.Status.Allocatable.Pods().AsInt64()
+				Expect(maxPods).To(Equal(int64(expectedMaxPods)))
+			}
+
+			By("asserting that maxPods is set correctly for AL2023 nodegroups")
+			for _, node := range mngNodeListN1.Items {
+				maxPods, _ := node.Status.Allocatable.Pods().AsInt64()
+				Expect(maxPods).To(Equal(int64(expectedMaxPods)))
+			}
+			for _, node := range mngNodeListN2.Items {
 				maxPods, _ := node.Status.Allocatable.Pods().AsInt64()
 				Expect(maxPods).To(Equal(int64(expectedMaxPods)))
 			}
@@ -911,7 +876,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 				"--timeout=45m",
 				"--cluster", params.ClusterName,
 				"--nodes", "1",
-				"--instance-types", "p3.2xlarge,p3.8xlarge,g3s.xlarge,g4ad.xlarge,g4ad.2xlarge",
+				"--instance-types", "g6.xlarge,g6.2xlarge",
 				"--node-private-networking",
 				"--node-zones", "us-west-2b,us-west-2c",
 				GPUMng,
@@ -1258,7 +1223,9 @@ func createAdditionalSubnet(cfg *api.ClusterConfig) string {
 	var (
 		i1, i2, i3, i4, ic int
 	)
-	fmt.Sscanf(cidr, "%d.%d.%d.%d/%d", &i1, &i2, &i3, &i4, &ic)
+	n, err := fmt.Sscanf(cidr, "%d.%d.%d.%d/%d", &i1, &i2, &i3, &i4, &ic)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(n > 4).To(BeTrue())
 	cidr = fmt.Sprintf("%d.%d.%s.%d/%d", i1, i2, "255", i4, ic)
 
 	var tags []ec2types.Tag

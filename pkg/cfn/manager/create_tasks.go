@@ -26,7 +26,6 @@ import (
 // with some nodegroups; see CreateAllNodeGroups for how onlyNodeGroupSubset works.
 func (c *StackCollection) NewTasksToCreateCluster(ctx context.Context, nodeGroups []*api.NodeGroup,
 	managedNodeGroups []*api.ManagedNodeGroup, accessConfig *api.AccessConfig, accessEntryCreator accessentry.CreatorInterface, nodeGroupParallelism int, postClusterCreationTasks ...tasks.Task) *tasks.TaskTree {
-
 	taskTree := tasks.TaskTree{Parallel: false}
 
 	taskTree.Append(&createClusterTask{

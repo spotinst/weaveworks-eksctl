@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
@@ -36,7 +36,7 @@ func (c *StackCollection) MakeClusterStackNameFromName(name string) string {
 func (c *StackCollection) createClusterTask(ctx context.Context, errs chan error, supportsManagedNodes bool) error {
 	name := c.MakeClusterStackName()
 	logger.Info("building cluster stack %q", name)
-	stack := builder.NewClusterResourceSet(c.ec2API, c.region, c.spec, nil, false)
+	stack := builder.NewClusterResourceSet(c.ec2API, c.stsAPI, c.region, c.spec, nil, false)
 	if err := stack.AddAllResources(ctx); err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (c *StackCollection) AppendNewClusterStackResource(ctx context.Context, ext
 
 	currentTemplate, err := c.GetStackTemplate(ctx, name)
 	if err != nil {
-		return false, errors.Wrapf(err, "error getting stack template %s", name)
+		return false, fmt.Errorf("error getting stack template %s: %w", name, err)
 	}
 
 	currentResources := gjson.Get(currentTemplate, resourcesRootPath)
@@ -143,14 +143,14 @@ func (c *StackCollection) AppendNewClusterStackResource(ctx context.Context, ext
 	}
 
 	logger.Info("re-building cluster stack %q", name)
-	newStack := builder.NewClusterResourceSet(c.ec2API, c.region, c.spec, &currentResources, extendForOutposts)
+	newStack := builder.NewClusterResourceSet(c.ec2API, c.stsAPI, c.region, c.spec, &currentResources, extendForOutposts)
 	if err := newStack.AddAllResources(ctx); err != nil {
 		return false, err
 	}
 
 	newTemplate, err := newStack.RenderJSON()
 	if err != nil {
-		return false, errors.Wrapf(err, "rendering template for %q stack", name)
+		return false, fmt.Errorf("rendering template for %q stack: %w", name, err)
 	}
 	logger.Debug("newTemplate = %s", newTemplate)
 
@@ -185,20 +185,20 @@ func (c *StackCollection) AppendNewClusterStackResource(ctx context.Context, ext
 		return iterFunc(&addResources, resourcesRootPath, currentResources, k, v)
 	})
 	if iterErr != nil {
-		return false, errors.Wrap(iterErr, "adding resources to current stack template")
+		return false, fmt.Errorf("adding resources to current stack template: %w", iterErr)
 	}
 	newOutputs.ForEach(func(k, v gjson.Result) bool {
 		return iterFunc(&addOutputs, outputsRootPath, currentOutputs, k, v)
 	})
 	if iterErr != nil {
-		return false, errors.Wrap(iterErr, "adding outputs to current stack template")
+		return false, fmt.Errorf("adding outputs to current stack template: %w", iterErr)
 	}
 
 	newMappings.ForEach(func(k, v gjson.Result) bool {
 		return iterFunc(&addMappings, mappingsRootPath, currentMappings, k, v)
 	})
 	if iterErr != nil {
-		return false, errors.Wrap(iterErr, "adding mappings to current stack template")
+		return false, fmt.Errorf("adding mappings to current stack template: %w", iterErr)
 	}
 
 	if len(addResources) == 0 && len(addOutputs) == 0 && len(addMappings) == 0 {

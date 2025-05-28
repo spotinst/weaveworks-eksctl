@@ -14,9 +14,10 @@ import (
 
 	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
 
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/builder"
@@ -1203,6 +1204,18 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 					})
 				})
 
+				Context("ng.VolumeType is IO2", func() {
+					BeforeEach(func() {
+						ng.VolumeType = aws.String(api.NodeVolumeTypeIO1)
+						ng.VolumeIOPS = aws.Int(500)
+					})
+
+					It("IOPS are set on the block device mapping", func() {
+						mapping := ngTemplate.Resources["NodeGroupLaunchTemplate"].Properties.LaunchTemplateData.BlockDeviceMappings[0]
+						Expect(mapping.Ebs["Iops"]).To(Equal(float64(500)))
+					})
+				})
+
 				Context("ng.VolumeType is GP3", func() {
 					BeforeEach(func() {
 						ng.VolumeType = aws.String(api.NodeVolumeTypeGP3)
@@ -1339,6 +1352,17 @@ var _ = Describe("Unmanaged NodeGroup Template Builder", func() {
 				It("should not add egress rules", func() {
 					Expect(ngTemplate.Resources).NotTo(HaveKey("EgressInterCluster"))
 					Expect(ngTemplate.Resources).NotTo(HaveKey("EgressInterClusterAPI"))
+				})
+			})
+
+			Context("ng.EnclaveEnabled is set", func() {
+				BeforeEach(func() {
+					ng.EnclaveEnabled = aws.Bool(true)
+				})
+
+				It("enables the value on the launch template", func() {
+					properties := ngTemplate.Resources["NodeGroupLaunchTemplate"].Properties
+					Expect(properties.LaunchTemplateData.EnclaveOptions.Enabled).To(Equal(aws.Bool(true)))
 				})
 			})
 		})

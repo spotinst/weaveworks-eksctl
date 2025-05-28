@@ -5,38 +5,32 @@ on:
     paths:
       - 'userdocs/**'
       - '**.md'
-  push:
-    branches:
-      - main
-    paths:
-      - 'userdocs/**'
-      - '**.md'
 
 jobs:
   link-checker:
     name: Check site links
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.9]
     steps:
-      - uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d #v5.1.0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 #v5.6.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.12
+
       - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 #v5.0.0
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b #v5.4.0
         with:
-          go-version: 1.21.x
+          go-version: ~1.24.0
           cache: false
+
       - name: Install doc dependencies
         run: make install-site-deps
+
       - name: Build docs for link check
         run: make build-pages
-        # Using link-checker action to check links in Markdown, HTML files
+
       - name: Link Checker
-        uses: lycheeverse/lychee-action@c053181aa0c3d17606addfe97a9075a32723548a #v1.9.3
+        uses: lycheeverse/lychee-action@1d97d84f0bc547f7b25f4c2170d87d810dc2fb2c #v2.4.0
         with:
-          fail: true
-          args: --exclude-all-private --exclude-mail --exclude-file .github/workflows/exclude-file.txt --verbose --no-progress './**/*.md' './**/*.html'
+          args: --exclude-all-private --exclude-mail --exclude-file .github/workflows/exclude-file.txt --exclude-path pkg/goformation --verbose --no-progress './**/*.md' './**/*.html'

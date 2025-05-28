@@ -12,7 +12,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awseks "github.com/aws/aws-sdk-go-v2/service/eks"
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/eks"
@@ -26,17 +26,40 @@ func main() {
 		log.Fatalf("failed to create the AWS provider: %v", err)
 	}
 
-	for _, kubernetesVersion := range api.SupportedVersions() {
-		latestVersion := getLatestVersion(ctx, clusterProvider, kubernetesVersion)
+	cvm, err := eks.NewClusterVersionsManager(clusterProvider.AWSProvider.EKS())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	supportedVersions := cvm.SupportedVersions()
+	for index, kubernetesVersion := range supportedVersions {
+		latestVersion := getLatestCoreDNSVersion(ctx, clusterProvider, kubernetesVersion)
 		if latestVersion == "" {
 			continue
 		}
-		replaceCurrentVersionIfOutdated(latestVersion, kubernetesVersion)
+		filePath := filepath.Join("pkg", "addons", "default", "assets",
+			fmt.Sprintf("coredns-%s.json", kubernetesVersion))
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			filePrevVersionPath := filepath.Join("pkg", "addons", "default", "assets",
+				fmt.Sprintf("coredns-%s.json", supportedVersions[index-1]))
+			copyFile(filePrevVersionPath, filePath)
+		}
+		replaceCurrentVersionIfOutdated(filePath, latestVersion, kubernetesVersion)
 	}
 
 }
 
-func getLatestVersion(ctx context.Context, clusterProvider *eks.ClusterProvider, kubernetesVersion string) string {
+func copyFile(src, dst string) {
+	content, err := os.ReadFile(src)
+	if err != nil {
+		log.Fatalf("failed to read %s: %v", src, err)
+	}
+	if err := os.WriteFile(dst, content, 0644); err != nil {
+		log.Fatalf("failed to write %s: %v", dst, err)
+	}
+}
+
+func getLatestCoreDNSVersion(ctx context.Context, clusterProvider *eks.ClusterProvider, kubernetesVersion string) string {
 	output, err := clusterProvider.AWSProvider.EKS().DescribeAddonVersions(ctx, &awseks.DescribeAddonVersionsInput{
 		AddonName:         aws.String("coredns"),
 		KubernetesVersion: &kubernetesVersion,
@@ -74,8 +97,7 @@ func getLatestVersion(ctx context.Context, clusterProvider *eks.ClusterProvider,
 	return corednsVersions[0]
 }
 
-func replaceCurrentVersionIfOutdated(latestVersion string, kubernetesVersion string) {
-	filePath := filepath.Join("pkg", "addons", "default", "assets", fmt.Sprintf("coredns-%s.json", kubernetesVersion))
+func replaceCurrentVersionIfOutdated(filePath string, latestVersion string, kubernetesVersion string) {
 	coreFile, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatalf("failed to read coredns-%s.json: %v", kubernetesVersion, err)

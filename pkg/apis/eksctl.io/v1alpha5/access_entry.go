@@ -47,12 +47,16 @@ type AccessScope struct {
 type AccessEntryType string
 
 const (
+	// AccessEntryTypeEc2 specifies the EC2 (Auto Mode) access entry type.
+	AccessEntryTypeEC2 AccessEntryType = "EC2"
 	// AccessEntryTypeLinux specifies the EC2 Linux access entry type.
 	AccessEntryTypeLinux AccessEntryType = "EC2_LINUX"
 	// AccessEntryTypeWindows specifies the Windows access entry type.
 	AccessEntryTypeWindows AccessEntryType = "EC2_WINDOWS"
 	// AccessEntryTypeFargateLinux specifies the Fargate Linux access entry type.
 	AccessEntryTypeFargateLinux AccessEntryType = "FARGATE_LINUX"
+	// AccessEntryTypeHybridLinux specifies the Hybrid Linux access entry type.
+	AccessEntryTypeHybridLinux AccessEntryType = "HYBRID_LINUX"
 	// AccessEntryTypeStandard specifies a standard access entry type.
 	AccessEntryTypeStandard AccessEntryType = "STANDARD"
 )
@@ -143,8 +147,8 @@ func validateAccessEntries(accessEntries []AccessEntry) error {
 		}
 
 		switch AccessEntryType(ae.Type) {
-		case "", AccessEntryTypeStandard:
-		case AccessEntryTypeLinux, AccessEntryTypeWindows, AccessEntryTypeFargateLinux:
+		case "", AccessEntryTypeStandard, AccessEntryTypeEC2:
+		case AccessEntryTypeLinux, AccessEntryTypeWindows, AccessEntryTypeFargateLinux, AccessEntryTypeHybridLinux:
 			if len(ae.KubernetesGroups) > 0 || ae.KubernetesUsername != "" {
 				return fmt.Errorf("cannot specify %s.kubernetesGroups nor %s.kubernetesUsername when type is set to %s", path, path, ae.Type)
 			}

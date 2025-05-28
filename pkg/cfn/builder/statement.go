@@ -1,7 +1,7 @@
 package builder
 
 import (
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	cft "github.com/weaveworks/eksctl/pkg/cfn/template"
 )
@@ -39,6 +39,8 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 				"ec2:DescribeTags",
 				"ec2:GetCoipPoolUsage",
 				"ec2:DescribeCoipPools",
+				"ec2:GetSecurityGroupsForVpc",
+				"ec2:DescribeIpamPools",
 				"elasticloadbalancing:DescribeLoadBalancers",
 				"elasticloadbalancing:DescribeLoadBalancerAttributes",
 				"elasticloadbalancing:DescribeListeners",
@@ -50,6 +52,9 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 				"elasticloadbalancing:DescribeTargetGroupAttributes",
 				"elasticloadbalancing:DescribeTargetHealth",
 				"elasticloadbalancing:DescribeTags",
+				"elasticloadbalancing:DescribeTrustStores",
+				"elasticloadbalancing:DescribeListenerAttributes",
+				"elasticloadbalancing:DescribeCapacityReservation",
 			},
 			"Resource": resourceAll,
 		},
@@ -200,6 +205,9 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 				"elasticloadbalancing:ModifyTargetGroup",
 				"elasticloadbalancing:ModifyTargetGroupAttributes",
 				"elasticloadbalancing:DeleteTargetGroup",
+				"elasticloadbalancing:ModifyListenerAttributes",
+				"elasticloadbalancing:ModifyCapacityReservation",
+				"elasticloadbalancing:ModifyIpPools",
 			},
 			"Resource": resourceAll,
 			"Condition": map[string]interface{}{
@@ -246,6 +254,7 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 				"elasticloadbalancing:AddListenerCertificates",
 				"elasticloadbalancing:RemoveListenerCertificates",
 				"elasticloadbalancing:ModifyRule",
+				"elasticloadbalancing:SetRulePriorities",
 			},
 			"Resource": resourceAll,
 		},
