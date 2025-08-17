@@ -1,48 +1,47 @@
 release:
-  name_template: "{{ .ProjectName }} {{ .Env.RELEASE_DESCRIPTION }}"
-  prerelease: auto # this should detect a release candidate and mark it as pre-release in GitHub
+    name_template: "{{ .Tag }}{{ with .Env.RELEASE_DESCRIPTION }} {{ . }}{{ end }}"
+    prerelease: auto
 
 builds:
-  - id: default
-    main: ./cmd/eksctl
-    binary: eksctl
-    flags:
-      - -tags
-      - netgo release
-      - -trimpath
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      # gitTag set from a generated file (see ./tag_release.sh)
-      - -s -w -X github.com/eksctl-io/eksctl/pkg/version.buildDate={{.Date}} -X github.com/eksctl-io/eksctl/pkg/version.gitCommit={{.ShortCommit}} -X github.com/eksctl-io/eksctl/pkg/version.PreReleaseID={{.Env.PRE_RELEASE_ID}}
-    goos:
-      - windows
-      - darwin
-      - linux
-    goarch:
-      - amd64
-      - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
+    - id: default
+      main: ./cmd/eksctl
+      binary: eksctl
+      flags:
+          - -tags
+          - netgo release
+          - -trimpath
+      env:
+          - CGO_ENABLED=0
+          - GOMAXPROCS=2
+      ldflags:
+          - -s -w
+          - -X github.com/eksctl-io/eksctl/pkg/version.buildDate={{.Date}}
+          - -X github.com/eksctl-io/eksctl/pkg/version.gitCommit={{.ShortCommit}}
+          - -X github.com/eksctl-io/eksctl/pkg/version.PreReleaseID={{.Env.PRE_RELEASE_ID}}
+      goos:
+          - windows
+          - darwin
+          - linux
+      goarch:
+          - amd64
+          - arm64
 
 archives:
-  - id: default
-    builds:
-      - default
-    name_template:  >-
-        eksctl_{{- tolower .Os }}_
-        {{- if eq .Arch "amd64" }}x86_64
-        {{- else if eq .Arch "386" }}i386
-        {{- else }}{{ .Arch }}{{ end }}
-        {{- if .Arm }}v{{ .Arm }}{{ end -}}
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - none*
+    - id: default
+      builds:
+          - default
+      name_template: >-
+          eksctl_{{- tolower .Os }}_
+          {{- if eq .Arch "amd64" }}amd64
+          {{- else if eq .Arch "386" }}i386
+          {{- else }}{{ .Arch }}{{ end }}
+          {{- if .Arm }}v{{ .Arm }}{{ end -}}
+      format: tar.gz
+      format_overrides:
+          - goos: windows
+            format: zip
+      files:
+          - none*
 
 checksum:
-  name_template: "eksctl_checksums.txt"
+    name_template: "eksctl_checksums.txt"
