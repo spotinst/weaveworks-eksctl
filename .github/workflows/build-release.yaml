@@ -1,0 +1,133 @@
+name: Spot GoReleaser
+
+on:
+  workflow_dispatch:
+    inputs:
+      RUN_TESTS:
+        description: "Run tests?"
+        required: true
+        default: true
+        type: boolean
+
+      RUN_BUILD:
+        description: "Build the project?"
+        required: true
+        default: true
+        type: boolean
+
+      RELEASE_TYPE:
+        description: "Type of release"
+        required: true
+        default: "snapshot"
+        type: choice
+        options:
+          - snapshot
+          - full
+
+      BRANCH_SELECTOR:
+        description: "Branch to build"
+        required: false
+        default: "feat-spot-ocean"
+
+      RELEASE_DESCRIPTION:
+        description: "Description of the release"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: optimized-scale-set
+
+    #Fetching source code into the runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.BRANCH_SELECTOR }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Show Go environment
+        run: |
+          go version
+          go env
+
+      #Tools for code testing
+      - name: Install tools
+        if: ${{ inputs.RUN_TESTS }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make
+
+      - name: Run tests
+        if: ${{ inputs.RUN_TESTS }}
+        run: |
+          make lint
+          make check-all-generated-files-up-to-date
+          make unit-test
+
+      #Getting the version of eksctl for tagging the release
+      - name: Build native eksctl for tagging
+        if: ${{ inputs.RELEASE_TYPE == 'full' && inputs.RUN_BUILD }}
+        run: |
+          mkdir -p ./dist
+          GOOS=linux GOARCH=amd64 go build -v -o dist/eksctl ./cmd/eksctl
+          chmod +x dist/eksctl
+
+      - name: Extract release tag from binary
+        if: ${{ inputs.RELEASE_TYPE == 'full' && inputs.RUN_BUILD }}
+        id: extract_tag
+        run: |
+          BIN="dist/eksctl"
+          if [[ ! -f "$BIN" ]]; then
+            echo "Error: eksctl binary not found"
+            exit 1
+          fi
+
+          VERSION=$("$BIN" version | cut -d- -f1)
+          EKSCTL_VERSION="v$VERSION"
+          echo "Extracted release tag: $EKSCTL_VERSION"
+
+          echo "release_tag=$EKSCTL_VERSION" >> $GITHUB_OUTPUT
+          echo "EKSCTL_RELEASE_TAG=$EKSCTL_VERSION" >> $GITHUB_ENV
+
+      - name: Create local git tag (required by GoReleaser)
+        if: ${{ inputs.RELEASE_TYPE == 'full' && inputs.RUN_BUILD }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.extract_tag.outputs.release_tag }}
+
+      #The release itself
+      #snapshot (only bullding exporting artifacts)
+      #full (fully releasing via GitHub Release)
+      - name: Run GoReleaser (snapshot or full release)
+        if: ${{ inputs.RUN_BUILD }}
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: ${{ inputs.RELEASE_TYPE == 'full' && 'release --clean --parallelism 3' || 'release --snapshot --parallelism 3' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.extract_tag.outputs.release_tag }}
+          RELEASE_DESCRIPTION: ${{ inputs.RELEASE_DESCRIPTION }}
+          PRE_RELEASE_ID: dev
+
+      #If only building (snapshot) uploading the artifact to the workflow
+      - name: Upload built artifacts
+        if: ${{ inputs.RUN_BUILD && inputs.RELEASE_TYPE == 'snapshot' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-artifacts
+          path: dist/
+
+      - name: Clean up
+        run: |
+          rm -rf dist/
+          rm -rf $HOME/.cache/go-build
+          rm -rf $GOPATH/pkg/mod
